@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": ".",
+    "types": ["node", "multer"],
+    "strictPropertyInitialization": false
+  },
+  "include": ["src/**/*", "prisma/seed.ts", "test/**/*"]
+}

@@ -1,0 +1,25 @@
+{
+  "name": "codexboard",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/api",
+    "apps/web"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev --workspace @codexboard/api\" \"npm run dev --workspace @codexboard/web\"",
+    "dev:api": "npm run dev --workspace @codexboard/api",
+    "dev:web": "npm run dev --workspace @codexboard/web",
+    "build": "npm run build --workspace @codexboard/api && npm run build --workspace @codexboard/web",
+    "lint": "npm run lint --workspace @codexboard/api && npm run lint --workspace @codexboard/web",
+    "test": "npm run test --workspace @codexboard/api && npm run test --workspace @codexboard/web",
+    "prisma:generate": "npm run prisma:generate --workspace @codexboard/api",
+    "prisma:migrate": "npm run prisma:migrate --workspace @codexboard/api"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}

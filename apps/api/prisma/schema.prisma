@@ -1,0 +1,331 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  ACTIVE
+  BLOCKED
+  LEFT
+}
+
+enum GoodFlag {
+  GOOD
+  NOGOOD
+}
+
+enum CertMode {
+  NONE
+  CERT
+  ADULT
+  HP_CERT
+  HP_ADULT
+}
+
+model User {
+  id             Int         @id @default(autoincrement())
+  loginId        String      @unique @map("login_id") @db.VarChar(20)
+  passwordHash   String      @map("password_hash") @db.VarChar(255)
+  name           String      @db.VarChar(255)
+  nick           String      @db.VarChar(255)
+  email          String      @db.VarChar(255)
+  level          Int         @default(1)
+  point          Int         @default(0)
+  status         UserStatus  @default(ACTIVE)
+  homepage       String?     @db.VarChar(255)
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+
+  adminGroups    Group[]     @relation("GroupAdmin")
+  groupMembers   GroupMember[]
+  adminBoards    Board[]     @relation("BoardAdmin")
+  posts          Post[]
+  goods          BoardGood[]
+  boardNews      BoardNews[]
+  scraps         Scrap[]
+  points         Point[]
+  autosaves      Autosave[]
+
+  @@index([level])
+  @@map("users")
+}
+
+model Group {
+  id            Int           @id @default(autoincrement())
+  grId          String        @unique @map("gr_id") @db.VarChar(64)
+  subject       String        @db.VarChar(255)
+  adminUserId   Int?          @map("admin_user_id")
+  useAccess     Boolean       @default(false) @map("use_access")
+  orderNo       Int           @default(0) @map("order_no")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  adminUser     User?         @relation("GroupAdmin", fields: [adminUserId], references: [id])
+  members       GroupMember[]
+  boards        Board[]
+
+  @@index([orderNo])
+  @@map("groups")
+}
+
+model GroupMember {
+  id         Int      @id @default(autoincrement())
+  groupId    Int      @map("group_id")
+  userId     Int      @map("user_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  group      Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+  @@index([userId])
+  @@map("group_members")
+}
+
+model Board {
+  id                Int              @id @default(autoincrement())
+  boTable           String           @unique @map("bo_table") @db.VarChar(20)
+  groupId           Int              @map("group_id")
+  subject           String           @db.VarChar(255)
+  mobileSubject     String?          @map("mobile_subject") @db.VarChar(255)
+  adminUserId       Int?             @map("admin_user_id")
+  boListLevel       Int              @default(1) @map("bo_list_level")
+  boReadLevel       Int              @default(1) @map("bo_read_level")
+  boWriteLevel      Int              @default(1) @map("bo_write_level")
+  boReplyLevel      Int              @default(1) @map("bo_reply_level")
+  boCommentLevel    Int              @default(1) @map("bo_comment_level")
+  boUploadLevel     Int              @default(1) @map("bo_upload_level")
+  boDownloadLevel   Int              @default(1) @map("bo_download_level")
+  boHtmlLevel       Int              @default(1) @map("bo_html_level")
+  boUseSecret       Int              @default(0) @map("bo_use_secret")
+  boUseGood         Boolean          @default(false) @map("bo_use_good")
+  boUseNogood       Boolean          @default(false) @map("bo_use_nogood")
+  boUseCaptcha      Boolean          @default(false) @map("bo_use_captcha")
+  boUseSearch       Boolean          @default(true) @map("bo_use_search")
+  boReplyOrder      Int              @default(1) @map("bo_reply_order")
+  boCountModify     Int              @default(1) @map("bo_count_modify")
+  boCountDelete     Int              @default(1) @map("bo_count_delete")
+  boUploadCount     Int              @default(2) @map("bo_upload_count")
+  boUploadSize      Int              @default(1048576) @map("bo_upload_size")
+  boReadPoint       Int              @default(0) @map("bo_read_point")
+  boWritePoint      Int              @default(0) @map("bo_write_point")
+  boCommentPoint    Int              @default(0) @map("bo_comment_point")
+  boDownloadPoint   Int              @default(0) @map("bo_download_point")
+  boNotice          String           @default("") @map("bo_notice") @db.Text
+  boSortField       String           @default("") @map("bo_sort_field") @db.VarChar(255)
+  boUseCategory     Boolean          @default(false) @map("bo_use_category")
+  boCategoryList    String           @default("") @map("bo_category_list") @db.Text
+  boUseCert         CertMode         @default(NONE) @map("bo_use_cert")
+  boUseName         Boolean          @default(false) @map("bo_use_name")
+  boUseIpView       Boolean          @default(false) @map("bo_use_ip_view")
+  boWriteMin        Int              @default(0) @map("bo_write_min")
+  boWriteMax        Int              @default(0) @map("bo_write_max")
+  boCommentMin      Int              @default(0) @map("bo_comment_min")
+  boCommentMax      Int              @default(0) @map("bo_comment_max")
+  boCountWrite      Int              @default(0) @map("bo_count_write")
+  boCountComment    Int              @default(0) @map("bo_count_comment")
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
+
+  group             Group            @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  adminUser         User?            @relation("BoardAdmin", fields: [adminUserId], references: [id])
+  posts             Post[]
+  files             BoardFile[]
+  goods             BoardGood[]
+  news              BoardNews[]
+  scraps            Scrap[]
+  autosaves         Autosave[]
+  fieldSchemas      BoardFieldSchema[]
+
+  @@index([groupId])
+  @@map("boards")
+}
+
+model Post {
+  id              Int         @id @default(autoincrement())
+  boardId         Int         @map("board_id")
+  num             Int         @default(0)
+  reply           String      @default("") @db.VarChar(10)
+  parentId        Int?        @map("parent_id")
+  isComment       Boolean     @default(false) @map("is_comment")
+  commentNo       Int         @default(0) @map("comment_no")
+  commentReply    String      @default("") @map("comment_reply") @db.VarChar(5)
+  categoryName    String      @default("") @map("category_name") @db.VarChar(255)
+  optionsCsv      String      @default("") @map("options_csv") @db.VarChar(255)
+  subject         String      @default("") @db.VarChar(255)
+  content         String      @db.Text
+  seoTitle        String      @default("") @map("seo_title") @db.VarChar(255)
+  link1           String      @default("") @db.Text
+  link2           String      @default("") @db.Text
+  link1Hit        Int         @default(0) @map("link1_hit")
+  link2Hit        Int         @default(0) @map("link2_hit")
+  hit             Int         @default(0)
+  good            Int         @default(0)
+  nogood          Int         @default(0)
+  fileCount       Int         @default(0) @map("file_count")
+  userId          Int?        @map("user_id")
+  passwordHash    String      @default("") @map("password_hash") @db.VarChar(255)
+  name            String      @default("") @db.VarChar(255)
+  email           String      @default("") @db.VarChar(255)
+  homepage        String      @default("") @db.VarChar(255)
+  ip              String      @default("") @db.VarChar(255)
+  lastAt          DateTime?   @map("last_at")
+  extra1          String      @default("") @map("extra_1") @db.VarChar(255)
+  extra2          String      @default("") @map("extra_2") @db.VarChar(255)
+  extra3          String      @default("") @map("extra_3") @db.VarChar(255)
+  extra4          String      @default("") @map("extra_4") @db.VarChar(255)
+  extra5          String      @default("") @map("extra_5") @db.VarChar(255)
+  extra6          String      @default("") @map("extra_6") @db.VarChar(255)
+  extra7          String      @default("") @map("extra_7") @db.VarChar(255)
+  extra8          String      @default("") @map("extra_8") @db.VarChar(255)
+  extra9          String      @default("") @map("extra_9") @db.VarChar(255)
+  extra10         String      @default("") @map("extra_10") @db.VarChar(255)
+  customFields    Json?       @map("custom_fields")
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+
+  board           Board       @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  user            User?       @relation(fields: [userId], references: [id])
+  parent          Post?       @relation("PostParent", fields: [parentId], references: [id])
+  children        Post[]      @relation("PostParent")
+  files           BoardFile[]
+  goods           BoardGood[]
+  news            BoardNews[] @relation("NewsPost")
+  parentNews      BoardNews[] @relation("NewsParent")
+  scraps          Scrap[]
+
+  @@index([boardId, isComment, num, reply])
+  @@index([boardId, parentId, isComment, commentNo, commentReply])
+  @@index([boardId, seoTitle])
+  @@fulltext([subject, content])
+  @@map("posts")
+}
+
+model BoardFile {
+  id               Int       @id @default(autoincrement())
+  boardId          Int       @map("board_id")
+  postId           Int       @map("post_id")
+  fileNo           Int       @map("file_no")
+  originalFilename String    @map("original_filename") @db.VarChar(255)
+  storedFilename   String    @map("stored_filename") @db.VarChar(255)
+  sha256           String    @db.VarChar(64)
+  mime             String    @db.VarChar(255)
+  ext              String    @db.VarChar(20)
+  size             Int
+  width            Int       @default(0)
+  height           Int       @default(0)
+  downloadCount    Int       @default(0) @map("download_count")
+  fileDesc         String    @default("") @map("file_desc") @db.Text
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  board            Board     @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  post             Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([boardId, postId, fileNo])
+  @@index([postId])
+  @@map("board_files")
+}
+
+model BoardGood {
+  id         Int       @id @default(autoincrement())
+  boardId    Int       @map("board_id")
+  postId     Int       @map("post_id")
+  userId     Int       @map("user_id")
+  flag       GoodFlag
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  board      Board     @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  post       Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([boardId, postId, userId])
+  @@index([postId])
+  @@map("board_goods")
+}
+
+model BoardNews {
+  id         Int       @id @default(autoincrement())
+  boardId    Int       @map("board_id")
+  postId     Int       @map("post_id")
+  parentId   Int       @map("parent_id")
+  userId     Int?      @map("user_id")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  board      Board     @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  post       Post      @relation("NewsPost", fields: [postId], references: [id], onDelete: Cascade)
+  parent     Post      @relation("NewsParent", fields: [parentId], references: [id], onDelete: Cascade)
+  user       User?     @relation(fields: [userId], references: [id])
+
+  @@index([boardId, parentId])
+  @@map("board_news")
+}
+
+model Scrap {
+  id         Int      @id @default(autoincrement())
+  boardId    Int      @map("board_id")
+  postId     Int      @map("post_id")
+  userId     Int      @map("user_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  board      Board    @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  post       Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([boardId, postId, userId])
+  @@map("scraps")
+}
+
+model Point {
+  id         Int      @id @default(autoincrement())
+  userId     Int      @map("user_id")
+  point      Int
+  content    String   @db.VarChar(255)
+  usePoint   Int      @default(0) @map("use_point")
+  expired    Int      @default(0)
+  expireDate DateTime? @map("expire_date")
+  relTable   String   @default("") @map("rel_table") @db.VarChar(40)
+  relId      String   @default("") @map("rel_id") @db.VarChar(40)
+  relAction  String   @default("") @map("rel_action") @db.VarChar(100)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, relTable, relId, relAction])
+  @@index([expireDate])
+  @@map("points")
+}
+
+model Autosave {
+  id         Int      @id @default(autoincrement())
+  userId     Int      @map("user_id")
+  boardId    Int      @map("board_id")
+  payload    Json
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  board      Board    @relation(fields: [boardId], references: [id], onDelete: Cascade)
+
+  @@index([userId, boardId])
+  @@map("autosaves")
+}
+
+model BoardFieldSchema {
+  id         Int      @id @default(autoincrement())
+  boardId    Int      @map("board_id")
+  fieldKey   String   @map("field_key") @db.VarChar(100)
+  type       String   @db.VarChar(40)
+  required   Boolean  @default(false)
+  rulesJson  Json?    @map("rules_json")
+  orderNo    Int      @default(0) @map("order_no")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  board      Board    @relation(fields: [boardId], references: [id], onDelete: Cascade)
+
+  @@unique([boardId, fieldKey])
+  @@index([boardId, orderNo])
+  @@map("board_field_schemas")
+}
