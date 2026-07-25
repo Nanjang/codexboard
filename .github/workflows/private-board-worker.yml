@@ -97,4 +97,4 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: private-board-worker
           packageManager: npm
-          command: deploy --config wrangler.jsonc
+          command: deploy --keep-vars --config wrangler.jsonc

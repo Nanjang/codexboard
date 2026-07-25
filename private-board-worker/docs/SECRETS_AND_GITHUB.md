@@ -15,6 +15,12 @@
 | D1 database ID | 로컬 셸 `.env` | GitHub Repository Variable | 코드 커밋 대신 변수 권장 |
 | Rate Limit namespace | 로컬 셸 `.env` | GitHub Repository Variable | 예시 값만 허용 |
 
+GitHub Actions에는 Worker 배포 권한만 저장합니다. Google OAuth, 세션, Turnstile 비밀값은 Worker의 기존 Secret binding을 그대로 사용하며 GitHub에 중복 등록하지 않습니다.
+
+Actions 배포는 `wrangler deploy --keep-vars`로 Cloudflare 대시보드에 설정한 추가 일반 변수를 유지합니다. 서비스 실행에 필수인 `APP_NAME`, `BASE_URL`, `REGISTRATION_MODE`는 `wrangler.example.jsonc`에서 관리합니다.
+
+`wrangler.example.jsonc`의 `secrets.required`에는 필수 Secret의 이름만 선언합니다. 값은 저장소나 Actions로 복사하지 않으며, 배포 시 Worker에 해당 Secret이 없으면 Wrangler가 배포를 중단합니다.
+
 ## Git에서 제외되는 파일
 
 ```text
