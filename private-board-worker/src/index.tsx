@@ -94,7 +94,16 @@ function normalizeStatus(value: number): ErrorStatus {
   return 500
 }
 
-function renderError(c: AppContext, status: ErrorStatus, message: string): Response | Promise<Response> {
+function createIncidentCode(): string {
+  return `PB-${crypto.randomUUID().replaceAll('-', '').slice(0, 10).toUpperCase()}`
+}
+
+function renderError(
+  c: AppContext,
+  status: ErrorStatus,
+  message: string,
+  incidentCode?: string,
+): Response | Promise<Response> {
   const auth = c.get('auth')
   const meta = viewMeta(c)
   const view = auth ? (
@@ -103,11 +112,18 @@ function renderError(c: AppContext, status: ErrorStatus, message: string): Respo
       title={errorTitle(status)}
       message={message}
       status={status}
+      {...(incidentCode ? { incidentCode } : {})}
       user={auth.user}
       csrfToken={auth.csrfToken}
     />
   ) : (
-    <PublicErrorPage {...meta} title={errorTitle(status)} message={message} status={status} />
+    <PublicErrorPage
+      {...meta}
+      title={errorTitle(status)}
+      message={message}
+      status={status}
+      {...(incidentCode ? { incidentCode } : {})}
+    />
   )
   return c.html(view, status as ContentfulStatusCode)
 }
@@ -723,6 +739,7 @@ app.notFound((c) => renderError(c, 404, '요청한 페이지 또는 데이터를
 
 app.onError((error, c) => {
   const status = normalizeStatus(error instanceof HTTPException ? error.status : error instanceof ValidationError ? 400 : 500)
+  const incidentCode = status === 500 ? createIncidentCode() : undefined
   const message =
     status === 500
       ? '일시적인 오류가 발생했습니다. 잠시 후 다시 시도하세요.'
@@ -732,13 +749,21 @@ app.onError((error, c) => {
 
   if (status === 500) {
     console.error('Unhandled application error', {
+      incidentCode,
       name: error instanceof Error ? error.name : 'UnknownError',
       message: error instanceof Error ? error.message.slice(0, 200) : 'unknown',
+      method: c.req.method,
+      path: c.req.path,
     })
   }
 
-  if (acceptsJson(c)) return c.json({ error: message }, status as ContentfulStatusCode)
-  return renderError(c, status, message)
+  if (acceptsJson(c)) {
+    return c.json(
+      incidentCode ? { error: message, code: incidentCode } : { error: message },
+      status as ContentfulStatusCode,
+    )
+  }
+  return renderError(c, status, message, incidentCode)
 })
 
 export default app

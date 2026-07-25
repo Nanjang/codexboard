@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { BoardRow, CurrentUser, DeployInfo, PostListRow, TicketRow } from '../src/types'
 import { BoardListPage } from '../src/views/boards'
+import { PublicErrorPage } from '../src/views/errors'
 import { LoginPage } from '../src/views/login'
 import { TicketsPage } from '../src/views/tickets'
 
@@ -52,6 +53,23 @@ const post: PostListRow = {
 }
 
 describe('핵심 화면', () => {
+  it('내부 오류 사유 대신 추적 가능한 오류 코드만 표시한다', async () => {
+    const html = String(
+      await PublicErrorPage({
+        appName: 'Private Board',
+        deployInfo,
+        title: '서비스 오류가 발생했습니다',
+        message: '일시적인 오류가 발생했습니다. 잠시 후 다시 시도하세요.',
+        status: 500,
+        incidentCode: 'PB-A1B2C3D4E5',
+      }),
+    )
+
+    expect(html).toContain('오류 코드')
+    expect(html).toContain('PB-A1B2C3D4E5')
+    expect(html).not.toContain('Database binding is missing')
+  })
+
   it('자유게시판 목록은 제목, 댓글 수, 닉네임, 작성 시간, 조회수 순서로 표시한다', async () => {
     const html = String(
       await BoardListPage({

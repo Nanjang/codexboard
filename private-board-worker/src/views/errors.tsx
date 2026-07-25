@@ -7,12 +7,14 @@ export function PublicErrorPage({
   title,
   message,
   status,
+  incidentCode,
 }: {
   appName: string
   deployInfo: DeployInfo
   title: string
   message: string
   status: number
+  incidentCode?: string
 }) {
   return (
     <PublicLayout appName={appName} deployInfo={deployInfo} documentTitle={title}>
@@ -21,6 +23,11 @@ export function PublicErrorPage({
           <span class="error-code">{status}</span>
           <h1>{title}</h1>
           <p>{message}</p>
+          {incidentCode ? (
+            <p class="error-reference">
+              오류 코드 <code>{incidentCode}</code>
+            </p>
+          ) : null}
           <a class="button" href="/login">
             로그인 화면
           </a>
@@ -36,6 +43,7 @@ export function AppErrorPage({
   title,
   message,
   status,
+  incidentCode,
   user,
   csrfToken,
 }: {
@@ -44,6 +52,7 @@ export function AppErrorPage({
   title: string
   message: string
   status: number
+  incidentCode?: string
   user: CurrentUser
   csrfToken: string
 }) {
@@ -61,6 +70,11 @@ export function AppErrorPage({
         <span class="error-code">{status}</span>
         <h2>{title}</h2>
         <p>{message}</p>
+        {incidentCode ? (
+          <p class="error-reference">
+            오류 코드 <code>{incidentCode}</code>
+          </p>
+        ) : null}
         <a class="button" href="/boards/free">
           자유게시판으로 이동
         </a>
