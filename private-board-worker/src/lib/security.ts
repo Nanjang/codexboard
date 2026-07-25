@@ -4,6 +4,7 @@ import { sha256Hex, safeEqual } from './crypto'
 import { getBaseUrl, secureCookies, turnstileEnabled, validateRuntimeConfig } from './env'
 
 const UNSAFE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
+const GOOGLE_AUTHORIZATION_ORIGIN = 'https://accounts.google.com'
 
 export function isPublicPath(path: string): boolean {
   return (
@@ -74,14 +75,8 @@ export async function enforceWriteRateLimit(c: AppContext, bucket: string): Prom
   }
 }
 
-export async function securityMiddleware(c: AppContext, next: () => Promise<void>): Promise<void> {
-  validateRuntimeConfig(c.env)
-  assertSameOrigin(c)
-  await next()
-
-  const isAsset = c.req.path.startsWith('/assets/')
-  const hasTurnstile = turnstileEnabled(c.env)
-  const policy = [
+export function contentSecurityPolicy(hasTurnstile: boolean): string {
+  return [
     "default-src 'self'",
     hasTurnstile ? "script-src 'self' https://challenges.cloudflare.com" : "script-src 'self'",
     "style-src 'self'",
@@ -91,11 +86,20 @@ export async function securityMiddleware(c: AppContext, next: () => Promise<void
     hasTurnstile ? 'frame-src https://challenges.cloudflare.com' : "frame-src 'none'",
     "object-src 'none'",
     "base-uri 'none'",
-    "form-action 'self'",
+    `form-action 'self' ${GOOGLE_AUTHORIZATION_ORIGIN}`,
     "frame-ancestors 'none'",
     "manifest-src 'none'",
     "media-src 'none'",
   ].join('; ')
+}
+
+export async function securityMiddleware(c: AppContext, next: () => Promise<void>): Promise<void> {
+  validateRuntimeConfig(c.env)
+  assertSameOrigin(c)
+  await next()
+
+  const isAsset = c.req.path.startsWith('/assets/')
+  const policy = contentSecurityPolicy(turnstileEnabled(c.env))
 
   c.header('Content-Security-Policy', policy)
   c.header('Referrer-Policy', 'strict-origin-when-cross-origin')
