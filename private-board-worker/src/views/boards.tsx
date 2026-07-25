@@ -67,15 +67,18 @@ export function BoardListPage({
             <article class="post-row" key={post.id}>
               <a class="post-row-link" href={`/posts/${post.id}`}>
                 <div class="post-row-main">
-                  <h3>{post.title}</h3>
+                  <div class="post-row-title">
+                    <h3>{post.title}</h3>
+                    <span class="comment-count" aria-label={`댓글 ${post.comment_count}개`}>
+                      [{post.comment_count}]
+                    </span>
+                  </div>
                   <div class="post-meta">
                     <span>{post.author_nickname}</span>
                     <time datetime={new Date(post.created_at).toISOString()}>{formatDateTime(post.created_at)}</time>
+                    <span>조회 {post.view_count}</span>
                   </div>
                 </div>
-                <span class="comment-count" aria-label={`댓글 ${post.comment_count}개`}>
-                  {post.comment_count}
-                </span>
               </a>
             </article>
           ))}

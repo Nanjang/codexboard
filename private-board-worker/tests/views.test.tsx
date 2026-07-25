@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { CurrentUser, DeployInfo, TicketRow } from '../src/types'
+import type { BoardRow, CurrentUser, DeployInfo, PostListRow, TicketRow } from '../src/types'
+import { BoardListPage } from '../src/views/boards'
 import { LoginPage } from '../src/views/login'
 import { TicketsPage } from '../src/views/tickets'
 
@@ -28,7 +29,55 @@ const ticket: TicketRow = {
   updated_at: 1,
 }
 
+const board: BoardRow = {
+  id: 1,
+  slug: 'free',
+  name: '자유게시판',
+  description: '자유롭게 글을 나누는 공간',
+  sort_order: 1,
+}
+
+const post: PostListRow = {
+  id: 1,
+  board_id: board.id,
+  board_slug: board.slug,
+  board_name: board.name,
+  author_id: user.id,
+  author_nickname: '삼방장',
+  title: '1등!!',
+  comment_count: 3,
+  view_count: 17,
+  created_at: Date.UTC(2026, 6, 25, 8, 29),
+  updated_at: Date.UTC(2026, 6, 25, 8, 29),
+}
+
 describe('핵심 화면', () => {
+  it('자유게시판 목록은 제목, 댓글 수, 닉네임, 작성 시간, 조회수 순서로 표시한다', async () => {
+    const html = String(
+      await BoardListPage({
+        appName: 'Private Board',
+        deployInfo,
+        user,
+        csrfToken: 'csrf-test',
+        board,
+        posts: [post],
+        hasMore: false,
+      }),
+    )
+
+    const titlePosition = html.indexOf('1등!!')
+    const commentPosition = html.indexOf('[3]')
+    const nicknamePosition = html.indexOf('삼방장')
+    const timePosition = html.indexOf('<time')
+    const viewsPosition = html.indexOf('조회 17')
+
+    expect(titlePosition).toBeGreaterThan(-1)
+    expect(titlePosition).toBeLessThan(commentPosition)
+    expect(commentPosition).toBeLessThan(nicknamePosition)
+    expect(nicknamePosition).toBeLessThan(timePosition)
+    expect(timePosition).toBeLessThan(viewsPosition)
+  })
+
   it('비로그인 화면에는 로그인 요구 내용만 렌더링한다', async () => {
     const html = String(await LoginPage({ appName: 'Private Board', deployInfo }))
     expect(html).toContain('Google 계정으로 로그인')

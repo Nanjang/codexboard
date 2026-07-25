@@ -40,6 +40,7 @@ export async function listPosts(
       u.nickname AS author_nickname,
       p.title,
       p.comment_count,
+      p.view_count,
       p.created_at,
       p.updated_at
     FROM posts p
@@ -76,6 +77,7 @@ export async function getPost(db: D1Database, postId: number): Promise<PostDetai
         p.title,
         p.body,
         p.comment_count,
+        p.view_count,
         p.created_at,
         p.updated_at
       FROM posts p
@@ -88,6 +90,22 @@ export async function getPost(db: D1Database, postId: number): Promise<PostDetai
     )
     .bind(postId)
     .first<PostDetailRow>()
+}
+
+export async function incrementPostViewCount(db: D1Database, postId: number): Promise<boolean> {
+  const result = await db
+    .prepare(
+      `
+      UPDATE posts
+      SET view_count = view_count + 1
+      WHERE id = ?1
+        AND status = 'published'
+      `,
+    )
+    .bind(postId)
+    .run()
+
+  return result.meta.changes > 0
 }
 
 export async function listComments(db: D1Database, postId: number): Promise<CommentRow[]> {

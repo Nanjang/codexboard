@@ -82,6 +82,7 @@ export interface PostListRow {
   author_nickname: string
   title: string
   comment_count: number
+  view_count: number
   created_at: number
   updated_at: number
 }

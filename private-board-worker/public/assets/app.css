@@ -449,10 +449,7 @@ button {
 }
 
 .post-row-link {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
+  display: block;
   padding: 17px 18px;
   text-decoration: none;
 }
@@ -462,12 +459,24 @@ button {
 }
 
 .post-row-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   min-width: 0;
+}
+
+.post-row-title {
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  min-width: 0;
+  gap: 5px;
 }
 
 .post-row h3 {
   overflow: hidden;
-  margin: 0 0 7px;
+  min-width: 0;
+  margin: 0;
   font-size: 1rem;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -475,22 +484,21 @@ button {
 
 .post-meta {
   display: flex;
-  flex-wrap: wrap;
+  flex: 0 0 auto;
+  align-items: center;
   gap: 5px 12px;
   color: var(--text-muted);
   font-size: 0.82rem;
+  white-space: nowrap;
 }
 
 .comment-count {
-  display: grid;
+  display: inline;
   flex: 0 0 auto;
-  place-items: center;
-  min-width: 34px;
-  height: 30px;
-  padding: 0 8px;
-  border-radius: 999px;
+  min-width: 0;
+  height: auto;
+  padding: 0;
   color: var(--primary);
-  background: var(--primary-soft);
   font-size: 0.82rem;
   font-weight: 800;
 }
@@ -1174,6 +1182,15 @@ select:focus {
 
   .post-row-link {
     padding: 15px 14px;
+  }
+
+  .post-row-main {
+    flex-wrap: wrap;
+    gap: 6px 10px;
+  }
+
+  .post-row-title {
+    flex-basis: 100%;
   }
 
   .form-actions {

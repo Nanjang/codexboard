@@ -26,6 +26,7 @@ import {
   getComment,
   getPost,
   getTicket,
+  incrementPostViewCount,
   listComments,
   listPosts,
   listTickets,
@@ -137,6 +138,7 @@ function draftPost(boardId: number, boardName: string, boardSlugValue: string, t
     title,
     body,
     comment_count: 0,
+    view_count: 0,
     created_at: 0,
     updated_at: 0,
   }
@@ -373,6 +375,7 @@ app.post('/boards/:slug/posts', async (c) => {
 app.get('/posts/:id', async (c) => {
   const auth = requireActiveAuth(c)
   const postId = positiveInteger(c.req.param('id'), '게시글 ID')
+  await incrementPostViewCount(c.env.DB, postId)
   const post = await getPost(c.env.DB, postId)
   if (!post) throw new HTTPException(404, { message: '게시글을 찾을 수 없습니다.' })
   const comments = await listComments(c.env.DB, postId)
