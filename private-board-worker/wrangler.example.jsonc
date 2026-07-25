@@ -1,0 +1,46 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "__WORKER_NAME__",
+  "main": "src/index.tsx",
+  "compatibility_date": "2026-07-18",
+  "workers_dev": true,
+  "upload_source_maps": true,
+
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": true
+  },
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "__D1_DATABASE_NAME__",
+      "database_id": "__D1_DATABASE_ID__",
+      "migrations_dir": "migrations"
+    }
+  ],
+
+  "ratelimits": [
+    {
+      "name": "AUTH_RATE_LIMITER",
+      "namespace_id": "__AUTH_RATE_LIMIT_NAMESPACE__",
+      "simple": {
+        "limit": 20,
+        "period": 60
+      }
+    },
+    {
+      "name": "WRITE_RATE_LIMITER",
+      "namespace_id": "__WRITE_RATE_LIMIT_NAMESPACE__",
+      "simple": {
+        "limit": 30,
+        "period": 60
+      }
+    }
+  ],
+
+  "observability": {
+    "enabled": true
+  }
+}

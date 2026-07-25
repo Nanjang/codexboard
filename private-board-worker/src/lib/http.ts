@@ -1,0 +1,31 @@
+import type { AppContext } from '../types'
+
+const NOTICE_MESSAGES: Record<string, string> = {
+  'post-created': '게시글을 등록했습니다.',
+  'post-updated': '게시글을 수정했습니다.',
+  'post-deleted': '게시글을 삭제했습니다.',
+  'comment-created': '댓글을 등록했습니다.',
+  'comment-updated': '댓글을 수정했습니다.',
+  'comment-deleted': '댓글을 삭제했습니다.',
+  'ticket-created': '작업 티켓을 추가했습니다.',
+  'ticket-updated': '작업 티켓을 수정했습니다.',
+  'ticket-deleted': '작업 티켓을 삭제했습니다.',
+  'ticket-moved': '작업 상태를 변경했습니다.',
+  'nickname-updated': '닉네임을 변경했습니다.',
+  'logged-out': '로그아웃했습니다.',
+}
+
+export function noticeFromRequest(c: AppContext): string | null {
+  const notice = c.req.query('notice')
+  return notice ? NOTICE_MESSAGES[notice] ?? null : null
+}
+
+export function redirectWithNotice(c: AppContext, path: string, notice: keyof typeof NOTICE_MESSAGES): Response {
+  const url = new URL(path, c.req.url)
+  url.searchParams.set('notice', notice)
+  return c.redirect(`${url.pathname}${url.search}`, 303)
+}
+
+export function acceptsJson(c: AppContext): boolean {
+  return c.req.path.startsWith('/api/') || c.req.header('Accept')?.includes('application/json') === true
+}

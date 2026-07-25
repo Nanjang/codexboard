@@ -1,0 +1,38 @@
+{
+  "name": "private-board-worker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Google 로그인 뒤에만 보이는 Cloudflare Workers + D1 공용 게시판 및 개인 작업 보드",
+  "type": "module",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "build:client": "node scripts/build-client.mjs",
+    "config:render": "node scripts/render-wrangler.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "security:check": "node scripts/check-secrets.mjs",
+    "check": "npm run security:check && npm run build:client && npm run typecheck && npm test",
+    "dev": "npm run build:client && wrangler dev --config wrangler.jsonc",
+    "deploy:dry": "npm run build:client && wrangler deploy --dry-run --config wrangler.jsonc",
+    "deploy": "npm run check && wrangler deploy --config wrangler.jsonc",
+    "db:migrate:local": "wrangler d1 migrations apply DB --local --config wrangler.jsonc",
+    "db:migrate:remote": "wrangler d1 migrations apply DB --remote --config wrangler.jsonc",
+    "db:migrations:list:local": "wrangler d1 migrations list DB --local --config wrangler.jsonc",
+    "db:migrations:list:remote": "wrangler d1 migrations list DB --remote --config wrangler.jsonc"
+  },
+  "dependencies": {
+    "hono": "4.12.30",
+    "jose": "6.2.3",
+    "sortablejs": "1.15.7"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20260718.1",
+    "@types/sortablejs": "1.15.9",
+    "esbuild": "0.28.1",
+    "typescript": "7.0.2",
+    "vitest": "4.1.10",
+    "wrangler": "4.112.0"
+  }
+}

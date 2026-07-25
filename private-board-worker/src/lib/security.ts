@@ -1,0 +1,119 @@
+import { HTTPException } from 'hono/http-exception'
+import type { AppContext, AuthContext } from '../types'
+import { sha256Hex, safeEqual } from './crypto'
+import { getBaseUrl, secureCookies, turnstileEnabled, validateRuntimeConfig } from './env'
+
+const UNSAFE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
+
+export function isPublicPath(path: string): boolean {
+  return (
+    path === '/login' ||
+    path === '/privacy' ||
+    path === '/terms' ||
+    path === '/health' ||
+    path === '/auth/google/start' ||
+    path === '/auth/google/callback' ||
+    path.startsWith('/assets/')
+  )
+}
+
+export function requireAuth(c: AppContext): AuthContext {
+  const auth = c.get('auth')
+  if (!auth) throw new HTTPException(401, { message: '로그인이 필요합니다.' })
+  return auth
+}
+
+export function assertCsrf(c: AppContext, suppliedToken: string | null | undefined): void {
+  const auth = requireAuth(c)
+  if (!suppliedToken || !safeEqual(auth.csrfToken, suppliedToken)) {
+    throw new HTTPException(403, { message: '요청 검증에 실패했습니다. 페이지를 새로고침하세요.' })
+  }
+}
+
+export function assertSameOrigin(c: AppContext): void {
+  if (!UNSAFE_METHODS.has(c.req.method.toUpperCase())) return
+
+  const expectedOrigin = getBaseUrl(c.env).origin
+  const requestOrigin = new URL(c.req.url).origin
+  if (requestOrigin !== expectedOrigin) {
+    throw new HTTPException(403, { message: '허용되지 않은 요청 출처입니다.' })
+  }
+
+  const origin = c.req.header('Origin')
+  if (origin && origin !== expectedOrigin) {
+    throw new HTTPException(403, { message: '허용되지 않은 요청 출처입니다.' })
+  }
+
+  const referer = c.req.header('Referer')
+  if (!origin && referer) {
+    try {
+      if (new URL(referer).origin !== expectedOrigin) {
+        throw new HTTPException(403, { message: '허용되지 않은 요청 출처입니다.' })
+      }
+    } catch (error) {
+      if (error instanceof HTTPException) throw error
+      throw new HTTPException(403, { message: '요청 출처를 확인할 수 없습니다.' })
+    }
+  }
+}
+
+export async function enforceAuthRateLimit(c: AppContext): Promise<void> {
+  const actor = [c.req.header('CF-Connecting-IP') ?? 'unknown', c.req.header('User-Agent') ?? 'unknown'].join('|')
+  const key = await sha256Hex(`auth:${actor}`)
+  const result = await c.env.AUTH_RATE_LIMITER.limit({ key })
+  if (!result.success) {
+    throw new HTTPException(429, { message: '로그인 요청이 너무 많습니다. 잠시 후 다시 시도하세요.' })
+  }
+}
+
+export async function enforceWriteRateLimit(c: AppContext, bucket: string): Promise<void> {
+  const auth = requireAuth(c)
+  const result = await c.env.WRITE_RATE_LIMITER.limit({ key: `${auth.user.id}:${bucket}` })
+  if (!result.success) {
+    throw new HTTPException(429, { message: '요청이 너무 많습니다. 잠시 후 다시 시도하세요.' })
+  }
+}
+
+export async function securityMiddleware(c: AppContext, next: () => Promise<void>): Promise<void> {
+  validateRuntimeConfig(c.env)
+  assertSameOrigin(c)
+  await next()
+
+  const isAsset = c.req.path.startsWith('/assets/')
+  const hasTurnstile = turnstileEnabled(c.env)
+  const policy = [
+    "default-src 'self'",
+    hasTurnstile ? "script-src 'self' https://challenges.cloudflare.com" : "script-src 'self'",
+    "style-src 'self'",
+    "img-src 'none'",
+    "font-src 'self'",
+    hasTurnstile ? "connect-src 'self' https://challenges.cloudflare.com" : "connect-src 'self'",
+    hasTurnstile ? 'frame-src https://challenges.cloudflare.com' : "frame-src 'none'",
+    "object-src 'none'",
+    "base-uri 'none'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+    "manifest-src 'none'",
+    "media-src 'none'",
+  ].join('; ')
+
+  c.header('Content-Security-Policy', policy)
+  c.header('Referrer-Policy', 'strict-origin-when-cross-origin')
+  c.header('X-Content-Type-Options', 'nosniff')
+  c.header('X-Frame-Options', 'DENY')
+  c.header('X-Robots-Tag', 'noindex, nofollow, noarchive')
+  c.header('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=()')
+  c.header('Cross-Origin-Opener-Policy', 'same-origin')
+  c.header('Cross-Origin-Resource-Policy', 'same-origin')
+
+  if (secureCookies(c.env)) {
+    c.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
+  }
+
+  if (isAsset) {
+    c.header('Cache-Control', 'public, max-age=300, must-revalidate')
+  } else {
+    c.header('Cache-Control', 'private, no-store')
+    c.header('Pragma', 'no-cache')
+  }
+}
