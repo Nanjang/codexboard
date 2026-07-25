@@ -1,13 +1,15 @@
+import type { DeployInfo } from '../types'
 import { PublicLayout } from './layout'
 
 interface LegalPageProps {
   appName: string
+  deployInfo: DeployInfo
   contactEmail?: string
 }
 
-export function PrivacyPage({ appName, contactEmail }: LegalPageProps) {
+export function PrivacyPage({ appName, deployInfo, contactEmail }: LegalPageProps) {
   return (
-    <PublicLayout appName={appName} documentTitle="개인정보처리방침">
+    <PublicLayout appName={appName} deployInfo={deployInfo} documentTitle="개인정보처리방침">
       <main class="legal-shell">
         <article class="legal-card">
           <a class="text-link" href="/login">
@@ -48,9 +50,9 @@ export function PrivacyPage({ appName, contactEmail }: LegalPageProps) {
   )
 }
 
-export function TermsPage({ appName, contactEmail }: LegalPageProps) {
+export function TermsPage({ appName, deployInfo, contactEmail }: LegalPageProps) {
   return (
-    <PublicLayout appName={appName} documentTitle="이용약관">
+    <PublicLayout appName={appName} deployInfo={deployInfo} documentTitle="이용약관">
       <main class="legal-shell">
         <article class="legal-card">
           <a class="text-link" href="/login">

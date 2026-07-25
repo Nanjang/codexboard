@@ -14,6 +14,7 @@ export interface Bindings {
   ASSETS: Fetcher
   AUTH_RATE_LIMITER: RateLimiterBinding
   WRITE_RATE_LIMITER: RateLimiterBinding
+  CF_VERSION_METADATA: WorkerVersionMetadata
 
   BASE_URL: string
   GOOGLE_CLIENT_ID: string
@@ -29,6 +30,12 @@ export interface Bindings {
   TURNSTILE_SITE_KEY?: string
   TURNSTILE_SECRET_KEY?: string
   CONTACT_EMAIL?: string
+}
+
+export interface DeployInfo {
+  version: string
+  timestamp: string
+  displayTimestamp: string
 }
 
 export interface CurrentUser {

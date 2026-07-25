@@ -125,14 +125,28 @@ git push -u origin main
 
 ## GitHub Actions
 
-배포 workflow에는 Cloudflare 배포용 두 값만 GitHub Actions Secret으로 둡니다.
+`main` 브랜치에 `private-board-worker/**` 또는 workflow 변경을 push하면 검사, D1 마이그레이션, Worker 배포가 자동으로 실행됩니다. Pull Request에서는 검사만 실행하고 배포 Secret을 사용하지 않습니다.
+
+배포 workflow에는 Cloudflare 배포용 두 값만 GitHub Actions의 Repository Secret으로 둡니다.
 
 ```text
 CLOUDFLARE_API_TOKEN
 CLOUDFLARE_ACCOUNT_ID
 ```
 
-애플리케이션의 Google·세션 비밀값은 Cloudflare Worker Secrets에 유지합니다. Pull Request workflow에는 배포 Secret을 노출하지 않습니다. `deploy.yml`은 `production` Environment를 사용하므로 GitHub에서 승인 규칙을 설정할 수 있습니다.
+애플리케이션의 Google OAuth, 세션, Turnstile 비밀값은 기존 Cloudflare Worker Secrets에 그대로 유지합니다. GitHub Actions Secret으로 복사하거나 workflow의 `env` 또는 `secrets` 입력으로 전달하지 않습니다.
+
+Repository Variable에는 비밀이 아닌 Wrangler 설정 렌더링 값만 등록합니다.
+
+```text
+D1_DATABASE_ID
+WORKER_NAME
+D1_DATABASE_NAME
+AUTH_RATE_LIMIT_NAMESPACE
+WRITE_RATE_LIMIT_NAMESPACE
+```
+
+GitHub의 `production` Environment에 승인 규칙을 설정하면 push 후 실제 운영 배포 전에 수동 승인을 요구할 수 있습니다. 즉시 자동 배포하려면 필수 승인 규칙을 두지 않습니다.
 
 ## 유출을 발견했을 때
 

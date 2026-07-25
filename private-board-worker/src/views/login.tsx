@@ -1,16 +1,19 @@
+import type { DeployInfo } from '../types'
 import { ErrorNotice } from './components'
 import { PublicLayout } from './layout'
 
 interface LoginPageProps {
   appName: string
+  deployInfo: DeployInfo
   error?: string | null
   turnstileSiteKey?: string
 }
 
-export function LoginPage({ appName, error = null, turnstileSiteKey }: LoginPageProps) {
+export function LoginPage({ appName, deployInfo, error = null, turnstileSiteKey }: LoginPageProps) {
   return (
     <PublicLayout
       appName={appName}
+      deployInfo={deployInfo}
       documentTitle="로그인"
       includeTurnstile={Boolean(turnstileSiteKey)}
     >

@@ -36,7 +36,7 @@ import {
   updateTicket,
 } from './lib/db'
 import { safeEqual } from './lib/crypto'
-import { getAppName, turnstileEnabled } from './lib/env'
+import { getAppName, getDeployInfo, turnstileEnabled } from './lib/env'
 import { acceptsJson, noticeFromRequest, redirectWithNotice } from './lib/http'
 import {
   assertCsrf,
@@ -59,6 +59,13 @@ const app = new Hono<AppEnv>()
 const MAX_REQUEST_BYTES = 64 * 1024
 
 type ErrorStatus = 400 | 401 | 403 | 404 | 409 | 413 | 429 | 500
+
+function viewMeta(c: AppContext) {
+  return {
+    appName: getAppName(c.env),
+    deployInfo: getDeployInfo(c.env),
+  }
+}
 
 function errorTitle(status: ErrorStatus): string {
   switch (status) {
@@ -88,10 +95,10 @@ function normalizeStatus(value: number): ErrorStatus {
 
 function renderError(c: AppContext, status: ErrorStatus, message: string): Response | Promise<Response> {
   const auth = c.get('auth')
-  const appName = getAppName(c.env)
+  const meta = viewMeta(c)
   const view = auth ? (
     <AppErrorPage
-      appName={appName}
+      {...meta}
       title={errorTitle(status)}
       message={message}
       status={status}
@@ -99,7 +106,7 @@ function renderError(c: AppContext, status: ErrorStatus, message: string): Respo
       csrfToken={auth.csrfToken}
     />
   ) : (
-    <PublicErrorPage appName={appName} title={errorTitle(status)} message={message} status={status} />
+    <PublicErrorPage {...meta} title={errorTitle(status)} message={message} status={status} />
   )
   return c.html(view, status as ContentfulStatusCode)
 }
@@ -155,7 +162,7 @@ app.use(
     onError: (c) =>
       c.html(
         <PublicErrorPage
-          appName={getAppName(c.env)}
+          {...viewMeta(c)}
           title="요청 내용이 너무 큽니다"
           message="한 번에 전송할 수 있는 내용의 크기를 초과했습니다."
           status={413}
@@ -209,7 +216,7 @@ app.get('/login', (c) => {
 
   return c.html(
     <LoginPage
-      appName={getAppName(c.env)}
+      {...viewMeta(c)}
       error={error}
       {...(turnstileEnabled(c.env) && c.env.TURNSTILE_SITE_KEY
         ? { turnstileSiteKey: c.env.TURNSTILE_SITE_KEY }
@@ -221,7 +228,7 @@ app.get('/login', (c) => {
 app.get('/privacy', (c) =>
   c.html(
     <PrivacyPage
-      appName={getAppName(c.env)}
+      {...viewMeta(c)}
       {...(c.env.CONTACT_EMAIL?.trim() ? { contactEmail: c.env.CONTACT_EMAIL.trim() } : {})}
     />,
   ),
@@ -229,7 +236,7 @@ app.get('/privacy', (c) =>
 app.get('/terms', (c) =>
   c.html(
     <TermsPage
-      appName={getAppName(c.env)}
+      {...viewMeta(c)}
       {...(c.env.CONTACT_EMAIL?.trim() ? { contactEmail: c.env.CONTACT_EMAIL.trim() } : {})}
     />,
   ),
@@ -243,7 +250,7 @@ app.post('/auth/google/start', async (c) => {
   if (!verified) {
     return c.html(
       <LoginPage
-        appName={getAppName(c.env)}
+        {...viewMeta(c)}
         error="자동화 방지 검증에 실패했습니다. 다시 시도하세요."
         {...(c.env.TURNSTILE_SITE_KEY ? { turnstileSiteKey: c.env.TURNSTILE_SITE_KEY } : {})}
       />,
@@ -292,7 +299,7 @@ app.post('/logout', async (c) => {
 
 app.get('/account/blocked', (c) => {
   const auth = requireAuth(c)
-  return c.html(<BlockedPage appName={getAppName(c.env)} user={auth.user} csrfToken={auth.csrfToken} />, 403)
+  return c.html(<BlockedPage {...viewMeta(c)} user={auth.user} csrfToken={auth.csrfToken} />, 403)
 })
 
 app.get('/', (c) => c.redirect('/boards/free', 303))
@@ -308,7 +315,7 @@ app.get('/boards/:slug', async (c) => {
   const { posts, hasMore } = await listPosts(c.env.DB, board.id, before)
   return c.html(
     <BoardListPage
-      appName={getAppName(c.env)}
+      {...viewMeta(c)}
       user={auth.user}
       csrfToken={auth.csrfToken}
       notice={noticeFromRequest(c)}
@@ -325,7 +332,7 @@ app.get('/boards/:slug/new', async (c) => {
   const board = await getBoardBySlug(c.env.DB, slug)
   if (!board) throw new HTTPException(404, { message: '게시판을 찾을 수 없습니다.' })
   return c.html(
-    <PostFormPage appName={getAppName(c.env)} user={auth.user} csrfToken={auth.csrfToken} board={board} mode="create" />,
+    <PostFormPage {...viewMeta(c)} user={auth.user} csrfToken={auth.csrfToken} board={board} mode="create" />,
   )
 })
 
@@ -350,7 +357,7 @@ app.post('/boards/:slug/posts', async (c) => {
     if (!(error instanceof ValidationError)) throw error
     return c.html(
       <PostFormPage
-        appName={getAppName(c.env)}
+        {...viewMeta(c)}
         user={auth.user}
         csrfToken={auth.csrfToken}
         board={board}
@@ -371,7 +378,7 @@ app.get('/posts/:id', async (c) => {
   const comments = await listComments(c.env.DB, postId)
   return c.html(
     <PostDetailPage
-      appName={getAppName(c.env)}
+      {...viewMeta(c)}
       user={auth.user}
       csrfToken={auth.csrfToken}
       notice={noticeFromRequest(c)}
@@ -391,7 +398,7 @@ app.get('/posts/:id/edit', async (c) => {
   if (!board) throw new HTTPException(404, { message: '게시판을 찾을 수 없습니다.' })
   return c.html(
     <PostFormPage
-      appName={getAppName(c.env)}
+      {...viewMeta(c)}
       user={auth.user}
       csrfToken={auth.csrfToken}
       board={board}
@@ -425,7 +432,7 @@ app.post('/posts/:id/update', async (c) => {
     if (!(error instanceof ValidationError)) throw error
     return c.html(
       <PostFormPage
-        appName={getAppName(c.env)}
+        {...viewMeta(c)}
         user={auth.user}
         csrfToken={auth.csrfToken}
         board={board}
@@ -472,7 +479,7 @@ app.get('/comments/:id/edit', async (c) => {
   if (!post) throw new HTTPException(404, { message: '게시글을 찾을 수 없습니다.' })
   return c.html(
     <CommentEditPage
-      appName={getAppName(c.env)}
+      {...viewMeta(c)}
       user={auth.user}
       csrfToken={auth.csrfToken}
       post={post}
@@ -501,7 +508,7 @@ app.post('/comments/:id/update', async (c) => {
     const rawBody = typeof form.get('body') === 'string' ? String(form.get('body')) : ''
     return c.html(
       <CommentEditPage
-        appName={getAppName(c.env)}
+        {...viewMeta(c)}
         user={auth.user}
         csrfToken={auth.csrfToken}
         post={post}
@@ -530,7 +537,7 @@ app.get('/tickets', async (c) => {
   const tickets = await listTickets(c.env.DB, auth.user.id)
   return c.html(
     <TicketsPage
-      appName={getAppName(c.env)}
+      {...viewMeta(c)}
       user={auth.user}
       csrfToken={auth.csrfToken}
       notice={noticeFromRequest(c)}
@@ -542,7 +549,7 @@ app.get('/tickets', async (c) => {
 app.get('/tickets/new', (c) => {
   const auth = requireActiveAuth(c)
   return c.html(
-    <TicketFormPage appName={getAppName(c.env)} user={auth.user} csrfToken={auth.csrfToken} mode="create" />,
+    <TicketFormPage {...viewMeta(c)} user={auth.user} csrfToken={auth.csrfToken} mode="create" />,
   )
 })
 
@@ -563,7 +570,7 @@ app.post('/tickets', async (c) => {
     if (!(error instanceof ValidationError)) throw error
     return c.html(
       <TicketFormPage
-        appName={getAppName(c.env)}
+        {...viewMeta(c)}
         user={auth.user}
         csrfToken={auth.csrfToken}
         mode="create"
@@ -582,7 +589,7 @@ app.get('/tickets/:id/edit', async (c) => {
   if (!ticket) throw new HTTPException(404, { message: '티켓을 찾을 수 없습니다.' })
   return c.html(
     <TicketFormPage
-      appName={getAppName(c.env)}
+      {...viewMeta(c)}
       user={auth.user}
       csrfToken={auth.csrfToken}
       mode="edit"
@@ -612,7 +619,7 @@ app.post('/tickets/:id/update', async (c) => {
     if (!(error instanceof ValidationError)) throw error
     return c.html(
       <TicketFormPage
-        appName={getAppName(c.env)}
+        {...viewMeta(c)}
         user={auth.user}
         csrfToken={auth.csrfToken}
         mode="edit"
@@ -673,7 +680,7 @@ app.get('/account', (c) => {
   const auth = requireActiveAuth(c)
   return c.html(
     <AccountPage
-      appName={getAppName(c.env)}
+      {...viewMeta(c)}
       user={auth.user}
       csrfToken={auth.csrfToken}
       notice={noticeFromRequest(c)}
@@ -699,7 +706,7 @@ app.post('/account/nickname', async (c) => {
     const rawNickname = typeof form.get('nickname') === 'string' ? String(form.get('nickname')) : auth.user.nickname
     return c.html(
       <AccountPage
-        appName={getAppName(c.env)}
+        {...viewMeta(c)}
         user={{ ...auth.user, nickname: rawNickname }}
         csrfToken={auth.csrfToken}
         error={message}

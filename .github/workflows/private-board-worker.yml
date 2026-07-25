@@ -1,0 +1,100 @@
+name: Private Board Worker
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "private-board-worker/**"
+      - ".github/workflows/private-board-worker.yml"
+  pull_request:
+    paths:
+      - "private-board-worker/**"
+      - ".github/workflows/private-board-worker.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: private-board-worker-${{ github.event_name == 'pull_request' && github.ref || 'production' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  check:
+    name: Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: private-board-worker
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: private-board-worker/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run checks
+        run: npm run check
+
+  deploy:
+    name: Migrate and deploy
+    if: github.event_name != 'pull_request'
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: production
+      url: ${{ steps.deploy.outputs.deployment-url }}
+    defaults:
+      run:
+        working-directory: private-board-worker
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: private-board-worker/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Render Wrangler configuration
+        run: npm run config:render
+        env:
+          D1_DATABASE_ID: ${{ vars.D1_DATABASE_ID }}
+          WORKER_NAME: ${{ vars.WORKER_NAME }}
+          D1_DATABASE_NAME: ${{ vars.D1_DATABASE_NAME }}
+          AUTH_RATE_LIMIT_NAMESPACE: ${{ vars.AUTH_RATE_LIMIT_NAMESPACE }}
+          WRITE_RATE_LIMIT_NAMESPACE: ${{ vars.WRITE_RATE_LIMIT_NAMESPACE }}
+
+      - name: Apply D1 migrations
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: private-board-worker
+          packageManager: npm
+          command: d1 migrations apply DB --remote --config wrangler.jsonc
+
+      - name: Deploy Worker
+        id: deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: private-board-worker
+          packageManager: npm
+          command: deploy --config wrangler.jsonc

@@ -1,15 +1,17 @@
-import type { CurrentUser } from '../types'
+import type { CurrentUser, DeployInfo } from '../types'
 import { CsrfInput } from './components'
 import { AppLayout } from './layout'
 
 export function AccountPage({
   appName,
+  deployInfo,
   user,
   csrfToken,
   notice = null,
   error,
 }: {
   appName: string
+  deployInfo: DeployInfo
   user: CurrentUser
   csrfToken: string
   notice?: string | null
@@ -18,6 +20,7 @@ export function AccountPage({
   return (
     <AppLayout
       appName={appName}
+      deployInfo={deployInfo}
       documentTitle="내 계정"
       topbarTitle="내 계정"
       user={user}

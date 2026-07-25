@@ -2,6 +2,7 @@ import type {
   BoardRow,
   CommentRow,
   CurrentUser,
+  DeployInfo,
   PostDetailRow,
   PostListRow,
 } from '../types'
@@ -16,6 +17,7 @@ function boardActiveNav(slug: string): 'free' | 'inquiry' {
 
 interface CommonPageProps {
   appName: string
+  deployInfo: DeployInfo
   user: CurrentUser
   csrfToken: string
   notice?: string | null
@@ -23,6 +25,7 @@ interface CommonPageProps {
 
 export function BoardListPage({
   appName,
+  deployInfo,
   user,
   csrfToken,
   notice = null,
@@ -39,6 +42,7 @@ export function BoardListPage({
   return (
     <AppLayout
       appName={appName}
+      deployInfo={deployInfo}
       documentTitle={board.name}
       topbarTitle={board.name}
       user={user}
@@ -91,6 +95,7 @@ export function BoardListPage({
 
 export function PostFormPage({
   appName,
+  deployInfo,
   user,
   csrfToken,
   board,
@@ -111,6 +116,7 @@ export function PostFormPage({
   return (
     <AppLayout
       appName={appName}
+      deployInfo={deployInfo}
       documentTitle={heading}
       topbarTitle={heading}
       user={user}
@@ -158,6 +164,7 @@ export function PostFormPage({
 
 export function PostDetailPage({
   appName,
+  deployInfo,
   user,
   csrfToken,
   notice = null,
@@ -172,6 +179,7 @@ export function PostDetailPage({
   return (
     <AppLayout
       appName={appName}
+      deployInfo={deployInfo}
       documentTitle={post.title}
       topbarTitle={post.board_name}
       user={user}
@@ -267,6 +275,7 @@ export function PostDetailPage({
 
 export function CommentEditPage({
   appName,
+  deployInfo,
   user,
   csrfToken,
   post,
@@ -280,6 +289,7 @@ export function CommentEditPage({
   return (
     <AppLayout
       appName={appName}
+      deployInfo={deployInfo}
       documentTitle="댓글 수정"
       topbarTitle="댓글 수정"
       user={user}

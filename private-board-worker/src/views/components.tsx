@@ -1,4 +1,14 @@
-import type { CurrentUser } from '../types'
+import type { CurrentUser, DeployInfo } from '../types'
+
+export function DeployFooter({ deployInfo }: { deployInfo: DeployInfo }) {
+  return (
+    <footer class="deploy-footer" aria-label="배포 정보">
+      <span>deploy {deployInfo.version}</span>
+      <span aria-hidden="true">·</span>
+      <time datetime={deployInfo.timestamp}>{deployInfo.displayTimestamp}</time>
+    </footer>
+  )
+}
 
 export function CsrfInput({ token }: { token: string }) {
   return <input type="hidden" name="_csrf" value={token} />

@@ -198,7 +198,7 @@ OAuth code, ID token, 세션 쿠키, 사용자 이메일 전체가 포함된 요
 
 ## 9. GitHub Actions 배포
 
-저장소의 `.github/workflows/deploy.yml`은 `main` 브랜치 변경 시 검사, D1 마이그레이션, Worker 배포를 수행합니다. 먼저 위의 수동 최초 배포로 Cloudflare Worker Secrets를 등록한 뒤 GitHub 배포를 연결하세요.
+저장소의 `.github/workflows/private-board-worker.yml`은 `main` 브랜치의 Worker 관련 변경을 push하는 즉시 검사, D1 마이그레이션, Worker 배포를 수행합니다. Pull Request에서는 검사만 수행합니다. 먼저 위의 수동 최초 배포로 Cloudflare Worker Secrets를 등록한 뒤 GitHub 배포를 연결하세요.
 
 ### Repository Secrets
 
@@ -217,7 +217,7 @@ AUTH_RATE_LIMIT_NAMESPACE
 WRITE_RATE_LIMIT_NAMESPACE
 ```
 
-Google Client Secret, `SESSION_SECRET`, 허용 이메일 목록은 GitHub에 넣지 않습니다. Cloudflare Worker Secrets에 유지하며 GitHub Actions는 저장소 코드와 바인딩 설정만 배포합니다.
+Google Client ID/Secret, `SESSION_SECRET`, Turnstile Secret, 허용 이메일 목록은 GitHub에 넣지 않습니다. 기존 Cloudflare Worker Secrets에 유지하며 GitHub Actions는 저장소 코드와 바인딩 설정만 배포합니다.
 
 Cloudflare API Token에는 대상 계정의 Worker 배포와 D1 마이그레이션에 필요한 최소 권한만 부여하고 만료·회전 정책을 적용하세요. GitHub의 `production` Environment에 승인 규칙을 설정하면 운영 배포를 추가로 보호할 수 있습니다.
 

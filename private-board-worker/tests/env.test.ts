@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { getBaseUrl, getRegistrationMode, isGoogleAccountAllowed, validateRuntimeConfig } from '../src/lib/env'
+import {
+  getBaseUrl,
+  getDeployInfo,
+  getRegistrationMode,
+  isGoogleAccountAllowed,
+  validateRuntimeConfig,
+} from '../src/lib/env'
 import type { Bindings } from '../src/types'
 
 function env(overrides: Partial<Bindings> = {}): Bindings {
@@ -18,6 +24,22 @@ describe('런타임 설정', () => {
     expect(getBaseUrl(env()).origin).toBe('https://board.example.com')
     expect(() => getBaseUrl(env({ BASE_URL: 'http://board.example.com' }))).toThrow('HTTPS')
     expect(() => getBaseUrl(env({ BASE_URL: 'https://board.example.com/path' }))).toThrow('경로')
+  })
+
+  it('Cloudflare 배포 메타데이터를 푸터 표시 형식으로 변환한다', () => {
+    const deployInfo = getDeployInfo(
+      env({
+        CF_VERSION_METADATA: {
+          id: '0d2e4a11-2115-41e9-a043-86eab8d2913f',
+          tag: '',
+          timestamp: '2026-07-25T08:28:29.000Z',
+        },
+      }),
+    )
+
+    expect(deployInfo.version).toBe('0d2e4a11')
+    expect(deployInfo.timestamp).toBe('2026-07-25T08:28:29.000Z')
+    expect(deployInfo.displayTimestamp).toContain('KST')
   })
 
   it('가입 모드를 검증한다', () => {

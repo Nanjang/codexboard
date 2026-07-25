@@ -1,19 +1,21 @@
-import type { CurrentUser } from '../types'
+import type { CurrentUser, DeployInfo } from '../types'
 import { AppLayout, PublicLayout } from './layout'
 
 export function PublicErrorPage({
   appName,
+  deployInfo,
   title,
   message,
   status,
 }: {
   appName: string
+  deployInfo: DeployInfo
   title: string
   message: string
   status: number
 }) {
   return (
-    <PublicLayout appName={appName} documentTitle={title}>
+    <PublicLayout appName={appName} deployInfo={deployInfo} documentTitle={title}>
       <main class="error-shell">
         <section class="error-card">
           <span class="error-code">{status}</span>
@@ -30,6 +32,7 @@ export function PublicErrorPage({
 
 export function AppErrorPage({
   appName,
+  deployInfo,
   title,
   message,
   status,
@@ -37,6 +40,7 @@ export function AppErrorPage({
   csrfToken,
 }: {
   appName: string
+  deployInfo: DeployInfo
   title: string
   message: string
   status: number
@@ -46,6 +50,7 @@ export function AppErrorPage({
   return (
     <AppLayout
       appName={appName}
+      deployInfo={deployInfo}
       documentTitle={title}
       topbarTitle={title}
       user={user}
@@ -66,16 +71,19 @@ export function AppErrorPage({
 
 export function BlockedPage({
   appName,
+  deployInfo,
   user,
   csrfToken,
 }: {
   appName: string
+  deployInfo: DeployInfo
   user: CurrentUser
   csrfToken: string
 }) {
   return (
     <AppLayout
       appName={appName}
+      deployInfo={deployInfo}
       documentTitle="접근 제한"
       topbarTitle="접근 제한"
       user={user}

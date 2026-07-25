@@ -1,10 +1,11 @@
-import type { CurrentUser, TicketLane, TicketRow } from '../types'
+import type { CurrentUser, DeployInfo, TicketLane, TicketRow } from '../types'
 import { CsrfInput, EmptyState } from './components'
 import { laneLabel } from './format'
 import { AppLayout } from './layout'
 
 interface TicketPageProps {
   appName: string
+  deployInfo: DeployInfo
   user: CurrentUser
   csrfToken: string
   notice?: string | null
@@ -85,6 +86,7 @@ function TicketCard({ ticket, csrfToken }: { ticket: TicketRow; csrfToken: strin
 
 export function TicketsPage({
   appName,
+  deployInfo,
   user,
   csrfToken,
   notice = null,
@@ -98,6 +100,7 @@ export function TicketsPage({
   return (
     <AppLayout
       appName={appName}
+      deployInfo={deployInfo}
       documentTitle="내 작업"
       topbarTitle="내 작업"
       user={user}
@@ -217,6 +220,7 @@ export function TicketsPage({
 
 export function TicketFormPage({
   appName,
+  deployInfo,
   user,
   csrfToken,
   mode,
@@ -234,6 +238,7 @@ export function TicketFormPage({
   return (
     <AppLayout
       appName={appName}
+      deployInfo={deployInfo}
       documentTitle={heading}
       topbarTitle={heading}
       user={user}

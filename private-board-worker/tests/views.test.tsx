@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { CurrentUser, TicketRow } from '../src/types'
+import type { CurrentUser, DeployInfo, TicketRow } from '../src/types'
 import { LoginPage } from '../src/views/login'
 import { TicketsPage } from '../src/views/tickets'
 
@@ -9,6 +9,12 @@ const user: CurrentUser = {
   role: 'user',
   status: 'active',
   email: 'member@example.com',
+}
+
+const deployInfo: DeployInfo = {
+  version: '0d2e4a11',
+  timestamp: '2026-07-25T08:28:29.000Z',
+  displayTimestamp: '2026. 07. 25. 17:28 KST',
 }
 
 const ticket: TicketRow = {
@@ -24,9 +30,11 @@ const ticket: TicketRow = {
 
 describe('핵심 화면', () => {
   it('비로그인 화면에는 로그인 요구 내용만 렌더링한다', async () => {
-    const html = String(await LoginPage({ appName: 'Private Board' }))
+    const html = String(await LoginPage({ appName: 'Private Board', deployInfo }))
     expect(html).toContain('Google 계정으로 로그인')
     expect(html).toContain('로그인 전에는 서비스 내용이 공개되지 않습니다')
+    expect(html).toContain('deploy 0d2e4a11')
+    expect(html).toContain('2026. 07. 25. 17:28 KST')
     expect(html).not.toContain('data-ticket-board')
     expect(html).not.toContain('<img')
   })
@@ -35,6 +43,7 @@ describe('핵심 화면', () => {
     const html = String(
       await TicketsPage({
         appName: 'Private Board',
+        deployInfo,
         user,
         csrfToken: 'csrf-test',
         tickets: [ticket],

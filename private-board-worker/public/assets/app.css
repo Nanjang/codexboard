@@ -72,6 +72,9 @@ button {
 }
 
 .app-body {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
   padding-top: var(--topbar-height);
 }
 
@@ -288,9 +291,23 @@ button {
 }
 
 .page-shell {
+  flex: 1 0 auto;
   width: min(1120px, calc(100% - 32px));
   margin: 0 auto;
   padding: 30px 0 64px;
+}
+
+.deploy-footer {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 0.42rem;
+  padding: 10px 16px max(12px, env(safe-area-inset-bottom));
+  color: var(--text-muted);
+  font-size: 0.65rem;
+  letter-spacing: 0.02em;
+  opacity: 0.52;
 }
 
 .notice {
@@ -947,10 +964,20 @@ select:focus {
 
 .public-body {
   display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
   min-height: 100vh;
-  place-items: center;
   padding: 24px;
   background: linear-gradient(145deg, #f3f6ff 0%, #f7f7f8 50%, #eef2f7 100%);
+}
+
+.public-main {
+  display: grid;
+  min-width: 0;
+  place-items: center;
+}
+
+.public-body .deploy-footer {
+  padding-bottom: 0;
 }
 
 .login-shell,

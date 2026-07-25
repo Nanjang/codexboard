@@ -1,6 +1,6 @@
 import type { Child } from 'hono/jsx'
-import type { CurrentUser } from '../types'
-import { CsrfInput, Notice, UserBadge } from './components'
+import type { CurrentUser, DeployInfo } from '../types'
+import { CsrfInput, DeployFooter, Notice, UserBadge } from './components'
 
 type ActiveNav = 'free' | 'inquiry' | 'tickets' | 'account' | null
 
@@ -10,6 +10,7 @@ type ContextAction =
 
 interface AppLayoutProps {
   appName: string
+  deployInfo: DeployInfo
   documentTitle: string
   topbarTitle: string
   user: CurrentUser
@@ -23,6 +24,7 @@ interface AppLayoutProps {
 
 export function AppLayout({
   appName,
+  deployInfo,
   documentTitle,
   topbarTitle,
   user,
@@ -132,6 +134,7 @@ export function AppLayout({
           <Notice message={notice} />
           {children}
         </main>
+        <DeployFooter deployInfo={deployInfo} />
       </body>
     </html>
   )
@@ -139,12 +142,13 @@ export function AppLayout({
 
 interface PublicLayoutProps {
   appName: string
+  deployInfo: DeployInfo
   documentTitle: string
   children: Child
   includeTurnstile?: boolean
 }
 
-export function PublicLayout({ appName, documentTitle, children, includeTurnstile = false }: PublicLayoutProps) {
+export function PublicLayout({ appName, deployInfo, documentTitle, children, includeTurnstile = false }: PublicLayoutProps) {
   return (
     <html lang="ko">
       <head>
@@ -159,7 +163,10 @@ export function PublicLayout({ appName, documentTitle, children, includeTurnstil
           <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
         ) : null}
       </head>
-      <body class="public-body">{children}</body>
+      <body class="public-body">
+        <div class="public-main">{children}</div>
+        <DeployFooter deployInfo={deployInfo} />
+      </body>
     </html>
   )
 }

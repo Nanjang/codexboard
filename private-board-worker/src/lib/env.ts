@@ -1,4 +1,4 @@
-import type { Bindings, RegistrationMode } from '../types'
+import type { Bindings, DeployInfo, RegistrationMode } from '../types'
 
 const DEFAULT_APP_NAME = 'Private Board'
 const DEFAULT_SESSION_DAYS = 14
@@ -37,6 +37,28 @@ export function getBaseUrl(env: Bindings): URL {
 export function getAppName(env: Bindings): string {
   const name = env.APP_NAME?.trim()
   return name && name.length <= 60 ? name : DEFAULT_APP_NAME
+}
+
+export function getDeployInfo(env: Bindings): DeployInfo {
+  const timestamp = env.CF_VERSION_METADATA.timestamp
+  const uploadedAt = new Date(timestamp)
+  const displayTimestamp = Number.isNaN(uploadedAt.getTime())
+    ? timestamp
+    : `${new Intl.DateTimeFormat('ko-KR', {
+        timeZone: 'Asia/Seoul',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      }).format(uploadedAt)} KST`
+
+  return {
+    version: env.CF_VERSION_METADATA.id.slice(0, 8),
+    timestamp,
+    displayTimestamp,
+  }
 }
 
 export function getSessionDays(env: Bindings): number {
