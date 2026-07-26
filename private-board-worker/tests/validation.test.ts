@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { boardSlug, multiline, nickname, positiveInteger, singleLine, ticketLane, ValidationError } from '../src/lib/validation'
+import {
+  boardSlug,
+  bookmarkUrl,
+  multiline,
+  nickname,
+  positiveInteger,
+  singleLine,
+  ticketLane,
+  ValidationError,
+} from '../src/lib/validation'
 
 describe('입력 검증', () => {
   it('제목의 줄바꿈과 앞뒤 공백을 정규화한다', () => {
@@ -27,5 +36,11 @@ describe('입력 검증', () => {
     expect(ticketLane('doing')).toBe('doing')
     expect(() => boardSlug('admin')).toThrow(ValidationError)
     expect(() => ticketLane('archived')).toThrow(ValidationError)
+  })
+
+  it('북마크는 안전한 http 또는 https URL만 허용한다', () => {
+    expect(bookmarkUrl('https://example.com/docs')).toBe('https://example.com/docs')
+    expect(() => bookmarkUrl('javascript:alert(1)')).toThrow(ValidationError)
+    expect(() => bookmarkUrl('https://user:password@example.com/')).toThrow(ValidationError)
   })
 })

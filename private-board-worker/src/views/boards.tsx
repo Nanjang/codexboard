@@ -74,9 +74,11 @@ export function BoardListPage({
                     </span>
                   </div>
                   <div class="post-meta">
-                    <span>{post.author_nickname}</span>
-                    <time datetime={new Date(post.created_at).toISOString()}>{formatDateTime(post.created_at)}</time>
-                    <span>조회 {post.view_count}</span>
+                    <span class="post-meta-author">{post.author_nickname}</span>
+                    <time class="post-meta-time" datetime={new Date(post.created_at).toISOString()}>
+                      {formatDateTime(post.created_at)}
+                    </time>
+                    <span class="post-meta-views">조회 {post.view_count}</span>
                   </div>
                 </div>
               </a>

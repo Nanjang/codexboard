@@ -59,3 +59,18 @@ export function boardSlug(value: string): 'free' | 'inquiry' {
   if (value === 'free' || value === 'inquiry') return value
   throw new ValidationError('존재하지 않는 게시판입니다.')
 }
+
+export function bookmarkUrl(value: FormDataEntryValue | null): string {
+  const normalized = singleLine(value, 'URL', 2048)
+  let url: URL
+  try {
+    url = new URL(normalized)
+  } catch {
+    throw new ValidationError('올바른 URL을 입력하세요.')
+  }
+
+  if (!['http:', 'https:'].includes(url.protocol) || !url.hostname || url.username || url.password) {
+    throw new ValidationError('북마크는 사용자 정보가 없는 http 또는 https URL만 지원합니다.')
+  }
+  return url.toString()
+}

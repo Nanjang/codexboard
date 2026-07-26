@@ -4,6 +4,7 @@ export type UserRole = 'user' | 'admin'
 export type UserStatus = 'active' | 'blocked'
 export type RegistrationMode = 'open' | 'allowlist' | 'domain'
 export type TicketLane = 'todo' | 'doing' | 'done'
+export type DashboardWidgetType = 'free-board' | 'bookmark'
 
 export interface RateLimiterBinding {
   limit(input: { key: string }): Promise<{ success: boolean }>
@@ -89,6 +90,16 @@ export interface PostListRow {
 
 export interface PostDetailRow extends PostListRow {
   body: string
+}
+
+export interface DashboardWidgetRow {
+  id: number
+  user_id: string
+  widget_type: DashboardWidgetType
+  title: string | null
+  url: string | null
+  sort_order: number
+  created_at: number
 }
 
 export interface CommentRow {

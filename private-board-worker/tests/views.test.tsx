@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import type { BoardRow, CurrentUser, DeployInfo, PostListRow, TicketRow } from '../src/types'
+import type {
+  BoardRow,
+  CurrentUser,
+  DashboardWidgetRow,
+  DeployInfo,
+  PostListRow,
+  TicketRow,
+} from '../src/types'
 import { BoardListPage } from '../src/views/boards'
+import { DashboardPage } from '../src/views/dashboard'
 import { PublicErrorPage } from '../src/views/errors'
 import { LoginPage } from '../src/views/login'
 import { TicketsPage } from '../src/views/tickets'
@@ -52,7 +60,49 @@ const post: PostListRow = {
   updated_at: Date.UTC(2026, 6, 25, 8, 29),
 }
 
+const dashboardWidgets: DashboardWidgetRow[] = [
+  {
+    id: 1,
+    user_id: user.id,
+    widget_type: 'free-board',
+    title: null,
+    url: null,
+    sort_order: 1000,
+    created_at: 1,
+  },
+  {
+    id: 2,
+    user_id: user.id,
+    widget_type: 'bookmark',
+    title: '내 문서',
+    url: 'https://example.com/docs',
+    sort_order: 2000,
+    created_at: 1,
+  },
+]
+
 describe('핵심 화면', () => {
+  it('개인 대시보드에 자유게시판 요약, 북마크, 위젯 추가 슬롯을 표시한다', async () => {
+    const html = String(
+      await DashboardPage({
+        appName: 'Private Board',
+        deployInfo,
+        user,
+        csrfToken: 'csrf-test',
+        widgets: dashboardWidgets,
+        freeBoardPosts: [post],
+      }),
+    )
+
+    expect(html).toContain('테스트회원님의 대시보드')
+    expect(html).toContain('자유게시판 요약')
+    expect(html).toContain('내 문서')
+    expect(html).toContain('https://example.com/docs')
+    expect(html).toContain('rel="noopener noreferrer"')
+    expect(html).toContain('data-dialog-open="widget-add-dialog"')
+    expect(html).toContain('현재 자유게시판 요약과 URL 북마크 위젯을 지원합니다.')
+  })
+
   it('내부 오류 사유 대신 추적 가능한 오류 코드만 표시한다', async () => {
     const html = String(
       await PublicErrorPage({

@@ -2,6 +2,7 @@ import type {
   BoardRow,
   CommentRow,
   CurrentUser,
+  DashboardWidgetRow,
   PostDetailRow,
   PostListRow,
   TicketLane,
@@ -9,6 +10,7 @@ import type {
 } from '../types'
 
 export const POSTS_PER_PAGE = 20
+export const DASHBOARD_POSTS_LIMIT = 5
 export const MAX_TICKETS_PER_USER = 200
 
 export async function listBoards(db: D1Database): Promise<BoardRow[]> {
@@ -61,6 +63,144 @@ export async function listPosts(
     posts: result.results.slice(0, POSTS_PER_PAGE),
     hasMore: result.results.length > POSTS_PER_PAGE,
   }
+}
+
+export async function listRecentPostsByBoardSlug(
+  db: D1Database,
+  boardSlug: string,
+  limit = DASHBOARD_POSTS_LIMIT,
+): Promise<PostListRow[]> {
+  const safeLimit = Math.min(Math.max(Math.trunc(limit), 1), DASHBOARD_POSTS_LIMIT)
+  const result = await db
+    .prepare(
+      `
+      SELECT
+        p.id,
+        p.board_id,
+        b.slug AS board_slug,
+        b.name AS board_name,
+        p.author_id,
+        u.nickname AS author_nickname,
+        p.title,
+        p.comment_count,
+        p.view_count,
+        p.created_at,
+        p.updated_at
+      FROM posts p
+      JOIN boards b ON b.id = p.board_id
+      JOIN users u ON u.id = p.author_id
+      WHERE b.slug = ?1
+        AND p.status = 'published'
+      ORDER BY p.id DESC
+      LIMIT ?2
+      `,
+    )
+    .bind(boardSlug, safeLimit)
+    .all<PostListRow>()
+  return result.results
+}
+
+export async function ensureUserDashboard(db: D1Database, userId: string): Promise<void> {
+  const now = Date.now()
+  const dashboard = await db
+    .prepare(
+      `
+      INSERT OR IGNORE INTO user_dashboards (user_id, created_at, updated_at)
+      VALUES (?1, ?2, ?2)
+      `,
+    )
+    .bind(userId, now)
+    .run()
+
+  if (dashboard.meta.changes > 0) {
+    await db
+      .prepare(
+        `
+        INSERT INTO dashboard_widgets (user_id, widget_type, title, url, sort_order, created_at)
+        VALUES (?1, 'free-board', NULL, NULL, 1000, ?2)
+        `,
+      )
+      .bind(userId, now)
+      .run()
+  }
+}
+
+export async function listDashboardWidgets(db: D1Database, userId: string): Promise<DashboardWidgetRow[]> {
+  const result = await db
+    .prepare(
+      `
+      SELECT id, user_id, widget_type, title, url, sort_order, created_at
+      FROM dashboard_widgets
+      WHERE user_id = ?1
+      ORDER BY sort_order, widget_type
+      `,
+    )
+    .bind(userId)
+    .all<DashboardWidgetRow>()
+  return result.results
+}
+
+async function nextDashboardWidgetOrder(db: D1Database, userId: string): Promise<number> {
+  const order = await db
+    .prepare('SELECT COALESCE(MAX(sort_order), 0) + 1000 AS next_order FROM dashboard_widgets WHERE user_id = ?1')
+    .bind(userId)
+    .first<{ next_order: number }>()
+  return order?.next_order ?? 1000
+}
+
+export async function addFreeBoardDashboardWidget(
+  db: D1Database,
+  userId: string,
+): Promise<void> {
+  await ensureUserDashboard(db, userId)
+  const now = Date.now()
+  const sortOrder = await nextDashboardWidgetOrder(db, userId)
+
+  await db
+    .prepare(
+      `
+      INSERT OR IGNORE INTO dashboard_widgets (user_id, widget_type, title, url, sort_order, created_at)
+      VALUES (?1, 'free-board', NULL, NULL, ?2, ?3)
+      `,
+    )
+    .bind(userId, sortOrder, now)
+    .run()
+}
+
+export async function addBookmarkDashboardWidget(
+  db: D1Database,
+  userId: string,
+  title: string,
+  url: string,
+): Promise<number> {
+  await ensureUserDashboard(db, userId)
+  const now = Date.now()
+  const sortOrder = await nextDashboardWidgetOrder(db, userId)
+  const result = await db
+    .prepare(
+      `
+      INSERT INTO dashboard_widgets (user_id, widget_type, title, url, sort_order, created_at)
+      VALUES (?1, 'bookmark', ?2, ?3, ?4, ?5)
+      `,
+    )
+    .bind(userId, title, url, sortOrder, now)
+    .run()
+
+  const widgetId = result.meta.last_row_id
+  if (!widgetId) throw new Error('북마크 위젯 ID를 확인할 수 없습니다.')
+  return widgetId
+}
+
+export async function removeDashboardWidget(
+  db: D1Database,
+  userId: string,
+  widgetId: number,
+): Promise<boolean> {
+  const result = await db
+    .prepare('DELETE FROM dashboard_widgets WHERE user_id = ?1 AND id = ?2')
+    .bind(userId, widgetId)
+    .run()
+  return result.meta.changes > 0
 }
 
 export async function getPost(db: D1Database, postId: number): Promise<PostDetailRow | null> {

@@ -15,6 +15,8 @@ import {
   verifyTurnstile,
 } from './lib/auth'
 import {
+  addBookmarkDashboardWidget,
+  addFreeBoardDashboardWidget,
   canManageResource,
   createComment,
   createPost,
@@ -27,11 +29,15 @@ import {
   getPost,
   getTicket,
   incrementPostViewCount,
+  ensureUserDashboard,
+  listDashboardWidgets,
   listComments,
   listPosts,
+  listRecentPostsByBoardSlug,
   listTickets,
   moveTicket,
   reorderTickets,
+  removeDashboardWidget,
   updateComment,
   updatePost,
   updateTicket,
@@ -47,10 +53,20 @@ import {
   requireAuth,
   securityMiddleware,
 } from './lib/security'
-import { boardSlug, multiline, nickname, positiveInteger, singleLine, ticketLane, ValidationError } from './lib/validation'
+import {
+  boardSlug,
+  bookmarkUrl,
+  multiline,
+  nickname,
+  positiveInteger,
+  singleLine,
+  ticketLane,
+  ValidationError,
+} from './lib/validation'
 import type { AppContext, AppEnv, PostDetailRow, TicketLane, TicketRow } from './types'
 import { AccountPage } from './views/account'
 import { BoardListPage, CommentEditPage, PostDetailPage, PostFormPage } from './views/boards'
+import { DashboardPage } from './views/dashboard'
 import { AppErrorPage, BlockedPage, PublicErrorPage } from './views/errors'
 import { PrivacyPage, TermsPage } from './views/legal'
 import { LoginPage } from './views/login'
@@ -221,7 +237,7 @@ app.get('/health', (c) => c.json({ ok: true }))
 
 app.get('/login', (c) => {
   const auth = c.get('auth')
-  if (auth?.user.status === 'active') return c.redirect('/boards/free', 303)
+  if (auth?.user.status === 'active') return c.redirect('/', 303)
   if (auth?.user.status === 'blocked') return c.redirect('/account/blocked', 303)
 
   const errorCode = c.req.query('error')
@@ -299,7 +315,7 @@ app.get('/auth/google/callback', async (c) => {
     const user = await findOrCreateGoogleUser(c.env, identity)
     await createSession(c, user.id)
 
-    return c.redirect(user.status === 'blocked' ? '/account/blocked' : '/boards/free', 303)
+    return c.redirect(user.status === 'blocked' ? '/account/blocked' : '/', 303)
   } catch (error) {
     const message = error instanceof Error ? error.message : ''
     console.error('Google OAuth callback failed', { reason: message.slice(0, 160) })
@@ -320,7 +336,53 @@ app.get('/account/blocked', (c) => {
   return c.html(<BlockedPage {...viewMeta(c)} user={auth.user} csrfToken={auth.csrfToken} />, 403)
 })
 
-app.get('/', (c) => c.redirect('/boards/free', 303))
+app.get('/', async (c) => {
+  const auth = requireActiveAuth(c)
+  await ensureUserDashboard(c.env.DB, auth.user.id)
+  const widgets = await listDashboardWidgets(c.env.DB, auth.user.id)
+  const freeBoardPosts = widgets.some((widget) => widget.widget_type === 'free-board')
+    ? await listRecentPostsByBoardSlug(c.env.DB, 'free')
+    : []
+
+  return c.html(
+    <DashboardPage
+      {...viewMeta(c)}
+      user={auth.user}
+      csrfToken={auth.csrfToken}
+      notice={noticeFromRequest(c)}
+      widgets={widgets}
+      freeBoardPosts={freeBoardPosts}
+    />,
+  )
+})
+
+app.post('/dashboard/widgets', async (c) => {
+  const auth = requireActiveAuth(c)
+  await enforceWriteRateLimit(c, 'dashboard-widget')
+  const form = await readForm(c)
+  const widgetType = form.get('widgetType')
+
+  if (widgetType === 'free-board') {
+    await addFreeBoardDashboardWidget(c.env.DB, auth.user.id)
+  } else if (widgetType === 'bookmark') {
+    const title = singleLine(form.get('title'), '표시 이름', 60)
+    const url = bookmarkUrl(form.get('url'))
+    await addBookmarkDashboardWidget(c.env.DB, auth.user.id, title, url)
+  } else {
+    throw new ValidationError('지원하지 않는 위젯입니다.')
+  }
+
+  return redirectWithNotice(c, '/', 'widget-added')
+})
+
+app.post('/dashboard/widgets/:id/delete', async (c) => {
+  const auth = requireActiveAuth(c)
+  await enforceWriteRateLimit(c, 'dashboard-widget')
+  await readForm(c)
+  const widgetId = positiveInteger(c.req.param('id'), '위젯 ID')
+  await removeDashboardWidget(c.env.DB, auth.user.id, widgetId)
+  return redirectWithNotice(c, '/', 'widget-removed')
+})
 
 app.get('/boards/:slug', async (c) => {
   const auth = requireActiveAuth(c)

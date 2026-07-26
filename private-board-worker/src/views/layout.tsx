@@ -2,7 +2,7 @@ import type { Child } from 'hono/jsx'
 import type { CurrentUser, DeployInfo } from '../types'
 import { CsrfInput, DeployFooter, Notice, UserBadge } from './components'
 
-type ActiveNav = 'free' | 'inquiry' | 'tickets' | 'account' | null
+type ActiveNav = 'dashboard' | 'free' | 'inquiry' | 'tickets' | 'account' | null
 
 type ContextAction =
   | { kind: 'link'; label: string; href: string; dialogId?: string }
@@ -105,6 +105,9 @@ export function AppLayout({
               </button>
             </div>
             <nav class="menu-nav" aria-label="서비스 메뉴">
+              <a href="/" aria-current={activeNav === 'dashboard' ? 'page' : undefined}>
+                내 대시보드
+              </a>
               <a href="/boards/free" aria-current={activeNav === 'free' ? 'page' : undefined}>
                 자유게시판
               </a>

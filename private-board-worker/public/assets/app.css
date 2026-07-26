@@ -459,9 +459,10 @@ button {
 }
 
 .post-row-main {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 96px 158px 68px;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
   min-width: 0;
 }
 
@@ -483,13 +484,22 @@ button {
 }
 
 .post-meta {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 5px 12px;
+  display: contents;
   color: var(--text-muted);
   font-size: 0.82rem;
   white-space: nowrap;
+}
+
+.post-meta > * {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.post-meta-views {
+  text-align: right;
 }
 
 .comment-count {
@@ -501,6 +511,281 @@ button {
   color: var(--primary);
   font-size: 0.82rem;
   font-weight: 800;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  align-items: stretch;
+}
+
+.dashboard-widget {
+  overflow: hidden;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.dashboard-widget-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 76px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.dashboard-widget-kicker {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--primary);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.dashboard-widget-header h3,
+.widget-catalog-item h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.dashboard-widget-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+
+.dashboard-widget-actions form,
+.dashboard-widget-header > form {
+  display: inline-flex;
+}
+
+.widget-remove-button {
+  color: var(--text-muted);
+}
+
+.dashboard-post-list {
+  display: grid;
+}
+
+.dashboard-post-row {
+  display: grid;
+  gap: 5px;
+  padding: 12px 18px;
+  text-decoration: none;
+}
+
+.dashboard-post-row + .dashboard-post-row {
+  border-top: 1px solid var(--border);
+}
+
+.dashboard-post-row:hover {
+  background: #fafbfc;
+}
+
+.dashboard-post-title {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 5px;
+}
+
+.dashboard-post-title strong {
+  overflow: hidden;
+  min-width: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-post-title span {
+  flex: 0 0 auto;
+  color: var(--primary);
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.dashboard-post-meta {
+  display: grid;
+  grid-template-columns: minmax(70px, 1fr) 150px 64px;
+  gap: 10px;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+}
+
+.dashboard-post-meta > * {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-post-meta > :last-child {
+  text-align: right;
+}
+
+.dashboard-widget-empty {
+  display: grid;
+  min-height: 180px;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  padding: 24px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.dashboard-widget-empty p {
+  margin: 0;
+}
+
+.dashboard-add-slot {
+  display: grid;
+  min-height: 210px;
+  place-items: center;
+  align-content: center;
+  gap: 5px;
+  padding: 28px;
+  border: 2px dashed var(--border-strong);
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  background: transparent;
+  cursor: pointer;
+}
+
+.dashboard-add-slot:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: rgba(36, 87, 214, 0.025);
+}
+
+.dashboard-add-slot small {
+  font-size: 0.76rem;
+}
+
+.dashboard-add-icon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  margin-bottom: 3px;
+  place-items: center;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  font-size: 1.6rem;
+  font-weight: 300;
+  line-height: 1;
+}
+
+.bookmark-widget {
+  display: flex;
+  flex-direction: column;
+}
+
+.bookmark-widget-link {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  padding: 24px 18px;
+  text-decoration: none;
+}
+
+.bookmark-widget-link:hover {
+  background: #fafbfc;
+}
+
+.bookmark-widget-link > span:last-child {
+  display: grid;
+  min-width: 0;
+}
+
+.bookmark-widget-link strong,
+.bookmark-widget-link small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bookmark-widget-link small {
+  color: var(--text-muted);
+}
+
+.bookmark-widget-icon,
+.widget-catalog-icon {
+  display: grid;
+  flex: 0 0 auto;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: 12px;
+  color: var(--primary);
+  background: var(--primary-soft);
+  font-weight: 900;
+}
+
+.widget-dialog-content {
+  display: grid;
+  gap: 18px;
+  padding: 22px;
+}
+
+.widget-catalog-item {
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.widget-catalog-copy {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.widget-catalog-copy p {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.widget-catalog-item > .button,
+.widget-catalog-item > form:not(.bookmark-widget-form) {
+  justify-self: end;
+}
+
+.bookmark-widget-form {
+  display: grid;
+  grid-template-columns: minmax(0, 0.75fr) minmax(0, 1.25fr) auto;
+  align-items: end;
+  gap: 10px;
+}
+
+.bookmark-widget-form label {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.bookmark-widget-form label > span {
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.bookmark-widget-form input {
+  width: 100%;
+}
+
+.widget-catalog-hint {
+  margin: -4px 0 0;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  text-align: center;
 }
 
 .pagination {
@@ -1164,6 +1449,14 @@ select:focus {
     grid-template-columns: 1fr;
   }
 
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .bookmark-widget-form {
+    grid-template-columns: 1fr;
+  }
+
   .post-detail,
   .comments-section,
   .form-card,
@@ -1199,12 +1492,17 @@ select:focus {
   }
 
   .post-row-main {
-    flex-wrap: wrap;
-    gap: 6px 10px;
+    grid-template-columns: minmax(0, 1fr) 68px 126px 54px;
+    gap: 8px;
   }
 
-  .post-row-title {
-    flex-basis: 100%;
+  .post-meta > * {
+    font-size: 0.74rem;
+  }
+
+  .dashboard-widget-header,
+  .dashboard-post-row {
+    padding-inline: 14px;
   }
 
   .form-actions {
