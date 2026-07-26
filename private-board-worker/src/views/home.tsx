@@ -1,4 +1,5 @@
 import type { BoardSlug, DeployInfo, PostListRow } from '../types'
+import { AuthorName } from './components'
 import { formatDateTime } from './format'
 import { PublicLayout } from './layout'
 
@@ -33,11 +34,7 @@ export function GuestHomePage({ appName, deployInfo, previews }: GuestHomePagePr
           {previews.map((preview) => (
             <section class="guest-preview-card" aria-labelledby={`preview-${preview.slug}`} key={preview.slug}>
               <header class="guest-preview-header">
-                <div>
-                  <p class="eyebrow">최근 게시글 5건</p>
-                  <h2 id={`preview-${preview.slug}`}>{preview.name}</h2>
-                </div>
-                <a href={`/boards/${preview.slug}`}>게시판 보기</a>
+                <h2 id={`preview-${preview.slug}`}>{preview.name}</h2>
               </header>
 
               {preview.posts.length === 0 ? (
@@ -48,7 +45,9 @@ export function GuestHomePage({ appName, deployInfo, previews }: GuestHomePagePr
                     <a class="guest-preview-row" href={`/posts/${post.id}`} key={post.id}>
                       <strong>{post.title}</strong>
                       <span class="guest-preview-meta">
-                        <span>{post.author_nickname}</span>
+                        <span>
+                          <AuthorName nickname={post.author_nickname} role={post.author_role} />
+                        </span>
                         <time datetime={new Date(post.created_at).toISOString()}>
                           {formatDateTime(post.created_at)}
                         </time>

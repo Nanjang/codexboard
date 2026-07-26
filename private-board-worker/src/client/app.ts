@@ -88,6 +88,27 @@ function setupDialogs(): void {
       if (event.target === dialog) dialog.close()
     })
   })
+
+  document.querySelectorAll<HTMLDialogElement>('dialog[data-auto-dialog]').forEach((dialog) => {
+    openDialog(dialog)
+  })
+}
+
+function setupValueCopies(): void {
+  document.addEventListener('click', async (event) => {
+    const target = event.target
+    if (!(target instanceof Element)) return
+    const button = target.closest<HTMLButtonElement>('[data-copy-value]')
+    const value = button?.dataset.copyValue
+    if (!button || !value) return
+
+    try {
+      await navigator.clipboard.writeText(value)
+      showToast('공유 코드를 복사했습니다.')
+    } catch {
+      showToast('공유 코드를 복사하지 못했습니다.', 'error')
+    }
+  })
 }
 
 function setupTicketEditing(): void {
@@ -538,6 +559,7 @@ function initialize(): void {
   setupDashboardEditing()
   setupImageUpload()
   setupImageCopies()
+  setupValueCopies()
 }
 
 if (document.readyState === 'loading') {

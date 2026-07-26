@@ -61,6 +61,7 @@ export function AppLayout({
         <link rel="icon" type="image/png" href="/favicon.png" sizes="64x64" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
         <link rel="stylesheet" href="/assets/app.css" />
+        <link rel="stylesheet" href="/account/theme.css" />
         <script src="/assets/app.js" defer></script>
       </head>
       <body class="app-body">
@@ -172,6 +173,20 @@ export function AppLayout({
           {children}
         </main>
         <div class="toast-region" aria-live="polite" aria-atomic="true" data-toast-region></div>
+        {user.themeOrphanNoticePending === true ? (
+          <dialog class="ticket-dialog theme-orphan-dialog" data-auto-dialog aria-labelledby="theme-orphan-title">
+            <div class="theme-orphan-content">
+              <div class="theme-pixel-alert" aria-hidden="true">
+                !
+              </div>
+              <h2 id="theme-orphan-title">공유 테마가 삭제되었습니다</h2>
+              <p>원소유자가 사용 중이던 테마를 삭제하여 기본 테마로 자동 변경했습니다.</p>
+              <button class="button button-full" type="button" data-dialog-close>
+                확인
+              </button>
+            </div>
+          </dialog>
+        ) : null}
         <DeployFooter deployInfo={deployInfo} />
       </body>
     </html>

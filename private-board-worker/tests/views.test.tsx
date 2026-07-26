@@ -11,6 +11,9 @@ import type {
   PrivateImageRow,
   TicketRow,
 } from '../src/types'
+import type { ThemeLibrary } from '../src/lib/themes'
+import { BUILTIN_THEMES } from '../src/lib/themes'
+import { AccountPage } from '../src/views/account'
 import { AdminPage } from '../src/views/admin'
 import { BoardListPage } from '../src/views/boards'
 import { DashboardPage } from '../src/views/dashboard'
@@ -68,6 +71,7 @@ const post: PostListRow = {
   board_name: board.name,
   author_id: user.id,
   author_nickname: '삼방장',
+  author_role: 'user',
   title: '1등!!',
   comment_count: 3,
   view_count: 17,
@@ -104,6 +108,35 @@ const dashboardWidgets: DashboardWidgetRow[] = [
     created_at: 1,
   },
 ]
+
+const themeLibrary: ThemeLibrary = {
+  builtins: [...BUILTIN_THEMES],
+  selection: { kind: 'shared', builtinKey: null, themeId: 22 },
+  owned: [
+    {
+      id: 11,
+      ownerId: user.id,
+      ownerNickname: user.nickname,
+      ownerRole: user.role,
+      name: '내 픽셀 테마',
+      palette: BUILTIN_THEMES[0]!.palette,
+      shareCode: 'THEME-0123ABCDEF45',
+      updatedAt: 1,
+    },
+  ],
+  shared: [
+    {
+      id: 22,
+      ownerId: 'user-2',
+      ownerNickname: '테마장인',
+      ownerRole: 'user',
+      name: '공유 포레스트',
+      palette: BUILTIN_THEMES[2]!.palette,
+      shareCode: 'THEME-ABCDEF012345',
+      updatedAt: 2,
+    },
+  ],
+}
 
 const memoSettings: MemoUrlSettings = {
   numeric_prefix: 'https://example.com/items/',
@@ -286,6 +319,24 @@ describe('핵심 화면', () => {
     expect(timePosition).toBeLessThan(viewsPosition)
   })
 
+  it('관리자 작성자의 닉네임 오른쪽에 금색 별 아이콘을 표시한다', async () => {
+    const html = String(
+      await BoardListPage({
+        appName: 'Private Board',
+        deployInfo,
+        user,
+        csrfToken: 'csrf-test',
+        board,
+        posts: [{ ...post, author_role: 'admin' }],
+        hasMore: false,
+      }),
+    )
+
+    expect(html).toContain('class="admin-author-star"')
+    expect(html).toContain('aria-label="관리자"')
+    expect(html.indexOf('삼방장')).toBeLessThan(html.indexOf('class="admin-author-star"'))
+  })
+
   it('비로그인 로그인 화면에는 인증 안내를 렌더링한다', async () => {
     const html = String(await LoginPage({ appName: 'Private Board', deployInfo }))
     expect(html).toContain('Google 계정으로 로그인')
@@ -316,7 +367,8 @@ describe('핵심 화면', () => {
     expect(freePosition).toBeGreaterThan(-1)
     expect(freePosition).toBeLessThan(developmentPosition)
     expect(developmentPosition).toBeLessThan(newsPosition)
-    expect(html).toContain('최근 게시글 5건')
+    expect(html).not.toContain('최근 게시글 5건')
+    expect(html).not.toContain('게시판 보기')
     expect(html).toContain('href="/posts/1"')
     expect(html).toContain('게시글 상세 확인과 작성, 댓글 참여는 로그인 후 이용할 수 있습니다.')
   })
@@ -340,6 +392,44 @@ describe('핵심 화면', () => {
     expect(html).not.toContain('개인 이미지 저장')
     expect(html).not.toContain('관리자 설정')
     expect(html).not.toContain('<img')
+  })
+
+  it('개인 설정에서 내장·내 테마·공유 테마를 픽셀아트 태그로 구분한다', async () => {
+    const html = String(
+      await AccountPage({
+        appName: 'Private Board',
+        deployInfo,
+        user,
+        csrfToken: 'csrf-test',
+        themeLibrary,
+      }),
+    )
+
+    expect(html).toContain('색상 테마')
+    expect(html).toContain('내장 기본제공')
+    expect(html).toContain('내가 만든 테마')
+    expect(html).toContain('공유받은 테마')
+    expect(html).toContain('theme-pixel-icon')
+    expect(html).toContain('복제하여 만들기')
+    expect(html).toContain('THEME-0123ABCDEF45')
+    expect(html).toContain('테마장인님의 원본 변경이 자동으로 반영됩니다.')
+    expect(html).toContain('action="/account/themes/22/select-shared"')
+  })
+
+  it('원본이 삭제된 공유 테마의 기본 복귀 안내 팝업을 한 번 표시할 수 있다', async () => {
+    const html = String(
+      await TicketsPage({
+        appName: 'Private Board',
+        deployInfo,
+        user: { ...user, themeOrphanNoticePending: true },
+        csrfToken: 'csrf-test',
+        tickets: [],
+      }),
+    )
+
+    expect(html).toContain('data-auto-dialog')
+    expect(html).toContain('공유 테마가 삭제되었습니다')
+    expect(html).toContain('기본 테마로 자동 변경했습니다')
   })
 
   it('개인 메모는 상세 페이지 없이 값과 조합된 링크를 목록에 표시한다', async () => {

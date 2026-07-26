@@ -53,6 +53,7 @@ export interface CurrentUser {
   status: UserStatus
   email: string
   imageStorageEnabled?: boolean
+  themeOrphanNoticePending?: boolean
 }
 
 export interface AuthContext {
@@ -89,6 +90,7 @@ export interface PostListRow {
   board_name: string
   author_id: string
   author_nickname: string
+  author_role: UserRole
   title: string
   comment_count: number
   view_count: number
@@ -134,6 +136,7 @@ export interface CommentRow {
   post_id: number
   author_id: string
   author_nickname: string
+  author_role: UserRole
   body: string
   created_at: number
   updated_at: number

@@ -1,4 +1,4 @@
-import type { CurrentUser, DeployInfo } from '../types'
+import type { CurrentUser, DeployInfo, UserRole } from '../types'
 
 export function DeployFooter({ deployInfo }: { deployInfo: DeployInfo }) {
   return (
@@ -46,6 +46,21 @@ export function UserBadge({ user }: { user: CurrentUser }) {
         <small>{user.role === 'admin' ? '관리자' : '회원'}</small>
       </span>
     </span>
+  )
+}
+
+export function AuthorName({ nickname, role }: { nickname: string; role: UserRole }) {
+  return (
+    <>
+      {nickname}
+      {role === 'admin' ? (
+        <span class="admin-author-star" aria-label="관리자" title="관리자">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="m12 2.75 2.83 5.73 6.32.92-4.57 4.45 1.08 6.29L12 17.17l-5.66 2.97 1.08-6.29L2.85 9.4l6.32-.92L12 2.75Z" />
+          </svg>
+        </span>
+      ) : null}
+    </>
   )
 }
 

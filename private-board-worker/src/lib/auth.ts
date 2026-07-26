@@ -25,6 +25,7 @@ interface SessionRow {
   role: UserRole
   status: 'active' | 'blocked'
   email: string
+  theme_orphan_notice_pending: number
 }
 
 interface GoogleTokenResponse {
@@ -83,10 +84,12 @@ export async function loadAuthContext(c: AppContext): Promise<AuthContext | null
       u.nickname,
       u.role,
       u.status,
-      a.email
+      a.email,
+      COALESCE(tp.orphan_notice_pending, 0) AS theme_orphan_notice_pending
     FROM sessions s
     JOIN users u ON u.id = s.user_id
     JOIN auth_accounts a ON a.user_id = u.id AND a.provider = 'google'
+    LEFT JOIN user_theme_preferences tp ON tp.user_id = u.id
     WHERE s.token_hash = ?1
       AND s.expires_at > ?2
     LIMIT 1
@@ -112,6 +115,7 @@ export async function loadAuthContext(c: AppContext): Promise<AuthContext | null
     role: row.role,
     status: row.status,
     email: row.email,
+    themeOrphanNoticePending: row.theme_orphan_notice_pending === 1,
   }
 
   return {

@@ -8,7 +8,7 @@ import type {
   PostListRow,
 } from '../types'
 import { canManageResource } from '../lib/db'
-import { CsrfInput, EmptyState } from './components'
+import { AuthorName, CsrfInput, EmptyState } from './components'
 import { formatDateTime } from './format'
 import { AppLayout } from './layout'
 
@@ -75,7 +75,9 @@ export function BoardListPage({
                     </span>
                   </div>
                   <div class="post-meta">
-                    <span class="post-meta-author">{post.author_nickname}</span>
+                    <span class="post-meta-author">
+                      <AuthorName nickname={post.author_nickname} role={post.author_role} />
+                    </span>
                     <time class="post-meta-time" datetime={new Date(post.created_at).toISOString()}>
                       {formatDateTime(post.created_at)}
                     </time>
@@ -202,7 +204,9 @@ export function PostDetailPage({
           <p class="eyebrow">{post.board_name}</p>
           <h2>{post.title}</h2>
           <div class="post-meta post-detail-meta">
-            <span>{post.author_nickname}</span>
+            <span>
+              <AuthorName nickname={post.author_nickname} role={post.author_role} />
+            </span>
             <time datetime={new Date(post.created_at).toISOString()}>{formatDateTime(post.created_at)}</time>
             {post.updated_at !== post.created_at ? <span>수정됨</span> : null}
           </div>
@@ -239,7 +243,9 @@ export function PostDetailPage({
               return (
                 <article class="comment" id={`comment-${comment.id}`} key={comment.id}>
                   <header>
-                    <strong>{comment.author_nickname}</strong>
+                    <strong>
+                      <AuthorName nickname={comment.author_nickname} role={comment.author_role} />
+                    </strong>
                     <time datetime={new Date(comment.created_at).toISOString()}>
                       {formatDateTime(comment.created_at)}
                     </time>

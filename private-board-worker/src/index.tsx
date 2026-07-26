@@ -81,6 +81,22 @@ import {
 } from './lib/r2'
 import { loadRssFeed, RssFeedError } from './lib/rss'
 import {
+  acknowledgeThemeOrphanNotice,
+  createOwnedTheme,
+  deleteOwnedTheme,
+  importSharedTheme,
+  listThemeLibrary,
+  normalizeThemeShareCode,
+  publishOwnedTheme,
+  resolveUserTheme,
+  selectBuiltinTheme,
+  selectOwnedTheme,
+  selectSharedTheme,
+  themeCss,
+  themePaletteFromForm,
+  updateOwnedTheme,
+} from './lib/themes'
+import {
   assertCsrf,
   enforceAuthRateLimit,
   enforceWriteRateLimit,
@@ -104,6 +120,7 @@ import {
 import type {
   AppContext,
   AppEnv,
+  AuthContext,
   BoardSlug,
   MemoUrlSettings,
   PostDetailRow,
@@ -221,6 +238,31 @@ function requireImageStorageAuth(c: AppContext) {
   return auth
 }
 
+async function renderAccountPage(
+  c: AppContext,
+  auth: AuthContext,
+  options: {
+    nicknameError?: string | null
+    themeError?: string | null
+    nicknameValue?: string
+    status?: 200 | 400
+  } = {},
+) {
+  const themeLibrary = await listThemeLibrary(c.env.DB, auth.user.id)
+  return c.html(
+    <AccountPage
+      {...viewMeta(c)}
+      user={options.nicknameValue ? { ...auth.user, nickname: options.nicknameValue } : auth.user}
+      csrfToken={auth.csrfToken}
+      notice={noticeFromRequest(c)}
+      {...(options.nicknameError !== undefined ? { error: options.nicknameError } : {})}
+      {...(options.themeError !== undefined ? { themeError: options.themeError } : {})}
+      themeLibrary={themeLibrary}
+    />,
+    options.status ?? 200,
+  )
+}
+
 async function readForm(c: AppContext): Promise<FormData> {
   const form = await c.req.formData()
   const token = form.get('_csrf')
@@ -242,6 +284,7 @@ function draftPost(
     board_name: boardName,
     author_id: '',
     author_nickname: '',
+    author_role: 'user',
     title,
     body,
     comment_count: 0,
@@ -349,10 +392,24 @@ app.use('*', async (c, next) => {
   }
 
   await next()
+
+  const shouldAcknowledgeThemeNotice =
+    auth?.user.themeOrphanNoticePending === true &&
+    c.req.method === 'GET' &&
+    c.res.status < 400 &&
+    c.res.headers.get('Content-Type')?.includes('text/html') === true
+  if (shouldAcknowledgeThemeNotice) {
+    await acknowledgeThemeOrphanNotice(c.env.DB, auth.user.id)
+  }
 })
 
 app.get('/assets/*', (c) => c.env.ASSETS.fetch(c.req.raw))
 app.get('/health', (c) => c.json({ ok: true }))
+app.get('/account/theme.css', async (c) => {
+  const auth = requireActiveAuth(c)
+  const palette = await resolveUserTheme(c.env.DB, auth.user.id)
+  return c.body(themeCss(palette), 200, { 'Content-Type': 'text/css; charset=utf-8' })
+})
 
 app.get('/login', (c) => {
   const auth = c.get('auth')
@@ -1332,16 +1389,9 @@ app.put('/api/tickets/order', async (c) => {
   return c.json({ ok: true })
 })
 
-app.get('/account', (c) => {
+app.get('/account', async (c) => {
   const auth = requireActiveAuth(c)
-  return c.html(
-    <AccountPage
-      {...viewMeta(c)}
-      user={auth.user}
-      csrfToken={auth.csrfToken}
-      notice={noticeFromRequest(c)}
-    />,
-  )
+  return renderAccountPage(c, auth)
 })
 
 app.post('/account/nickname', async (c) => {
@@ -1360,16 +1410,115 @@ app.post('/account/nickname', async (c) => {
     if (!(error instanceof ValidationError) && !isDuplicate) throw error
     const message = isDuplicate ? '이미 사용 중인 닉네임입니다.' : error.message
     const rawNickname = typeof form.get('nickname') === 'string' ? String(form.get('nickname')) : auth.user.nickname
-    return c.html(
-      <AccountPage
-        {...viewMeta(c)}
-        user={{ ...auth.user, nickname: rawNickname }}
-        csrfToken={auth.csrfToken}
-        error={message}
-      />,
-      400,
-    )
+    return renderAccountPage(c, auth, {
+      nicknameError: message,
+      nicknameValue: rawNickname,
+      status: 400,
+    })
   }
+})
+
+app.post('/account/themes/builtin/:key/select', async (c) => {
+  const auth = requireActiveAuth(c)
+  await enforceWriteRateLimit(c, 'theme')
+  await readForm(c)
+  try {
+    await selectBuiltinTheme(c.env.DB, auth.user.id, c.req.param('key'))
+    return redirectWithNotice(c, '/account', 'theme-selected')
+  } catch (error) {
+    if (!(error instanceof ValidationError)) throw error
+    return renderAccountPage(c, auth, { themeError: error.message, status: 400 })
+  }
+})
+
+app.post('/account/themes', async (c) => {
+  const auth = requireActiveAuth(c)
+  await enforceWriteRateLimit(c, 'theme')
+  const form = await readForm(c)
+  try {
+    const name = singleLine(form.get('name'), '테마 이름', 60)
+    await createOwnedTheme(c.env.DB, auth.user.id, name)
+    return redirectWithNotice(c, '/account', 'theme-created')
+  } catch (error) {
+    if (!(error instanceof ValidationError)) throw error
+    return renderAccountPage(c, auth, { themeError: error.message, status: 400 })
+  }
+})
+
+app.post('/account/themes/import', async (c) => {
+  const auth = requireActiveAuth(c)
+  await enforceWriteRateLimit(c, 'theme')
+  const form = await readForm(c)
+  try {
+    const shareCode = normalizeThemeShareCode(form.get('shareCode'))
+    await importSharedTheme(c.env.DB, auth.user.id, shareCode)
+    return redirectWithNotice(c, '/account', 'theme-imported')
+  } catch (error) {
+    if (!(error instanceof ValidationError)) throw error
+    return renderAccountPage(c, auth, { themeError: error.message, status: 400 })
+  }
+})
+
+app.post('/account/themes/:id/select-owned', async (c) => {
+  const auth = requireActiveAuth(c)
+  await enforceWriteRateLimit(c, 'theme')
+  await readForm(c)
+  const themeId = positiveInteger(c.req.param('id'), '테마 ID')
+  if (!(await selectOwnedTheme(c.env.DB, auth.user.id, themeId))) {
+    throw new HTTPException(404, { message: '내 테마를 찾을 수 없습니다.' })
+  }
+  return redirectWithNotice(c, '/account', 'theme-selected')
+})
+
+app.post('/account/themes/:id/select-shared', async (c) => {
+  const auth = requireActiveAuth(c)
+  await enforceWriteRateLimit(c, 'theme')
+  await readForm(c)
+  const themeId = positiveInteger(c.req.param('id'), '테마 ID')
+  if (!(await selectSharedTheme(c.env.DB, auth.user.id, themeId))) {
+    throw new HTTPException(404, { message: '가져온 공유 테마를 찾을 수 없습니다.' })
+  }
+  return redirectWithNotice(c, '/account', 'theme-selected')
+})
+
+app.post('/account/themes/:id/update', async (c) => {
+  const auth = requireActiveAuth(c)
+  await enforceWriteRateLimit(c, 'theme')
+  const form = await readForm(c)
+  const themeId = positiveInteger(c.req.param('id'), '테마 ID')
+  try {
+    const name = singleLine(form.get('name'), '테마 이름', 60)
+    const palette = themePaletteFromForm(form)
+    if (!(await updateOwnedTheme(c.env.DB, auth.user.id, themeId, name, palette))) {
+      throw new HTTPException(404, { message: '수정할 내 테마를 찾을 수 없습니다.' })
+    }
+    return redirectWithNotice(c, '/account', 'theme-updated')
+  } catch (error) {
+    if (!(error instanceof ValidationError)) throw error
+    return renderAccountPage(c, auth, { themeError: error.message, status: 400 })
+  }
+})
+
+app.post('/account/themes/:id/publish', async (c) => {
+  const auth = requireActiveAuth(c)
+  await enforceWriteRateLimit(c, 'theme')
+  await readForm(c)
+  const themeId = positiveInteger(c.req.param('id'), '테마 ID')
+  if (!(await publishOwnedTheme(c.env.DB, auth.user.id, themeId))) {
+    throw new HTTPException(404, { message: '공개할 내 테마를 찾을 수 없습니다.' })
+  }
+  return redirectWithNotice(c, '/account', 'theme-published')
+})
+
+app.post('/account/themes/:id/delete', async (c) => {
+  const auth = requireActiveAuth(c)
+  await enforceWriteRateLimit(c, 'theme')
+  await readForm(c)
+  const themeId = positiveInteger(c.req.param('id'), '테마 ID')
+  if (!(await deleteOwnedTheme(c.env.DB, auth.user.id, themeId))) {
+    throw new HTTPException(404, { message: '삭제할 내 테마를 찾을 수 없습니다.' })
+  }
+  return redirectWithNotice(c, '/account', 'theme-deleted')
 })
 
 app.notFound((c) => renderError(c, 404, '요청한 페이지 또는 데이터를 찾을 수 없습니다.'))

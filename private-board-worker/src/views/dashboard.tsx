@@ -5,7 +5,7 @@ import type {
   PostListRow,
   RssWidgetResult,
 } from '../types'
-import { CsrfInput } from './components'
+import { AuthorName, CsrfInput } from './components'
 import { formatDateTime } from './format'
 import { AppLayout } from './layout'
 
@@ -104,7 +104,9 @@ function FreeBoardWidget({
                 <span aria-label={`댓글 ${post.comment_count}개`}>[{post.comment_count}]</span>
               </div>
               <div class="dashboard-post-meta">
-                <span>{post.author_nickname}</span>
+                <span>
+                  <AuthorName nickname={post.author_nickname} role={post.author_role} />
+                </span>
                 <time datetime={new Date(post.created_at).toISOString()}>{formatDateTime(post.created_at)}</time>
                 <span>조회 {post.view_count}</span>
               </div>
