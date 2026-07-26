@@ -22,11 +22,13 @@ import {
   createComment,
   createMemo,
   createMemoUrlPattern,
+  createPendingPrivateImage,
   createPost,
   createTicket,
   deleteComment,
   deleteMemo,
   deleteMemoUrlPattern,
+  deletePendingPrivateImage,
   deletePost,
   deleteTicket,
   getBoardBySlug,
@@ -34,6 +36,7 @@ import {
   getMemoUrlPattern,
   getMemoUrlSettings,
   getPost,
+  getPrivateImage,
   getTicket,
   incrementPostViewCount,
   ensureUserDashboard,
@@ -41,12 +44,15 @@ import {
   listComments,
   listMemoUrlPatterns,
   listMemos,
+  listPrivateImages,
   listPosts,
   listRecentPostsByBoardSlug,
   listTickets,
   MAX_MEMO_PATTERNS_PER_USER,
   MAX_RSS_WIDGETS_PER_USER,
   moveTicket,
+  markPrivateImageCopied,
+  markPrivateImageReady,
   reorderDashboardWidgets,
   reorderTickets,
   removeDashboardWidget,
@@ -59,6 +65,17 @@ import {
 import { safeEqual } from './lib/crypto'
 import { getAppName, getDeployInfo, turnstileEnabled } from './lib/env'
 import { acceptsJson, noticeFromRequest, redirectWithNotice } from './lib/http'
+import {
+  createImageUploadUrl,
+  IMAGE_CACHE_CONTROL,
+  imageContentType,
+  imageObjectKey,
+  imagePublicUrl,
+  inspectUploadedImage,
+  MAX_IMAGE_BYTES,
+  R2ConfigurationError,
+  removeR2Object,
+} from './lib/r2'
 import { loadRssFeed, RssFeedError } from './lib/rss'
 import {
   assertCsrf,
@@ -96,13 +113,14 @@ import { DashboardPage } from './views/dashboard'
 import { AppErrorPage, BlockedPage, PublicErrorPage } from './views/errors'
 import { PrivacyPage, TermsPage } from './views/legal'
 import { LoginPage } from './views/login'
+import { PrivateImagesPage } from './views/images'
 import { MemoBoardPage, MemoSettingsPage, type MemoPatternDraft } from './views/memos'
 import { TicketFormPage, TicketsPage } from './views/tickets'
 
 const app = new Hono<AppEnv>()
 const MAX_REQUEST_BYTES = 64 * 1024
 
-type ErrorStatus = 400 | 401 | 403 | 404 | 409 | 413 | 429 | 500
+type ErrorStatus = 400 | 401 | 403 | 404 | 409 | 413 | 429 | 500 | 503
 
 function viewMeta(c: AppContext) {
   return {
@@ -129,11 +147,13 @@ function errorTitle(status: ErrorStatus): string {
       return '요청이 너무 많습니다'
     case 500:
       return '서비스 오류가 발생했습니다'
+    case 503:
+      return '서비스 설정이 필요합니다'
   }
 }
 
 function normalizeStatus(value: number): ErrorStatus {
-  if ([400, 401, 403, 404, 409, 413, 429].includes(value)) return value as ErrorStatus
+  if ([400, 401, 403, 404, 409, 413, 429, 503].includes(value)) return value as ErrorStatus
   return 500
 }
 
@@ -745,6 +765,130 @@ app.post('/comments/:id/delete', async (c) => {
   await readForm(c)
   await deleteComment(c.env.DB, commentId, comment.post_id)
   return redirectWithNotice(c, `/posts/${comment.post_id}`, 'comment-deleted')
+})
+
+app.get('/images', async (c) => {
+  const auth = requireActiveAuth(c)
+  const images = await listPrivateImages(c.env.DB, auth.user.id)
+  return c.html(
+    <PrivateImagesPage
+      {...viewMeta(c)}
+      user={auth.user}
+      csrfToken={auth.csrfToken}
+      images={images.map((image) => ({ image, cacheUrl: imagePublicUrl(c.env, image.object_key) }))}
+    />,
+  )
+})
+
+app.post('/api/images/upload-url', async (c) => {
+  const auth = requireActiveAuth(c)
+  await enforceWriteRateLimit(c, 'image-upload')
+  assertCsrf(c, c.req.header('X-CSRF-Token'))
+
+  const payload = (await c.req.json().catch(() => null)) as Record<string, unknown> | null
+  if (!payload || typeof payload !== 'object') throw new ValidationError('이미지 업로드 정보가 올바르지 않습니다.')
+
+  const originalName = singleLine(typeof payload.fileName === 'string' ? payload.fileName : null, '파일 이름', 180)
+  const contentType = imageContentType(payload.contentType)
+  if (!contentType) throw new ValidationError('JPEG, PNG, WebP, GIF, AVIF 이미지만 업로드할 수 있습니다.')
+  const sizeBytes = payload.sizeBytes
+  if (typeof sizeBytes !== 'number' || !Number.isSafeInteger(sizeBytes) || sizeBytes < 1) {
+    throw new ValidationError('이미지 파일 크기가 올바르지 않습니다.')
+  }
+  if (sizeBytes > MAX_IMAGE_BYTES) throw new ValidationError('이미지는 최대 5MiB까지 업로드할 수 있습니다.')
+
+  const objectKey = imageObjectKey(contentType)
+  const cacheUrl = imagePublicUrl(c.env, objectKey)
+  if (!cacheUrl) {
+    throw new HTTPException(503, { message: 'R2 업로드 설정이 필요합니다. 관리자에게 문의하세요.' })
+  }
+
+  try {
+    const uploadUrl = await createImageUploadUrl(c.env, objectKey, contentType)
+    const imageId = await createPendingPrivateImage(
+      c.env.DB,
+      auth.user.id,
+      objectKey,
+      originalName,
+      contentType,
+      sizeBytes,
+    )
+    return c.json({
+      imageId,
+      uploadUrl,
+      cacheUrl,
+      headers: {
+        'Cache-Control': IMAGE_CACHE_CONTROL,
+        'Content-Type': contentType,
+      },
+    })
+  } catch (error) {
+    if (error instanceof R2ConfigurationError) {
+      throw new HTTPException(503, { message: error.message })
+    }
+    throw error
+  }
+})
+
+app.post('/api/images/:id/complete', async (c) => {
+  const auth = requireActiveAuth(c)
+  await enforceWriteRateLimit(c, 'image-upload')
+  assertCsrf(c, c.req.header('X-CSRF-Token'))
+  const imageId = positiveInteger(c.req.param('id'), '이미지 ID')
+  const image = await getPrivateImage(c.env.DB, auth.user.id, imageId)
+  if (!image || image.status !== 'pending') {
+    throw new HTTPException(404, { message: '확인할 이미지 업로드를 찾을 수 없습니다.' })
+  }
+
+  try {
+    const uploaded = await inspectUploadedImage(c.env, image.object_key)
+    const valid =
+      uploaded !== null &&
+      uploaded.sizeBytes === image.size_bytes &&
+      uploaded.sizeBytes <= MAX_IMAGE_BYTES &&
+      uploaded.contentType === image.content_type
+
+    if (!valid) {
+      await removeR2Object(c.env, image.object_key)
+      await deletePendingPrivateImage(c.env.DB, auth.user.id, imageId)
+      throw new ValidationError('업로드된 이미지의 형식 또는 크기를 확인할 수 없습니다.')
+    }
+
+    const completed = await markPrivateImageReady(c.env.DB, auth.user.id, imageId)
+    if (!completed) throw new HTTPException(409, { message: '이미지 업로드 상태가 이미 변경되었습니다.' })
+    return c.json({ ok: true, cacheUrl: imagePublicUrl(c.env, image.object_key) })
+  } catch (error) {
+    if (error instanceof R2ConfigurationError) {
+      throw new HTTPException(503, { message: error.message })
+    }
+    throw error
+  }
+})
+
+app.delete('/api/images/:id/pending', async (c) => {
+  const auth = requireActiveAuth(c)
+  assertCsrf(c, c.req.header('X-CSRF-Token'))
+  const imageId = positiveInteger(c.req.param('id'), '이미지 ID')
+  const image = await getPrivateImage(c.env.DB, auth.user.id, imageId)
+  if (!image || image.status !== 'pending') return c.json({ ok: true })
+
+  try {
+    await removeR2Object(c.env, image.object_key)
+  } catch (error) {
+    if (!(error instanceof R2ConfigurationError)) throw error
+  }
+  await deletePendingPrivateImage(c.env.DB, auth.user.id, imageId)
+  return c.json({ ok: true })
+})
+
+app.post('/api/images/:id/copied', async (c) => {
+  const auth = requireActiveAuth(c)
+  await enforceWriteRateLimit(c, 'image-copy')
+  assertCsrf(c, c.req.header('X-CSRF-Token'))
+  const imageId = positiveInteger(c.req.param('id'), '이미지 ID')
+  const copiedAt = await markPrivateImageCopied(c.env.DB, auth.user.id, imageId)
+  if (copiedAt === null) throw new HTTPException(404, { message: '이미지를 찾을 수 없습니다.' })
+  return c.json({ ok: true, copiedAt })
 })
 
 app.get('/memos', async (c) => {

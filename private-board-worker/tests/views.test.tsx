@@ -8,12 +8,14 @@ import type {
   MemoUrlPatternRow,
   MemoUrlSettings,
   PostListRow,
+  PrivateImageRow,
   TicketRow,
 } from '../src/types'
 import { BoardListPage } from '../src/views/boards'
 import { DashboardPage } from '../src/views/dashboard'
 import { PublicErrorPage } from '../src/views/errors'
 import { LoginPage } from '../src/views/login'
+import { PrivateImagesPage } from '../src/views/images'
 import { composeMemoUrl, MemoBoardPage, MemoSettingsPage } from '../src/views/memos'
 import { TicketsPage } from '../src/views/tickets'
 
@@ -150,6 +152,33 @@ const memos: MemoRow[] = [
     pattern_suffix: memoPatterns[0]!.suffix,
     created_at: 3,
     updated_at: 3,
+  },
+]
+
+const privateImages: PrivateImageRow[] = [
+  {
+    id: 10,
+    owner_id: user.id,
+    object_key: 'private-images/one.png',
+    original_name: '첫 이미지.png',
+    content_type: 'image/png',
+    size_bytes: 1024,
+    status: 'ready',
+    copied_at: null,
+    created_at: 1,
+    updated_at: 1,
+  },
+  {
+    id: 11,
+    owner_id: user.id,
+    object_key: 'private-images/two.webp',
+    original_name: '공유한 이미지.webp',
+    content_type: 'image/webp',
+    size_bytes: 2048,
+    status: 'ready',
+    copied_at: 2,
+    created_at: 2,
+    updated_at: 2,
   },
 ]
 
@@ -300,6 +329,30 @@ describe('핵심 화면', () => {
     expect(html).toContain('상품 상세')
     expect(html).toContain('action="/memos/1/delete"')
     expect(html).not.toContain('/memos/1"')
+  })
+
+  it('개인 이미지 목록에 캐시 URL, 복사 버튼, 복사 이력 아이콘을 표시한다', async () => {
+    const html = String(
+      await PrivateImagesPage({
+        appName: 'Private Board',
+        deployInfo,
+        user,
+        csrfToken: 'csrf-test',
+        images: privateImages.map((image) => ({
+          image,
+          cacheUrl: `https://images.example.com/${image.object_key}`,
+        })),
+      }),
+    )
+
+    expect(html).toContain('개인 이미지 저장')
+    expect(html).toContain('파일당 최대 5MiB')
+    expect(html).toContain('data-image-file')
+    expect(html).toContain('https://images.example.com/private-images/one.png')
+    expect(html).toContain('data-image-copy')
+    expect(html).toContain('>복사</button>')
+    expect(html).toContain('복사 이력 있음')
+    expect(html).toContain('data-image-id="11"')
   })
 
   it('숫자와 문자 메모 값은 사용자별 URL 규칙으로 구분해 조합한다', () => {

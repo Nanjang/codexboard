@@ -2,14 +2,17 @@
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "__WORKER_NAME__",
   "main": "src/index.tsx",
-  "compatibility_date": "2026-07-18",
+  "compatibility_date": "2026-07-26",
   "workers_dev": true,
   "upload_source_maps": true,
 
   "vars": {
     "APP_NAME": "Private Board",
     "BASE_URL": "https://private-board-worker.blender3dkim.workers.dev",
-    "REGISTRATION_MODE": "open"
+    "REGISTRATION_MODE": "open",
+    "R2_ACCOUNT_ID": "__R2_ACCOUNT_ID__",
+    "R2_BUCKET_NAME": "__R2_BUCKET_NAME__",
+    "R2_PUBLIC_BASE_URL": "__R2_PUBLIC_BASE_URL__"
   },
 
   "secrets": {

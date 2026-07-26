@@ -2,7 +2,7 @@ import type { Child } from 'hono/jsx'
 import type { CurrentUser, DeployInfo } from '../types'
 import { CsrfInput, DeployFooter, Notice, UserBadge } from './components'
 
-type ActiveNav = 'dashboard' | 'free' | 'inquiry' | 'memos' | 'tickets' | 'account' | null
+type ActiveNav = 'dashboard' | 'free' | 'inquiry' | 'memos' | 'images' | 'tickets' | 'account' | null
 
 type ContextAction =
   | { kind: 'link'; label: string; href: string; dialogId?: string }
@@ -121,6 +121,9 @@ export function AppLayout({
               <a href="/memos" aria-current={activeNav === 'memos' ? 'page' : undefined}>
                 내 메모
               </a>
+              <a href="/images" aria-current={activeNav === 'images' ? 'page' : undefined}>
+                개인 이미지 저장
+              </a>
               <a href="/tickets" aria-current={activeNav === 'tickets' ? 'page' : undefined}>
                 내 작업
               </a>
@@ -144,6 +147,7 @@ export function AppLayout({
           <Notice message={notice} />
           {children}
         </main>
+        <div class="toast-region" aria-live="polite" aria-atomic="true" data-toast-region></div>
         <DeployFooter deployInfo={deployInfo} />
       </body>
     </html>

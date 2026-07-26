@@ -29,6 +29,7 @@
 | 게시글·댓글 | `/posts/*`, `/comments/*` | 인증 필요 |
 | 개인 메모 | `/memos`, `/memos/settings` | 인증 필요, 소유자 제한 |
 | 개인 티켓 | `/tickets`, `/api/tickets/order` | 인증 필요, 소유자 제한 |
+| 개인 이미지 | `/images`, `/api/images/*` | 인증 필요, 소유자 제한 |
 | 계정 | `/account` | 인증 필요 |
 
 ## 데이터 모델
@@ -41,7 +42,8 @@ users
   ├─ private_memos
   ├─ user_memo_settings
   ├─ memo_url_patterns
-  └─ tickets
+  ├─ tickets
+  └─ private_images
 
 boards
   └─ posts
@@ -91,10 +93,22 @@ WHERE id = ? AND owner_id = ?;
 
 개인 메모와 URL 설정도 동일하게 클라이언트의 사용자 ID를 받지 않고 인증 컨텍스트의 ID로만 조회·변경합니다. URL 설정은 숫자와 문자 유형별 자동 패턴을 사용자마다 한 행으로 저장하고, 추가 사용자 패턴은 `memo_url_patterns`에 저장합니다. 메모의 `pattern_id`가 비어 있으면 숫자·문자를 자동 판별하며, 값이 있으면 반드시 현재 사용자가 소유한 패턴인지 확인한 뒤 저장합니다. 완성된 주소는 `http` 또는 `https` 프로토콜인지 다시 검증합니다.
 
+## 개인 이미지 흐름
+
+```text
+브라우저 ── 업로드 메타데이터 ──> Worker ── presigned PUT URL
+브라우저 ── 이미지 본문 ───────> R2 S3 API
+브라우저 <─ 공개 캐시 URL ───── R2 Custom Domain + Cloudflare Cache
+```
+
+Worker는 세션 소유자를 기준으로 D1의 `private_images` 행을 만들고, 5분짜리 presigned URL을 반환합니다. 브라우저 업로드가 끝나면 Worker가 R2 `HEAD` 요청으로 MIME과 크기를 다시 확인한 뒤 `ready` 상태로 바꿉니다. 이미지 목록·완료·취소·복사 이력 쿼리는 모두 `owner_id`를 현재 세션 ID와 함께 조건으로 사용합니다.
+
+객체 키는 사용자 ID를 직접 노출하지 않는 무작위 불변 키입니다. 목록은 본인 전용이지만 Custom Domain URL은 공개 읽기 경로이며, 복사 이력 아이콘은 권한 전환이 아니라 공유 여부를 알려 주는 기록입니다.
+
 ## 보안 헤더
 
 - `Content-Security-Policy`
-- `img-src 'none'`
+- R2 미설정 시 `img-src 'none'`, 설정 시 정확한 R2 공개 origin만 허용
 - `frame-ancestors 'none'`
 - `X-Content-Type-Options: nosniff`
 - `Referrer-Policy`
@@ -107,7 +121,7 @@ Turnstile을 켠 경우에만 Cloudflare challenge origin을 script, connect, fr
 
 ## 의도적으로 제외한 기능
 
-- 이미지와 첨부파일
+- 게시글·댓글의 이미지와 첨부파일
 - 외부 Markdown HTML
 - 실시간 협업과 WebSocket
 - 티켓 담당자, 댓글, 체크리스트, 파일, 반복 일정

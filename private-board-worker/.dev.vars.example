@@ -18,3 +18,10 @@ CONTACT_EMAIL="operator@example.com"
 # Turnstile을 사용할 때 두 값을 모두 입력하세요. 비워 두면 사용하지 않습니다.
 TURNSTILE_SITE_KEY=""
 TURNSTILE_SECRET_KEY=""
+
+# R2 직접 업로드. 비워 두면 이미지 업로드 시 설정 안내 토스트만 표시됩니다.
+R2_ACCOUNT_ID=""
+R2_BUCKET_NAME=""
+R2_PUBLIC_BASE_URL=""
+R2_ACCESS_KEY_ID=""
+R2_SECRET_ACCESS_KEY=""

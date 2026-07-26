@@ -16,4 +16,16 @@ describe('Content Security Policy', () => {
     expect(policy).toContain('frame-src https://challenges.cloudflare.com')
     expect(policy).toContain("form-action 'self' https://accounts.google.com")
   })
+
+  it('R2 직접 업로드와 공개 캐시 도메인만 이미지 관련 출처로 허용한다', () => {
+    const policy = contentSecurityPolicy(false, {
+      apiOrigin: 'https://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com',
+      publicOrigin: 'https://images.example.com',
+    })
+
+    expect(policy).toContain('img-src https://images.example.com')
+    expect(policy).toContain(
+      "connect-src 'self' https://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com",
+    )
+  })
 })

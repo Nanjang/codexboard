@@ -2,6 +2,7 @@ import { HTTPException } from 'hono/http-exception'
 import type { AppContext, AuthContext } from '../types'
 import { sha256Hex, safeEqual } from './crypto'
 import { getBaseUrl, secureCookies, turnstileEnabled, validateRuntimeConfig } from './env'
+import { r2ImageOrigins } from './r2'
 
 const UNSAFE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 const GOOGLE_AUTHORIZATION_ORIGIN = 'https://accounts.google.com'
@@ -75,14 +76,22 @@ export async function enforceWriteRateLimit(c: AppContext, bucket: string): Prom
   }
 }
 
-export function contentSecurityPolicy(hasTurnstile: boolean): string {
+export function contentSecurityPolicy(
+  hasTurnstile: boolean,
+  imageOrigins: { apiOrigin: string; publicOrigin: string } | null = null,
+): string {
+  const imageSource = imageOrigins ? `img-src ${imageOrigins.publicOrigin}` : "img-src 'none'"
+  const connectSources = ["'self'"]
+  if (hasTurnstile) connectSources.push('https://challenges.cloudflare.com')
+  if (imageOrigins) connectSources.push(imageOrigins.apiOrigin)
+
   return [
     "default-src 'self'",
     hasTurnstile ? "script-src 'self' https://challenges.cloudflare.com" : "script-src 'self'",
     "style-src 'self'",
-    "img-src 'none'",
+    imageSource,
     "font-src 'self'",
-    hasTurnstile ? "connect-src 'self' https://challenges.cloudflare.com" : "connect-src 'self'",
+    `connect-src ${connectSources.join(' ')}`,
     hasTurnstile ? 'frame-src https://challenges.cloudflare.com' : "frame-src 'none'",
     "object-src 'none'",
     "base-uri 'none'",
@@ -99,7 +108,7 @@ export async function securityMiddleware(c: AppContext, next: () => Promise<void
   await next()
 
   const isAsset = c.req.path.startsWith('/assets/')
-  const policy = contentSecurityPolicy(turnstileEnabled(c.env))
+  const policy = contentSecurityPolicy(turnstileEnabled(c.env), r2ImageOrigins(c.env))
 
   c.header('Content-Security-Policy', policy)
   c.header('Referrer-Policy', 'strict-origin-when-cross-origin')

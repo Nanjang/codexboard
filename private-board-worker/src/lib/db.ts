@@ -6,6 +6,7 @@ import type {
   MemoRow,
   MemoUrlPatternRow,
   MemoUrlSettings,
+  PrivateImageRow,
   PostDetailRow,
   PostListRow,
   TicketLane,
@@ -18,6 +19,7 @@ export const MAX_TICKETS_PER_USER = 200
 export const MAX_MEMOS_PER_USER = 1000
 export const MAX_MEMO_PATTERNS_PER_USER = 50
 export const MAX_RSS_WIDGETS_PER_USER = 10
+export const MAX_PRIVATE_IMAGES_PER_USER = 5000
 
 const EMPTY_MEMO_URL_SETTINGS: MemoUrlSettings = {
   numeric_prefix: '',
@@ -742,6 +744,150 @@ export async function deleteMemo(db: D1Database, ownerId: string, memoId: number
   const result = await db
     .prepare('DELETE FROM private_memos WHERE id = ?1 AND owner_id = ?2')
     .bind(memoId, ownerId)
+    .run()
+  return result.meta.changes > 0
+}
+
+export async function listPrivateImages(db: D1Database, ownerId: string): Promise<PrivateImageRow[]> {
+  const result = await db
+    .prepare(
+      `
+      SELECT
+        id,
+        owner_id,
+        object_key,
+        original_name,
+        content_type,
+        size_bytes,
+        status,
+        copied_at,
+        created_at,
+        updated_at
+      FROM private_images
+      WHERE owner_id = ?1 AND status = 'ready'
+      ORDER BY id DESC
+      LIMIT ?2
+      `,
+    )
+    .bind(ownerId, MAX_PRIVATE_IMAGES_PER_USER + 1)
+    .all<PrivateImageRow>()
+
+  if (result.results.length > MAX_PRIVATE_IMAGES_PER_USER) {
+    throw new Error(`개인 이미지는 최대 ${MAX_PRIVATE_IMAGES_PER_USER}개까지 지원합니다.`)
+  }
+  return result.results
+}
+
+export async function createPendingPrivateImage(
+  db: D1Database,
+  ownerId: string,
+  objectKey: string,
+  originalName: string,
+  contentType: string,
+  sizeBytes: number,
+): Promise<number> {
+  const staleBefore = Date.now() - 24 * 60 * 60 * 1000
+  await db
+    .prepare("DELETE FROM private_images WHERE owner_id = ?1 AND status = 'pending' AND created_at < ?2")
+    .bind(ownerId, staleBefore)
+    .run()
+
+  const count = await db
+    .prepare("SELECT COUNT(*) AS count FROM private_images WHERE owner_id = ?1 AND status = 'ready'")
+    .bind(ownerId)
+    .first<{ count: number }>()
+  if ((count?.count ?? 0) >= MAX_PRIVATE_IMAGES_PER_USER) {
+    throw new Error(`개인 이미지는 최대 ${MAX_PRIVATE_IMAGES_PER_USER}개까지 저장할 수 있습니다.`)
+  }
+
+  const now = Date.now()
+  const result = await db
+    .prepare(
+      `
+      INSERT INTO private_images (
+        owner_id,
+        object_key,
+        original_name,
+        content_type,
+        size_bytes,
+        status,
+        copied_at,
+        created_at,
+        updated_at
+      )
+      VALUES (?1, ?2, ?3, ?4, ?5, 'pending', NULL, ?6, ?6)
+      `,
+    )
+    .bind(ownerId, objectKey, originalName, contentType, sizeBytes, now)
+    .run()
+
+  const imageId = result.meta.last_row_id
+  if (!imageId) throw new Error('이미지 ID를 확인할 수 없습니다.')
+  return imageId
+}
+
+export async function getPrivateImage(
+  db: D1Database,
+  ownerId: string,
+  imageId: number,
+): Promise<PrivateImageRow | null> {
+  return db
+    .prepare(
+      `
+      SELECT
+        id,
+        owner_id,
+        object_key,
+        original_name,
+        content_type,
+        size_bytes,
+        status,
+        copied_at,
+        created_at,
+        updated_at
+      FROM private_images
+      WHERE id = ?1 AND owner_id = ?2
+      LIMIT 1
+      `,
+    )
+    .bind(imageId, ownerId)
+    .first<PrivateImageRow>()
+}
+
+export async function markPrivateImageReady(db: D1Database, ownerId: string, imageId: number): Promise<boolean> {
+  const result = await db
+    .prepare(
+      `
+      UPDATE private_images
+      SET status = 'ready', updated_at = ?1
+      WHERE id = ?2 AND owner_id = ?3 AND status = 'pending'
+      `,
+    )
+    .bind(Date.now(), imageId, ownerId)
+    .run()
+  return result.meta.changes > 0
+}
+
+export async function markPrivateImageCopied(db: D1Database, ownerId: string, imageId: number): Promise<number | null> {
+  const now = Date.now()
+  await db
+    .prepare(
+      `
+      UPDATE private_images
+      SET copied_at = COALESCE(copied_at, ?1), updated_at = ?1
+      WHERE id = ?2 AND owner_id = ?3 AND status = 'ready'
+      `,
+    )
+    .bind(now, imageId, ownerId)
+    .run()
+  const image = await getPrivateImage(db, ownerId, imageId)
+  return image?.status === 'ready' ? image.copied_at : null
+}
+
+export async function deletePendingPrivateImage(db: D1Database, ownerId: string, imageId: number): Promise<boolean> {
+  const result = await db
+    .prepare("DELETE FROM private_images WHERE id = ?1 AND owner_id = ?2 AND status = 'pending'")
+    .bind(imageId, ownerId)
     .run()
   return result.meta.changes > 0
 }

@@ -5,6 +5,7 @@ export type UserStatus = 'active' | 'blocked'
 export type RegistrationMode = 'open' | 'allowlist' | 'domain'
 export type TicketLane = 'todo' | 'doing' | 'done'
 export type DashboardWidgetType = 'free-board' | 'bookmark' | 'rss'
+export type PrivateImageStatus = 'pending' | 'ready'
 
 export interface RateLimiterBinding {
   limit(input: { key: string }): Promise<{ success: boolean }>
@@ -31,6 +32,11 @@ export interface Bindings {
   TURNSTILE_SITE_KEY?: string
   TURNSTILE_SECRET_KEY?: string
   CONTACT_EMAIL?: string
+  R2_ACCOUNT_ID?: string
+  R2_BUCKET_NAME?: string
+  R2_PUBLIC_BASE_URL?: string
+  R2_ACCESS_KEY_ID?: string
+  R2_SECRET_ACCESS_KEY?: string
 }
 
 export interface DeployInfo {
@@ -169,6 +175,19 @@ export interface MemoUrlPatternRow {
   prefix: string
   suffix: string
   sort_order: number
+  created_at: number
+  updated_at: number
+}
+
+export interface PrivateImageRow {
+  id: number
+  owner_id: string
+  object_key: string
+  original_name: string
+  content_type: string
+  size_bytes: number
+  status: PrivateImageStatus
+  copied_at: number | null
   created_at: number
   updated_at: number
 }

@@ -2,6 +2,8 @@
 
 이 문서는 D1 생성, 운영 Secret 등록, 최초 배포, Custom Domain, GitHub Actions 연결 순서까지 다룹니다.
 
+개인 이미지 저장 기능을 사용할 때 필요한 R2 버킷·CORS·Custom Domain·자격증명 설정은 [R2 개인 이미지 저장소 설정](R2_IMAGE_STORAGE_SETUP.md)을 함께 진행하세요. R2 Secret이 없어도 Worker는 배포되지만 이미지 업로드만 설정 오류 toast로 거절됩니다.
+
 ## 1. 운영 주소 결정
 
 Google OAuth를 등록하기 전에 운영 `BASE_URL`을 정합니다.
@@ -215,9 +217,11 @@ WORKER_NAME
 D1_DATABASE_NAME
 AUTH_RATE_LIMIT_NAMESPACE
 WRITE_RATE_LIMIT_NAMESPACE
+R2_BUCKET_NAME
+R2_PUBLIC_BASE_URL
 ```
 
-Google Client ID/Secret, `SESSION_SECRET`, Turnstile Secret, 허용 이메일 목록은 GitHub에 넣지 않습니다. 기존 Cloudflare Worker Secrets에 유지하며 GitHub Actions는 저장소 코드와 바인딩 설정만 배포합니다.
+Google Client ID/Secret, `SESSION_SECRET`, Turnstile Secret, 허용 이메일 목록, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`는 GitHub에 넣지 않습니다. 기존 Cloudflare Worker Secrets에 유지하며 GitHub Actions는 저장소 코드와 비밀이 아닌 바인딩 설정만 배포합니다.
 
 Cloudflare API Token에는 대상 계정의 Worker 배포와 D1 마이그레이션에 필요한 최소 권한만 부여하고 만료·회전 정책을 적용하세요. GitHub의 `production` Environment에 승인 규칙을 설정하면 운영 배포를 추가로 보호할 수 있습니다.
 
@@ -230,6 +234,7 @@ Cloudflare API Token에는 대상 계정의 Worker 배포와 D1 마이그레이�
 - [ ] 운영 D1 마이그레이션 전 백업·변경 내용 검토
 - [ ] 비로그인 보호 경로 점검
 - [ ] 서로 다른 두 계정으로 개인 티켓 격리 점검
+- [ ] R2를 사용한다면 개인 이미지 격리, 직접 업로드, 공개 캐시 URL 점검
 - [ ] `.env.production`, `.dev.vars`, `wrangler.jsonc`가 Git에서 제외되는지 확인
 - [ ] GitHub Actions용 Cloudflare Token 최소 권한 확인
 

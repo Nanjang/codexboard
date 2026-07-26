@@ -1,4 +1,20 @@
 import Sortable from 'sortablejs'
+import { localImageValidationError } from '../shared/images'
+
+function showToast(message: string, tone: 'success' | 'error' = 'success'): void {
+  const region = document.querySelector<HTMLElement>('[data-toast-region]')
+  if (!region) return
+  const toast = document.createElement('div')
+  toast.className = `toast toast-${tone}`
+  toast.setAttribute('role', tone === 'error' ? 'alert' : 'status')
+  toast.textContent = message
+  region.appendChild(toast)
+  requestAnimationFrame(() => toast.classList.add('is-visible'))
+  window.setTimeout(() => {
+    toast.classList.remove('is-visible')
+    window.setTimeout(() => toast.remove(), 180)
+  }, 3600)
+}
 
 function setupMenu(): void {
   const toggle = document.querySelector<HTMLButtonElement>('[data-menu-toggle]')
@@ -127,6 +143,180 @@ function setupNotices(): void {
 
 function csrfToken(): string {
   return document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content ?? ''
+}
+
+interface ImageUploadTicket {
+  imageId: number
+  uploadUrl: string
+  cacheUrl: string
+  headers: Record<string, string>
+}
+
+async function jsonError(response: Response, fallback: string): Promise<Error> {
+  const payload = (await response.json().catch(() => null)) as { error?: string } | null
+  return new Error(payload?.error ?? fallback)
+}
+
+function uploadImageFile(
+  ticket: ImageUploadTicket,
+  file: File,
+  onProgress: (percent: number) => void,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const request = new XMLHttpRequest()
+    request.open('PUT', ticket.uploadUrl)
+    for (const [name, value] of Object.entries(ticket.headers)) request.setRequestHeader(name, value)
+    request.upload.addEventListener('progress', (event) => {
+      if (event.lengthComputable) onProgress(Math.round((event.loaded / event.total) * 100))
+    })
+    request.addEventListener('load', () => {
+      if (request.status >= 200 && request.status < 300) resolve()
+      else reject(new Error(`R2 업로드에 실패했습니다. (${request.status})`))
+    })
+    request.addEventListener('error', () => reject(new Error('R2 업로드 연결에 실패했습니다. CORS 설정을 확인하세요.')))
+    request.addEventListener('abort', () => reject(new Error('이미지 업로드가 취소되었습니다.')))
+    request.send(file)
+  })
+}
+
+async function cancelPendingImage(imageId: number): Promise<void> {
+  await fetch(`/api/images/${encodeURIComponent(imageId)}/pending`, {
+    method: 'DELETE',
+    credentials: 'same-origin',
+    headers: {
+      Accept: 'application/json',
+      'X-CSRF-Token': csrfToken(),
+    },
+  }).catch(() => null)
+}
+
+function setupImageUpload(): void {
+  const uploader = document.querySelector<HTMLElement>('[data-image-uploader]')
+  const input = uploader?.querySelector<HTMLInputElement>('[data-image-file]')
+  const progress = uploader?.querySelector<HTMLElement>('[data-image-progress]')
+  const progressLabel = uploader?.querySelector<HTMLElement>('[data-image-progress-label]')
+  const progressBar = uploader?.querySelector<HTMLProgressElement>('[data-image-progress-bar]')
+  if (!uploader || !input || !progress || !progressLabel || !progressBar) return
+
+  input.addEventListener('change', () => {
+    const file = input.files?.[0]
+    if (!file) return
+
+    const validationError = localImageValidationError(file)
+    if (validationError) {
+      input.value = ''
+      showToast(validationError, 'error')
+      return
+    }
+
+    void (async () => {
+      let imageId: number | null = null
+      input.disabled = true
+      progress.hidden = false
+      progressBar.value = 0
+      progressLabel.textContent = '업로드 주소를 준비하는 중…'
+
+      try {
+        const ticketResponse = await fetch('/api/images/upload-url', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            'X-CSRF-Token': csrfToken(),
+          },
+          body: JSON.stringify({
+            fileName: file.name,
+            contentType: file.type,
+            sizeBytes: file.size,
+          }),
+        })
+        if (!ticketResponse.ok) throw await jsonError(ticketResponse, '이미지 업로드를 준비하지 못했습니다.')
+
+        const ticket = (await ticketResponse.json()) as ImageUploadTicket
+        imageId = ticket.imageId
+        progressLabel.textContent = 'R2에 직접 업로드하는 중…'
+        await uploadImageFile(ticket, file, (percent) => {
+          progressBar.value = percent
+          progressLabel.textContent = `R2에 직접 업로드하는 중… ${percent}%`
+        })
+
+        progressLabel.textContent = '업로드 결과를 확인하는 중…'
+        const completeResponse = await fetch(`/api/images/${encodeURIComponent(ticket.imageId)}/complete`, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: {
+            Accept: 'application/json',
+            'X-CSRF-Token': csrfToken(),
+          },
+        })
+        if (!completeResponse.ok) throw await jsonError(completeResponse, '이미지 업로드를 완료하지 못했습니다.')
+
+        imageId = null
+        progressBar.value = 100
+        showToast('이미지를 저장했습니다.')
+        window.setTimeout(() => window.location.reload(), 450)
+      } catch (error) {
+        if (imageId !== null) await cancelPendingImage(imageId)
+        showToast(error instanceof Error ? error.message : '이미지를 업로드하지 못했습니다.', 'error')
+      } finally {
+        input.disabled = false
+        input.value = ''
+        progress.hidden = true
+      }
+    })()
+  })
+}
+
+async function copyText(value: string): Promise<void> {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value)
+    return
+  }
+
+  const textarea = document.createElement('textarea')
+  textarea.value = value
+  textarea.style.position = 'fixed'
+  textarea.style.opacity = '0'
+  document.body.appendChild(textarea)
+  textarea.select()
+  const copied = document.execCommand('copy')
+  textarea.remove()
+  if (!copied) throw new Error('클립보드에 복사하지 못했습니다.')
+}
+
+function setupImageCopies(): void {
+  document.addEventListener('click', (event) => {
+    const target = event.target
+    if (!(target instanceof Element)) return
+    const button = target.closest<HTMLButtonElement>('[data-image-copy]')
+    const card = button?.closest<HTMLElement>('[data-image-id]')
+    const imageId = card?.dataset.imageId
+    const url = button?.dataset.copyUrl
+    if (!button || !card || !imageId || !url) return
+
+    void (async () => {
+      button.disabled = true
+      try {
+        await copyText(url)
+        card.querySelector<HTMLElement>('[data-image-copied-mark]')?.removeAttribute('hidden')
+        const response = await fetch(`/api/images/${encodeURIComponent(imageId)}/copied`, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: {
+            Accept: 'application/json',
+            'X-CSRF-Token': csrfToken(),
+          },
+        })
+        if (!response.ok) throw await jsonError(response, '복사 이력을 저장하지 못했습니다.')
+        showToast('캐시 URL을 복사했습니다.')
+      } catch (error) {
+        showToast(error instanceof Error ? error.message : 'URL을 복사하지 못했습니다.', 'error')
+      } finally {
+        button.disabled = false
+      }
+    })()
+  })
 }
 
 function ticketOrderPayload(): Record<'todo' | 'doing' | 'done', number[]> {
@@ -346,6 +536,8 @@ function initialize(): void {
   setupNotices()
   setupTicketBoard()
   setupDashboardEditing()
+  setupImageUpload()
+  setupImageCopies()
 }
 
 if (document.readyState === 'loading') {

@@ -82,6 +82,9 @@ jobs:
           D1_DATABASE_NAME: ${{ vars.D1_DATABASE_NAME }}
           AUTH_RATE_LIMIT_NAMESPACE: ${{ vars.AUTH_RATE_LIMIT_NAMESPACE }}
           WRITE_RATE_LIMIT_NAMESPACE: ${{ vars.WRITE_RATE_LIMIT_NAMESPACE }}
+          R2_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          R2_BUCKET_NAME: ${{ vars.R2_BUCKET_NAME }}
+          R2_PUBLIC_BASE_URL: ${{ vars.R2_PUBLIC_BASE_URL }}
 
       - name: Apply D1 migrations
         uses: cloudflare/wrangler-action@v3

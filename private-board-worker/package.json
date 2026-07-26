@@ -23,12 +23,13 @@
     "db:migrations:list:remote": "wrangler d1 migrations list DB --remote --config wrangler.jsonc"
   },
   "dependencies": {
+    "aws4fetch": "1.0.20",
     "hono": "4.12.30",
     "jose": "6.2.3",
     "sortablejs": "1.15.7"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "5.20260718.1",
+    "@cloudflare/workers-types": "5.20260726.1",
     "@types/sortablejs": "1.15.9",
     "esbuild": "0.28.1",
     "typescript": "7.0.2",
