@@ -118,7 +118,7 @@ function FreeBoardWidget({
   )
 }
 
-function BookmarkWidget({
+function BookmarkQuickLink({
   widget,
   csrfToken,
 }: {
@@ -129,36 +129,40 @@ function BookmarkWidget({
 
   const hostname = new URL(widget.url).hostname
   return (
-    <article class="dashboard-widget bookmark-widget" data-dashboard-widget-id={widget.id}>
-      <header class="dashboard-widget-header">
-        <div>
-          <span class="dashboard-widget-kicker">내 북마크</span>
-          <h3>{widget.title}</h3>
-        </div>
-        <div class="dashboard-widget-actions">
-          <form
-            class="dashboard-remove-form"
-            action={`/dashboard/widgets/${widget.id}/delete`}
-            method="post"
-            data-confirm="이 북마크 위젯을 제거할까요?"
-          >
-            <CsrfInput token={csrfToken} />
-            <button class="text-button widget-remove-button" type="submit">
-              제거
-            </button>
-          </form>
-          <WidgetEditControls label={`${widget.title} 북마크 위젯`} />
-        </div>
-      </header>
-      <a class="bookmark-widget-link" href={widget.url} target="_blank" rel="noopener noreferrer">
+    <article class="bookmark-quick-link" data-dashboard-widget-id={widget.id}>
+      <a
+        class="bookmark-quick-link-main"
+        href={widget.url}
+        target="_blank"
+        rel="noopener noreferrer"
+      >
         <span class="bookmark-widget-icon" aria-hidden="true">
           ↗
         </span>
         <span>
-          <strong>{hostname}</strong>
-          <small>{widget.url}</small>
+          <strong>{widget.title}</strong>
+          <small>{hostname}</small>
         </span>
       </a>
+      <div class="bookmark-quick-link-actions">
+        <form
+          class="dashboard-remove-form"
+          action={`/dashboard/widgets/${widget.id}/delete`}
+          method="post"
+          data-confirm="이 북마크를 제거할까요?"
+        >
+          <CsrfInput token={csrfToken} />
+          <button
+            class="icon-button icon-button-small widget-remove-button"
+            type="submit"
+            aria-label={`${widget.title} 북마크 제거`}
+            title="북마크 제거"
+          >
+            ×
+          </button>
+        </form>
+        <WidgetEditControls label={`${widget.title} 북마크`} />
+      </div>
     </article>
   )
 }
@@ -245,6 +249,8 @@ export function DashboardPage({
   rssResults,
 }: DashboardPageProps) {
   const hasFreeBoard = widgets.some((widget) => widget.widget_type === 'free-board')
+  const bookmarkWidgets = widgets.filter((widget) => widget.widget_type === 'bookmark')
+  const contentWidgets = widgets.filter((widget) => widget.widget_type !== 'bookmark')
 
   return (
     <AppLayout
@@ -276,19 +282,44 @@ export function DashboardPage({
         </div>
       </section>
 
-      <section class="dashboard-grid" aria-label="내 위젯" data-dashboard>
-        {widgets.map((widget) => {
-          if (widget.widget_type === 'free-board') {
-            return (
-              <FreeBoardWidget
-                key={widget.id}
-                widgetId={widget.id}
-                posts={freeBoardPosts}
-                csrfToken={csrfToken}
-              />
-            )
-          }
-          if (widget.widget_type === 'rss') {
+      <div class="dashboard-root" data-dashboard>
+        {bookmarkWidgets.length > 0 ? (
+          <section class="dashboard-quick-links-section" aria-labelledby="dashboard-quick-links-title">
+            <div class="dashboard-section-heading">
+              <div>
+                <span class="dashboard-widget-kicker">빠른 이동</span>
+                <h3 id="dashboard-quick-links-title">내 북마크</h3>
+              </div>
+              <small>북마크끼리 순서를 바꿀 수 있습니다.</small>
+            </div>
+            <div
+              class="dashboard-quick-links"
+              aria-label="내 북마크 목록"
+              data-dashboard-sortable="bookmarks"
+            >
+              {bookmarkWidgets.map((widget) => (
+                <BookmarkQuickLink key={widget.id} widget={widget} csrfToken={csrfToken} />
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        <section
+          class="dashboard-grid"
+          aria-label="내 정보 위젯"
+          data-dashboard-sortable="widgets"
+        >
+          {contentWidgets.map((widget) => {
+            if (widget.widget_type === 'free-board') {
+              return (
+                <FreeBoardWidget
+                  key={widget.id}
+                  widgetId={widget.id}
+                  posts={freeBoardPosts}
+                  csrfToken={csrfToken}
+                />
+              )
+            }
             return (
               <RssWidget
                 key={widget.id}
@@ -297,24 +328,23 @@ export function DashboardPage({
                 csrfToken={csrfToken}
               />
             )
-          }
-          return <BookmarkWidget key={widget.id} widget={widget} csrfToken={csrfToken} />
-        })}
+          })}
 
-        <button
-          class="dashboard-add-slot"
-          type="button"
-          aria-label="대시보드 위젯 추가"
-          data-dashboard-add-slot
-          data-dialog-open="widget-add-dialog"
-        >
-          <span class="dashboard-add-icon" aria-hidden="true">
-            +
-          </span>
-          <strong>위젯 추가</strong>
-          <small>원하는 정보를 이곳에 배치하세요</small>
-        </button>
-      </section>
+          <button
+            class="dashboard-add-slot"
+            type="button"
+            aria-label="대시보드 위젯 추가"
+            data-dashboard-add-slot
+            data-dialog-open="widget-add-dialog"
+          >
+            <span class="dashboard-add-icon" aria-hidden="true">
+              +
+            </span>
+            <strong>위젯 추가</strong>
+            <small>원하는 정보를 이곳에 배치하세요</small>
+          </button>
+        </section>
+      </div>
 
       <dialog id="widget-add-dialog" class="ticket-dialog widget-dialog">
         <div class="widget-dialog-content">

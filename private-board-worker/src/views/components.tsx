@@ -49,6 +49,28 @@ export function UserBadge({ user }: { user: CurrentUser }) {
   )
 }
 
+export function PrivateEmail({
+  user,
+  className,
+}: {
+  user: CurrentUser
+  className?: string
+}) {
+  const classes = [className, 'private-email', user.emailHidden ? 'is-hidden' : '']
+    .filter(Boolean)
+    .join(' ')
+
+  if (user.emailHidden) {
+    return (
+      <span class={classes} aria-label="이메일 정보 가림" data-email-hidden="true">
+        <span class="private-email-mask" aria-hidden="true"></span>
+      </span>
+    )
+  }
+
+  return <span class={classes}>{user.email}</span>
+}
+
 export function AuthorName({ nickname, role }: { nickname: string; role: UserRole }) {
   return (
     <>

@@ -30,6 +30,7 @@ const user: CurrentUser = {
   role: 'user',
   status: 'active',
   email: 'member@example.com',
+  emailHidden: true,
 }
 
 const adminUser: CurrentUser = {
@@ -262,6 +263,11 @@ describe('핵심 화면', () => {
     expect(html).toContain('rel="noopener noreferrer"')
     expect(html).toContain('data-dialog-open="widget-add-dialog"')
     expect(html).toContain('data-dashboard')
+    expect(html).toContain('data-dashboard-sortable="bookmarks"')
+    expect(html).toContain('data-dashboard-sortable="widgets"')
+    expect(html).toContain('class="bookmark-quick-link"')
+    expect(html).toContain('내 북마크')
+    expect(html).toContain('북마크끼리 순서를 바꿀 수 있습니다.')
     expect(html).toContain('data-dashboard-add-slot')
     expect(html).toContain('data-dashboard-edit-toggle')
     expect(html).toContain('data-dashboard-save-status')
@@ -370,6 +376,7 @@ describe('핵심 화면', () => {
     expect(html).not.toContain('최근 게시글 5건')
     expect(html).not.toContain('게시판 보기')
     expect(html).toContain('href="/posts/1"')
+    expect(html).not.toContain('@')
     expect(html).toContain('게시글 상세 확인과 작성, 댓글 참여는 로그인 후 이용할 수 있습니다.')
   })
 
@@ -392,6 +399,40 @@ describe('핵심 화면', () => {
     expect(html).not.toContain('개인 이미지 저장')
     expect(html).not.toContain('관리자 설정')
     expect(html).not.toContain('<img')
+  })
+
+  it('기본 상태에서는 본인 이메일도 DOM에 렌더링하지 않고 패턴으로 가린다', async () => {
+    const html = String(
+      await AccountPage({
+        appName: 'Private Board',
+        deployInfo,
+        user,
+        csrfToken: 'csrf-test',
+        themeLibrary,
+      }),
+    )
+
+    expect(html).not.toContain(user.email)
+    expect(html).toContain('data-email-hidden="true"')
+    expect(html).toContain('private-email-mask')
+    expect(html).toContain('이메일 정보 가림')
+    expect(html).toContain('aria-checked="true"')
+  })
+
+  it('사용자가 가림을 끈 경우에만 본인 이메일을 렌더링한다', async () => {
+    const html = String(
+      await AccountPage({
+        appName: 'Private Board',
+        deployInfo,
+        user: { ...user, emailHidden: false },
+        csrfToken: 'csrf-test',
+        themeLibrary,
+      }),
+    )
+
+    expect(html).toContain(user.email)
+    expect(html).not.toContain('data-email-hidden="true"')
+    expect(html).toContain('aria-checked="false"')
   })
 
   it('개인 설정에서 내장·내 테마·공유 테마를 픽셀아트 태그로 구분한다', async () => {

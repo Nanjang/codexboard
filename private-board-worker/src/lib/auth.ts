@@ -25,6 +25,7 @@ interface SessionRow {
   role: UserRole
   status: 'active' | 'blocked'
   email: string
+  email_hidden: number
   theme_orphan_notice_pending: number
 }
 
@@ -84,6 +85,7 @@ export async function loadAuthContext(c: AppContext): Promise<AuthContext | null
       u.nickname,
       u.role,
       u.status,
+      u.email_hidden,
       a.email,
       COALESCE(tp.orphan_notice_pending, 0) AS theme_orphan_notice_pending
     FROM sessions s
@@ -115,6 +117,7 @@ export async function loadAuthContext(c: AppContext): Promise<AuthContext | null
     role: row.role,
     status: row.status,
     email: row.email,
+    emailHidden: row.email_hidden === 1,
     themeOrphanNoticePending: row.theme_orphan_notice_pending === 1,
   }
 
@@ -273,7 +276,7 @@ export async function findOrCreateGoogleUser(env: Bindings, identity: GoogleIden
 
   const existing = await env.DB.prepare(
     `
-    SELECT u.id, u.nickname, u.role, u.status, a.email
+    SELECT u.id, u.nickname, u.role, u.status, u.email_hidden, a.email
     FROM auth_accounts a
     JOIN users u ON u.id = a.user_id
     WHERE a.provider = 'google' AND a.provider_subject = ?1
@@ -286,6 +289,7 @@ export async function findOrCreateGoogleUser(env: Bindings, identity: GoogleIden
       nickname: string
       role: UserRole
       status: 'active' | 'blocked'
+      email_hidden: number
       email: string
     }>()
 
@@ -308,6 +312,7 @@ export async function findOrCreateGoogleUser(env: Bindings, identity: GoogleIden
       role: desiredRole === 'admin' ? 'admin' : existing.role,
       status: existing.status,
       email: identity.email,
+      emailHidden: existing.email_hidden === 1,
     }
   }
 
@@ -337,7 +342,7 @@ export async function findOrCreateGoogleUser(env: Bindings, identity: GoogleIden
   } catch (error) {
     const raced = await env.DB.prepare(
       `
-      SELECT u.id, u.nickname, u.role, u.status, a.email
+      SELECT u.id, u.nickname, u.role, u.status, u.email_hidden, a.email
       FROM auth_accounts a
       JOIN users u ON u.id = a.user_id
       WHERE a.provider = 'google' AND a.provider_subject = ?1
@@ -350,6 +355,7 @@ export async function findOrCreateGoogleUser(env: Bindings, identity: GoogleIden
         nickname: string
         role: UserRole
         status: 'active' | 'blocked'
+        email_hidden: number
         email: string
       }>()
     if (raced) {
@@ -359,12 +365,20 @@ export async function findOrCreateGoogleUser(env: Bindings, identity: GoogleIden
         role: raced.role,
         status: raced.status,
         email: identity.email,
+        emailHidden: raced.email_hidden === 1,
       }
     }
     throw error
   }
 
-  return { id: userId, nickname, role: desiredRole, status: 'active', email: identity.email }
+  return {
+    id: userId,
+    nickname,
+    role: desiredRole,
+    status: 'active',
+    email: identity.email,
+    emailHidden: true,
+  }
 }
 
 export async function verifyTurnstile(c: AppContext, token: string | null): Promise<boolean> {

@@ -18,6 +18,7 @@ const NOTICE_MESSAGES: Record<string, string> = {
   'memo-pattern-updated': '메모 패턴을 수정했습니다.',
   'memo-pattern-deleted': '메모 패턴을 삭제했습니다. 이 패턴을 사용하던 메모는 자동 판별로 전환되었습니다.',
   'nickname-updated': '닉네임을 변경했습니다.',
+  'email-privacy-updated': '이메일 정보 가림 설정을 변경했습니다.',
   'theme-selected': '사용할 색상 테마를 변경했습니다.',
   'theme-created': '현재 테마를 복제해 개인 테마를 만들었습니다.',
   'theme-imported': '공유 테마를 가져와 적용했습니다.',

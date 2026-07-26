@@ -1,6 +1,6 @@
 import type { Child } from 'hono/jsx'
 import type { CurrentUser, DeployInfo } from '../types'
-import { CsrfInput, DeployFooter, Notice, UserBadge } from './components'
+import { CsrfInput, DeployFooter, Notice, PrivateEmail, UserBadge } from './components'
 
 type ActiveNav =
   | 'dashboard'
@@ -157,7 +157,7 @@ export function AppLayout({
               ) : null}
             </nav>
             <div class="menu-footer">
-              <span class="menu-email">{user.email}</span>
+              <PrivateEmail user={user} className="menu-email" />
               <form action="/logout" method="post">
                 <CsrfInput token={csrfToken} />
                 <button class="button button-secondary button-full" type="submit">

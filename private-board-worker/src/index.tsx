@@ -1418,6 +1418,23 @@ app.post('/account/nickname', async (c) => {
   }
 })
 
+app.post('/account/email-privacy', async (c) => {
+  const auth = requireActiveAuth(c)
+  await enforceWriteRateLimit(c, 'account')
+  const form = await readForm(c)
+  const hiddenValue = form.get('hidden')
+
+  if (hiddenValue !== 'true' && hiddenValue !== 'false') {
+    throw new ValidationError('이메일 정보 가림 설정이 올바르지 않습니다.')
+  }
+
+  const emailHidden = hiddenValue === 'true'
+  await c.env.DB.prepare('UPDATE users SET email_hidden = ?1, updated_at = ?2 WHERE id = ?3')
+    .bind(emailHidden ? 1 : 0, Date.now(), auth.user.id)
+    .run()
+  return redirectWithNotice(c, '/account', 'email-privacy-updated')
+})
+
 app.post('/account/themes/builtin/:key/select', async (c) => {
   const auth = requireActiveAuth(c)
   await enforceWriteRateLimit(c, 'theme')

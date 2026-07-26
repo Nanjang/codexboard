@@ -6,7 +6,7 @@ import {
   type ThemeLibrary,
   type ThemeSelectionKind,
 } from '../lib/themes'
-import { AuthorName, CsrfInput } from './components'
+import { AuthorName, CsrfInput, PrivateEmail } from './components'
 import { AppLayout } from './layout'
 
 function ThemeTypeTag({ kind }: { kind: ThemeSelectionKind }) {
@@ -251,7 +251,9 @@ export function AccountPage({
           <dl>
             <div>
               <dt>이메일</dt>
-              <dd>{user.email}</dd>
+              <dd>
+                <PrivateEmail user={user} />
+              </dd>
             </div>
             <div>
               <dt>권한</dt>
@@ -260,6 +262,33 @@ export function AccountPage({
           </dl>
           <p class="form-hint">Google 비밀번호와 프로필 이미지는 이 서비스에 저장하지 않습니다.</p>
         </article>
+      </section>
+
+      <section class="privacy-settings" aria-labelledby="privacy-settings-title">
+        <div>
+          <p class="eyebrow">개인정보 보호</p>
+          <h2 id="privacy-settings-title">이메일 정보 가림</h2>
+          <p>
+            스트리밍이나 화면 공유 중 이메일이 노출되지 않도록 흰색·회색 대각선 패턴으로 가립니다.
+            다른 회원의 이메일은 이 설정과 관계없이 항상 비공개입니다.
+          </p>
+        </div>
+        <form action="/account/email-privacy" method="post" class="email-privacy-form">
+          <CsrfInput token={csrfToken} />
+          <input type="hidden" name="hidden" value={user.emailHidden ? 'false' : 'true'} />
+          <span class={`email-privacy-status${user.emailHidden ? ' is-on' : ''}`}>
+            {user.emailHidden ? '켜짐' : '꺼짐'}
+          </span>
+          <button
+            class={`privacy-toggle${user.emailHidden ? ' is-on' : ''}`}
+            type="submit"
+            role="switch"
+            aria-checked={user.emailHidden ? 'true' : 'false'}
+            aria-label="이메일 정보 가림"
+          >
+            <span aria-hidden="true"></span>
+          </button>
+        </form>
       </section>
 
       <section class="theme-settings" aria-labelledby="theme-settings-title">
