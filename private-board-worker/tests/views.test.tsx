@@ -74,6 +74,15 @@ const dashboardWidgets: DashboardWidgetRow[] = [
     created_at: 1,
   },
   {
+    id: 3,
+    user_id: user.id,
+    widget_type: 'rss',
+    title: '개발 소식',
+    url: 'https://example.com/feed.xml',
+    sort_order: 3000,
+    created_at: 1,
+  },
+  {
     id: 2,
     user_id: user.id,
     widget_type: 'bookmark',
@@ -120,6 +129,24 @@ describe('핵심 화면', () => {
         csrfToken: 'csrf-test',
         widgets: dashboardWidgets,
         freeBoardPosts: [post],
+        rssResults: {
+          3: {
+            feed: {
+              title: 'Example Feed',
+              sourceUrl: 'https://example.com/feed.xml',
+              fetchedAt: 1,
+              items: [
+                {
+                  title: '새로운 개발 소식',
+                  url: 'https://example.com/posts/latest',
+                  summary: '최근 글의 짧은 요약입니다.',
+                  publishedAt: Date.UTC(2026, 6, 26, 3, 0),
+                },
+              ],
+            },
+            error: null,
+          },
+        },
       }),
     )
 
@@ -135,9 +162,13 @@ describe('핵심 화면', () => {
     expect(html).toContain('data-dashboard-save-status')
     expect(html).toContain('data-dashboard-widget-id="1"')
     expect(html).toContain('data-dashboard-widget-id="2"')
+    expect(html).toContain('data-dashboard-widget-id="3"')
     expect(html).toContain('data-dashboard-move="-1"')
     expect(html).toContain('data-dashboard-move="1"')
-    expect(html).toContain('현재 자유게시판 요약과 URL 북마크 위젯을 지원합니다.')
+    expect(html).toContain('RSS 최신 글')
+    expect(html).toContain('새로운 개발 소식')
+    expect(html).toContain('최근 글의 짧은 요약입니다.')
+    expect(html).toContain('현재 자유게시판 요약, URL 북마크, RSS 최신 글 위젯을 지원합니다.')
   })
 
   it('내부 오류 사유 대신 추적 가능한 오류 코드만 표시한다', async () => {

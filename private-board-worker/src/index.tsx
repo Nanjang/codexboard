@@ -17,6 +17,7 @@ import {
 import {
   addBookmarkDashboardWidget,
   addFreeBoardDashboardWidget,
+  addRssDashboardWidget,
   canManageResource,
   createComment,
   createMemo,
@@ -39,6 +40,7 @@ import {
   listPosts,
   listRecentPostsByBoardSlug,
   listTickets,
+  MAX_RSS_WIDGETS_PER_USER,
   moveTicket,
   reorderDashboardWidgets,
   reorderTickets,
@@ -51,6 +53,7 @@ import {
 import { safeEqual } from './lib/crypto'
 import { getAppName, getDeployInfo, turnstileEnabled } from './lib/env'
 import { acceptsJson, noticeFromRequest, redirectWithNotice } from './lib/http'
+import { loadRssFeed, RssFeedError } from './lib/rss'
 import {
   assertCsrf,
   enforceAuthRateLimit,
@@ -66,12 +69,21 @@ import {
   nickname,
   optionalSingleLine,
   positiveInteger,
+  rssUrl,
   singleLine,
   ticketLane,
   validateMemoUrlTemplate,
   ValidationError,
 } from './lib/validation'
-import type { AppContext, AppEnv, MemoUrlSettings, PostDetailRow, TicketLane, TicketRow } from './types'
+import type {
+  AppContext,
+  AppEnv,
+  MemoUrlSettings,
+  PostDetailRow,
+  RssWidgetResult,
+  TicketLane,
+  TicketRow,
+} from './types'
 import { AccountPage } from './views/account'
 import { BoardListPage, CommentEditPage, PostDetailPage, PostFormPage } from './views/boards'
 import { DashboardPage } from './views/dashboard'
@@ -356,6 +368,31 @@ app.get('/', async (c) => {
   const freeBoardPosts = widgets.some((widget) => widget.widget_type === 'free-board')
     ? await listRecentPostsByBoardSlug(c.env.DB, 'free')
     : []
+  const rssEntries = await Promise.all(
+    widgets
+      .filter((widget) => widget.widget_type === 'rss' && widget.url)
+      .map(async (widget): Promise<[number, RssWidgetResult]> => {
+        const feedUrl = widget.url
+        if (!feedUrl) return [widget.id, { feed: null, error: 'RSS 주소가 없습니다.' }]
+        try {
+          const feed = await loadRssFeed(feedUrl, c.env.DB, c.executionCtx)
+          return [widget.id, { feed, error: null }]
+        } catch (error) {
+          console.warn('RSS widget load failed', {
+            widgetId: widget.id,
+            message: error instanceof Error ? error.message.slice(0, 160) : 'unknown',
+          })
+          return [
+            widget.id,
+            {
+              feed: null,
+              error: error instanceof RssFeedError ? error.message : 'RSS를 불러오지 못했습니다.',
+            },
+          ]
+        }
+      }),
+  )
+  const rssResults: Record<number, RssWidgetResult> = Object.fromEntries(rssEntries)
 
   return c.html(
     <DashboardPage
@@ -365,6 +402,7 @@ app.get('/', async (c) => {
       notice={noticeFromRequest(c)}
       widgets={widgets}
       freeBoardPosts={freeBoardPosts}
+      rssResults={rssResults}
     />,
   )
 })
@@ -381,6 +419,26 @@ app.post('/dashboard/widgets', async (c) => {
     const title = singleLine(form.get('title'), '표시 이름', 60)
     const url = bookmarkUrl(form.get('url'))
     await addBookmarkDashboardWidget(c.env.DB, auth.user.id, title, url)
+  } else if (widgetType === 'rss') {
+    const title = singleLine(form.get('title'), '표시 이름', 60)
+    const url = rssUrl(form.get('url'))
+    const existingWidgets = await listDashboardWidgets(c.env.DB, auth.user.id)
+    if (
+      existingWidgets.filter((widget) => widget.widget_type === 'rss').length >=
+      MAX_RSS_WIDGETS_PER_USER
+    ) {
+      throw new ValidationError(`RSS 위젯은 최대 ${MAX_RSS_WIDGETS_PER_USER}개까지 추가할 수 있습니다.`)
+    }
+    try {
+      await loadRssFeed(url, c.env.DB, c.executionCtx)
+      await addRssDashboardWidget(c.env.DB, auth.user.id, title, url)
+    } catch (error) {
+      if (error instanceof RssFeedError) throw new ValidationError(error.message)
+      if (error instanceof Error && error.message.startsWith('RSS 위젯은 최대')) {
+        throw new ValidationError(error.message)
+      }
+      throw error
+    }
   } else {
     throw new ValidationError('지원하지 않는 위젯입니다.')
   }

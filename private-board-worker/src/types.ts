@@ -4,7 +4,7 @@ export type UserRole = 'user' | 'admin'
 export type UserStatus = 'active' | 'blocked'
 export type RegistrationMode = 'open' | 'allowlist' | 'domain'
 export type TicketLane = 'todo' | 'doing' | 'done'
-export type DashboardWidgetType = 'free-board' | 'bookmark'
+export type DashboardWidgetType = 'free-board' | 'bookmark' | 'rss'
 
 export interface RateLimiterBinding {
   limit(input: { key: string }): Promise<{ success: boolean }>
@@ -100,6 +100,25 @@ export interface DashboardWidgetRow {
   url: string | null
   sort_order: number
   created_at: number
+}
+
+export interface RssItem {
+  title: string
+  url: string
+  summary: string
+  publishedAt: number | null
+}
+
+export interface RssFeed {
+  title: string | null
+  sourceUrl: string
+  fetchedAt: number
+  items: RssItem[]
+}
+
+export interface RssWidgetResult {
+  feed: RssFeed | null
+  error: string | null
 }
 
 export interface CommentRow {

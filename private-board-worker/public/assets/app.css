@@ -795,6 +795,57 @@ button {
   font-weight: 900;
 }
 
+.widget-catalog-rss .widget-catalog-icon {
+  font-size: 0.65rem;
+  letter-spacing: -0.02em;
+}
+
+.rss-item-list {
+  display: grid;
+}
+
+.rss-item-row {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 12px 18px;
+  text-decoration: none;
+}
+
+.rss-item-row + .rss-item-row {
+  border-top: 1px solid var(--border);
+}
+
+.rss-item-row:hover {
+  background: #fafbfc;
+}
+
+.rss-item-row strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rss-item-row p {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.rss-item-row time {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.rss-widget-error small {
+  font-size: 0.76rem;
+}
+
 .widget-dialog-content {
   display: grid;
   gap: 18px;
@@ -1799,7 +1850,8 @@ select:focus {
   }
 
   .dashboard-widget-header,
-  .dashboard-post-row {
+  .dashboard-post-row,
+  .rss-item-row {
     padding-inline: 14px;
   }
 

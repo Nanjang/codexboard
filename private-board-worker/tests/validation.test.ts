@@ -7,6 +7,7 @@ import {
   nickname,
   optionalSingleLine,
   positiveInteger,
+  rssUrl,
   singleLine,
   ticketLane,
   validateMemoUrlTemplate,
@@ -45,6 +46,13 @@ describe('입력 검증', () => {
     expect(bookmarkUrl('https://example.com/docs')).toBe('https://example.com/docs')
     expect(() => bookmarkUrl('javascript:alert(1)')).toThrow(ValidationError)
     expect(() => bookmarkUrl('https://user:password@example.com/')).toThrow(ValidationError)
+  })
+
+  it('RSS는 공개 HTTPS 주소만 허용한다', () => {
+    expect(rssUrl('https://example.com/feed.xml')).toBe('https://example.com/feed.xml')
+    expect(() => rssUrl('http://example.com/feed.xml')).toThrow(ValidationError)
+    expect(() => rssUrl('https://127.0.0.1/feed.xml')).toThrow(ValidationError)
+    expect(() => rssUrl('https://service.internal/feed.xml')).toThrow(ValidationError)
   })
 
   it('메모 값의 숫자 여부를 부호와 소수까지 일관되게 판별한다', () => {

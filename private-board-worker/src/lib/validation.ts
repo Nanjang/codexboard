@@ -1,3 +1,5 @@
+import { normalizeRssUrl, RssFeedError } from './rss'
+
 export class ValidationError extends Error {
   readonly status = 400
 }
@@ -87,6 +89,16 @@ export function bookmarkUrl(value: FormDataEntryValue | null): string {
     throw new ValidationError('북마크는 사용자 정보가 없는 http 또는 https URL만 지원합니다.')
   }
   return url.toString()
+}
+
+export function rssUrl(value: FormDataEntryValue | null): string {
+  const normalized = singleLine(value, 'RSS 주소', 2048)
+  try {
+    return normalizeRssUrl(normalized)
+  } catch (error) {
+    if (error instanceof RssFeedError) throw new ValidationError(error.message)
+    throw error
+  }
 }
 
 export function isNumericMemoValue(value: string): boolean {

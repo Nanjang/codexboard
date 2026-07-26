@@ -15,6 +15,7 @@ export const POSTS_PER_PAGE = 20
 export const DASHBOARD_POSTS_LIMIT = 5
 export const MAX_TICKETS_PER_USER = 200
 export const MAX_MEMOS_PER_USER = 1000
+export const MAX_RSS_WIDGETS_PER_USER = 10
 
 const EMPTY_MEMO_URL_SETTINGS: MemoUrlSettings = {
   numeric_prefix: '',
@@ -198,6 +199,38 @@ export async function addBookmarkDashboardWidget(
 
   const widgetId = result.meta.last_row_id
   if (!widgetId) throw new Error('북마크 위젯 ID를 확인할 수 없습니다.')
+  return widgetId
+}
+
+export async function addRssDashboardWidget(
+  db: D1Database,
+  userId: string,
+  title: string,
+  url: string,
+): Promise<number> {
+  await ensureUserDashboard(db, userId)
+  const now = Date.now()
+  const sortOrder = await nextDashboardWidgetOrder(db, userId)
+  const result = await db
+    .prepare(
+      `
+      INSERT INTO dashboard_widgets (user_id, widget_type, title, url, sort_order, created_at)
+      SELECT ?1, 'rss', ?2, ?3, ?4, ?5
+      WHERE (
+        SELECT COUNT(*)
+        FROM dashboard_widgets
+        WHERE user_id = ?1 AND widget_type = 'rss'
+      ) < ?6
+      `,
+    )
+    .bind(userId, title, url, sortOrder, now, MAX_RSS_WIDGETS_PER_USER)
+    .run()
+
+  if (result.meta.changes === 0) {
+    throw new Error(`RSS 위젯은 최대 ${MAX_RSS_WIDGETS_PER_USER}개까지 추가할 수 있습니다.`)
+  }
+  const widgetId = result.meta.last_row_id
+  if (!widgetId) throw new Error('RSS 위젯 ID를 확인할 수 없습니다.')
   return widgetId
 }
 

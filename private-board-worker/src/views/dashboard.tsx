@@ -1,4 +1,10 @@
-import type { CurrentUser, DashboardWidgetRow, DeployInfo, PostListRow } from '../types'
+import type {
+  CurrentUser,
+  DashboardWidgetRow,
+  DeployInfo,
+  PostListRow,
+  RssWidgetResult,
+} from '../types'
 import { CsrfInput } from './components'
 import { formatDateTime } from './format'
 import { AppLayout } from './layout'
@@ -11,6 +17,7 @@ interface DashboardPageProps {
   notice?: string | null
   widgets: DashboardWidgetRow[]
   freeBoardPosts: PostListRow[]
+  rssResults: Record<number, RssWidgetResult>
 }
 
 function WidgetEditControls({ label }: { label: string }) {
@@ -154,6 +161,77 @@ function BookmarkWidget({
   )
 }
 
+function RssWidget({
+  widget,
+  result,
+  csrfToken,
+}: {
+  widget: DashboardWidgetRow
+  result: RssWidgetResult | undefined
+  csrfToken: string
+}) {
+  if (!widget.title || !widget.url) return null
+
+  return (
+    <article class="dashboard-widget rss-widget" data-dashboard-widget-id={widget.id}>
+      <header class="dashboard-widget-header">
+        <div>
+          <span class="dashboard-widget-kicker">RSS 최신 글</span>
+          <h3>{widget.title}</h3>
+        </div>
+        <div class="dashboard-widget-actions">
+          <a class="text-button" href={widget.url} target="_blank" rel="noopener noreferrer">
+            원본
+          </a>
+          <form
+            class="dashboard-remove-form"
+            action={`/dashboard/widgets/${widget.id}/delete`}
+            method="post"
+            data-confirm="이 RSS 위젯을 제거할까요?"
+          >
+            <CsrfInput token={csrfToken} />
+            <button class="text-button widget-remove-button" type="submit">
+              제거
+            </button>
+          </form>
+          <WidgetEditControls label={`${widget.title} RSS 위젯`} />
+        </div>
+      </header>
+
+      {result?.error ? (
+        <div class="dashboard-widget-empty rss-widget-error">
+          <p>{result.error}</p>
+          <small>주소나 RSS 서버 상태를 확인해 주세요.</small>
+        </div>
+      ) : !result?.feed || result.feed.items.length === 0 ? (
+        <div class="dashboard-widget-empty">
+          <p>표시할 최신 글이 없습니다.</p>
+        </div>
+      ) : (
+        <div class="rss-item-list">
+          {result.feed.items.map((item) => (
+            <a
+              class="rss-item-row"
+              href={item.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              key={item.url}
+            >
+              <strong>{item.title}</strong>
+              {item.summary ? <p>{item.summary}</p> : null}
+              {item.publishedAt ? (
+                <time datetime={new Date(item.publishedAt).toISOString()}>
+                  {formatDateTime(item.publishedAt)}
+                </time>
+              ) : null}
+            </a>
+          ))}
+        </div>
+      )}
+    </article>
+  )
+}
+
 export function DashboardPage({
   appName,
   deployInfo,
@@ -162,6 +240,7 @@ export function DashboardPage({
   notice = null,
   widgets,
   freeBoardPosts,
+  rssResults,
 }: DashboardPageProps) {
   const hasFreeBoard = widgets.some((widget) => widget.widget_type === 'free-board')
 
@@ -196,18 +275,29 @@ export function DashboardPage({
       </section>
 
       <section class="dashboard-grid" aria-label="내 위젯" data-dashboard>
-        {widgets.map((widget) =>
-          widget.widget_type === 'free-board' ? (
-            <FreeBoardWidget
-              key={widget.id}
-              widgetId={widget.id}
-              posts={freeBoardPosts}
-              csrfToken={csrfToken}
-            />
-          ) : (
-            <BookmarkWidget key={widget.id} widget={widget} csrfToken={csrfToken} />
-          ),
-        )}
+        {widgets.map((widget) => {
+          if (widget.widget_type === 'free-board') {
+            return (
+              <FreeBoardWidget
+                key={widget.id}
+                widgetId={widget.id}
+                posts={freeBoardPosts}
+                csrfToken={csrfToken}
+              />
+            )
+          }
+          if (widget.widget_type === 'rss') {
+            return (
+              <RssWidget
+                key={widget.id}
+                widget={widget}
+                result={rssResults[widget.id]}
+                csrfToken={csrfToken}
+              />
+            )
+          }
+          return <BookmarkWidget key={widget.id} widget={widget} csrfToken={csrfToken} />
+        })}
 
         <button
           class="dashboard-add-slot"
@@ -295,7 +385,43 @@ export function DashboardPage({
             </form>
           </article>
 
-          <p class="widget-catalog-hint">현재 자유게시판 요약과 URL 북마크 위젯을 지원합니다.</p>
+          <article class="widget-catalog-item widget-catalog-rss">
+            <div class="widget-catalog-copy">
+              <span class="widget-catalog-icon" aria-hidden="true">
+                RSS
+              </span>
+              <div>
+                <h3>RSS 최신 글</h3>
+                <p>공개 HTTPS RSS 또는 Atom 주소를 등록해 최신 글 5개를 날짜순으로 확인합니다.</p>
+              </div>
+            </div>
+            <form action="/dashboard/widgets" method="post" class="bookmark-widget-form">
+              <CsrfInput token={csrfToken} />
+              <input type="hidden" name="widgetType" value="rss" />
+              <label>
+                <span>표시 이름</span>
+                <input type="text" name="title" maxlength={60} required autocomplete="off" />
+              </label>
+              <label>
+                <span>RSS 주소</span>
+                <input
+                  type="url"
+                  name="url"
+                  maxlength={2048}
+                  placeholder="https://example.com/feed.xml"
+                  required
+                  autocomplete="url"
+                />
+              </label>
+              <button class="button" type="submit">
+                RSS 추가
+              </button>
+            </form>
+          </article>
+
+          <p class="widget-catalog-hint">
+            현재 자유게시판 요약, URL 북마크, RSS 최신 글 위젯을 지원합니다.
+          </p>
         </div>
       </dialog>
     </AppLayout>
