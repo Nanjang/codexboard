@@ -25,7 +25,8 @@
 | OAuth 시작·콜백 | `/auth/google/start`, `/auth/google/callback` | 공개 |
 | 법적 문서 | `/privacy`, `/terms` | 공개 |
 | 상태 확인 | `/health` | 공개 |
-| 공용 게시판 | `/boards/free`, `/boards/inquiry` | 인증 필요 |
+| 공용 게시판 | `/boards/free`, `/boards/development`, `/boards/news`, `/boards/inquiry` | 인증 필요 |
+| 손님용 홈 | `/` | 인증 불필요, 자유게시판·개발·뉴스 최근 글 5건 미리보기 |
 | 게시글·댓글 | `/posts/*`, `/comments/*` | 인증 필요 |
 | 개인 메모 | `/memos`, `/memos/settings` | 인증 필요, 소유자 제한 |
 | 개인 티켓 | `/tickets`, `/api/tickets/order` | 인증 필요, 소유자 제한 |
@@ -49,7 +50,7 @@ boards
   └─ posts
 ```
 
-`boards`에는 마이그레이션에서 `free`, `inquiry` 두 행을 고정 등록합니다.
+`boards`에는 마이그레이션에서 `free`, `development`, `news`, `inquiry` 네 행을 고정 등록합니다.
 
 ## 인증과 세션
 

@@ -1,4 +1,5 @@
 import type {
+  BoardSlug,
   BoardRow,
   CommentRow,
   CurrentUser,
@@ -11,8 +12,8 @@ import { CsrfInput, EmptyState } from './components'
 import { formatDateTime } from './format'
 import { AppLayout } from './layout'
 
-function boardActiveNav(slug: string): 'free' | 'inquiry' {
-  return slug === 'inquiry' ? 'inquiry' : 'free'
+function boardActiveNav(slug: BoardSlug): BoardSlug {
+  return slug
 }
 
 interface CommonPageProps {

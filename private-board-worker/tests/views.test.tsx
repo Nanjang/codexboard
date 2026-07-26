@@ -14,6 +14,7 @@ import type {
 import { BoardListPage } from '../src/views/boards'
 import { DashboardPage } from '../src/views/dashboard'
 import { PublicErrorPage } from '../src/views/errors'
+import { GuestHomePage } from '../src/views/home'
 import { LoginPage } from '../src/views/login'
 import { PrivateImagesPage } from '../src/views/images'
 import { composeMemoUrl, MemoBoardPage, MemoSettingsPage } from '../src/views/memos'
@@ -277,14 +278,39 @@ describe('핵심 화면', () => {
     expect(timePosition).toBeLessThan(viewsPosition)
   })
 
-  it('비로그인 화면에는 로그인 요구 내용만 렌더링한다', async () => {
+  it('비로그인 로그인 화면에는 인증 안내를 렌더링한다', async () => {
     const html = String(await LoginPage({ appName: 'Private Board', deployInfo }))
     expect(html).toContain('Google 계정으로 로그인')
-    expect(html).toContain('로그인 전에는 서비스 내용이 공개되지 않습니다')
+    expect(html).toContain('손님 홈에서는 공용 게시판의 최근 글을 미리 볼 수 있습니다')
     expect(html).toContain('deploy 0d2e4a11')
     expect(html).toContain('2026. 07. 25. 17:28 KST')
     expect(html).not.toContain('data-ticket-board')
     expect(html).not.toContain('<img')
+  })
+
+  it('손님 홈에 자유게시판, 개발, 뉴스 최근 글을 지정한 순서로 표시한다', async () => {
+    const html = String(
+      await GuestHomePage({
+        appName: 'Private Board',
+        deployInfo,
+        previews: [
+          { slug: 'free', name: '자유게시판', posts: [post] },
+          { slug: 'development', name: '개발', posts: [] },
+          { slug: 'news', name: '뉴스', posts: [] },
+        ],
+      }),
+    )
+
+    const freePosition = html.indexOf('id="preview-free"')
+    const developmentPosition = html.indexOf('id="preview-development"')
+    const newsPosition = html.indexOf('id="preview-news"')
+
+    expect(freePosition).toBeGreaterThan(-1)
+    expect(freePosition).toBeLessThan(developmentPosition)
+    expect(developmentPosition).toBeLessThan(newsPosition)
+    expect(html).toContain('최근 게시글 5건')
+    expect(html).toContain('href="/posts/1"')
+    expect(html).toContain('게시글 상세 확인과 작성, 댓글 참여는 로그인 후 이용할 수 있습니다.')
   })
 
   it('인증 화면은 문맥형 탑바와 오른쪽 단일 메뉴 토글을 포함한다', async () => {

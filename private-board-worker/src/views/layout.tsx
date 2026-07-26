@@ -2,7 +2,17 @@ import type { Child } from 'hono/jsx'
 import type { CurrentUser, DeployInfo } from '../types'
 import { CsrfInput, DeployFooter, Notice, UserBadge } from './components'
 
-type ActiveNav = 'dashboard' | 'free' | 'inquiry' | 'memos' | 'images' | 'tickets' | 'account' | null
+type ActiveNav =
+  | 'dashboard'
+  | 'free'
+  | 'development'
+  | 'news'
+  | 'inquiry'
+  | 'memos'
+  | 'images'
+  | 'tickets'
+  | 'account'
+  | null
 
 type ContextAction =
   | { kind: 'link'; label: string; href: string; dialogId?: string }
@@ -114,6 +124,12 @@ export function AppLayout({
               </a>
               <a href="/boards/free" aria-current={activeNav === 'free' ? 'page' : undefined}>
                 자유게시판
+              </a>
+              <a href="/boards/development" aria-current={activeNav === 'development' ? 'page' : undefined}>
+                개발
+              </a>
+              <a href="/boards/news" aria-current={activeNav === 'news' ? 'page' : undefined}>
+                뉴스
               </a>
               <a href="/boards/inquiry" aria-current={activeNav === 'inquiry' ? 'page' : undefined}>
                 문의

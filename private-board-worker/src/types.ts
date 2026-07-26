@@ -4,6 +4,7 @@ export type UserRole = 'user' | 'admin'
 export type UserStatus = 'active' | 'blocked'
 export type RegistrationMode = 'open' | 'allowlist' | 'domain'
 export type TicketLane = 'todo' | 'doing' | 'done'
+export type BoardSlug = 'free' | 'development' | 'news' | 'inquiry'
 export type DashboardWidgetType = 'free-board' | 'bookmark' | 'rss'
 export type PrivateImageStatus = 'pending' | 'ready'
 
@@ -74,7 +75,7 @@ export type AppContext = Context<AppEnv>
 
 export interface BoardRow {
   id: number
-  slug: string
+  slug: BoardSlug
   name: string
   description: string
   sort_order: number
@@ -83,7 +84,7 @@ export interface BoardRow {
 export interface PostListRow {
   id: number
   board_id: number
-  board_slug: string
+  board_slug: BoardSlug
   board_name: string
   author_id: string
   author_nickname: string

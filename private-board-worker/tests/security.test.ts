@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { contentSecurityPolicy } from '../src/lib/security'
+import { contentSecurityPolicy, isPublicPath } from '../src/lib/security'
 
 describe('Content Security Policy', () => {
   it('Google OAuth 리디렉션만 외부 form-action으로 허용한다', () => {
@@ -27,5 +27,15 @@ describe('Content Security Policy', () => {
     expect(policy).toContain(
       "connect-src 'self' https://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com",
     )
+  })
+})
+
+describe('공개 경로', () => {
+  it('손님용 루트만 게시판 경로 중 공개한다', () => {
+    expect(isPublicPath('/')).toBe(true)
+    expect(isPublicPath('/boards/free')).toBe(false)
+    expect(isPublicPath('/boards/development')).toBe(false)
+    expect(isPublicPath('/boards/news')).toBe(false)
+    expect(isPublicPath('/posts/1')).toBe(false)
   })
 })

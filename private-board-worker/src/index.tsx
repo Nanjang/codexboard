@@ -101,6 +101,7 @@ import {
 import type {
   AppContext,
   AppEnv,
+  BoardSlug,
   MemoUrlSettings,
   PostDetailRow,
   RssWidgetResult,
@@ -111,6 +112,7 @@ import { AccountPage } from './views/account'
 import { BoardListPage, CommentEditPage, PostDetailPage, PostFormPage } from './views/boards'
 import { DashboardPage } from './views/dashboard'
 import { AppErrorPage, BlockedPage, PublicErrorPage } from './views/errors'
+import { GuestHomePage } from './views/home'
 import { PrivacyPage, TermsPage } from './views/legal'
 import { LoginPage } from './views/login'
 import { PrivateImagesPage } from './views/images'
@@ -206,7 +208,13 @@ async function readForm(c: AppContext): Promise<FormData> {
   return form
 }
 
-function draftPost(boardId: number, boardName: string, boardSlugValue: string, title: string, body: string): PostDetailRow {
+function draftPost(
+  boardId: number,
+  boardName: string,
+  boardSlugValue: BoardSlug,
+  title: string,
+  body: string,
+): PostDetailRow {
   return {
     id: 0,
     board_id: boardId,
@@ -425,6 +433,26 @@ app.get('/account/blocked', (c) => {
 })
 
 app.get('/', async (c) => {
+  const currentAuth = c.get('auth')
+  if (!currentAuth) {
+    const [freePosts, developmentPosts, newsPosts] = await Promise.all([
+      listRecentPostsByBoardSlug(c.env.DB, 'free'),
+      listRecentPostsByBoardSlug(c.env.DB, 'development'),
+      listRecentPostsByBoardSlug(c.env.DB, 'news'),
+    ])
+    return c.html(
+      <GuestHomePage
+        {...viewMeta(c)}
+        previews={[
+          { slug: 'free', name: '자유게시판', posts: freePosts },
+          { slug: 'development', name: '개발', posts: developmentPosts },
+          { slug: 'news', name: '뉴스', posts: newsPosts },
+        ]}
+      />,
+    )
+  }
+  if (currentAuth.user.status === 'blocked') return c.redirect('/account/blocked', 303)
+
   const auth = requireActiveAuth(c)
   await ensureUserDashboard(c.env.DB, auth.user.id)
   const widgets = await listDashboardWidgets(c.env.DB, auth.user.id)

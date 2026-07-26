@@ -1,3 +1,4 @@
+import type { BoardSlug } from '../types'
 import { normalizeRssUrl, RssFeedError } from './rss'
 
 export class ValidationError extends Error {
@@ -71,8 +72,8 @@ export function ticketLane(value: FormDataEntryValue | string | null): 'todo' | 
   throw new ValidationError('작업 상태가 올바르지 않습니다.')
 }
 
-export function boardSlug(value: string): 'free' | 'inquiry' {
-  if (value === 'free' || value === 'inquiry') return value
+export function boardSlug(value: string): BoardSlug {
+  if (value === 'free' || value === 'development' || value === 'news' || value === 'inquiry') return value
   throw new ValidationError('존재하지 않는 게시판입니다.')
 }
 

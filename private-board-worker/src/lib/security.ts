@@ -9,6 +9,7 @@ const GOOGLE_AUTHORIZATION_ORIGIN = 'https://accounts.google.com'
 
 export function isPublicPath(path: string): boolean {
   return (
+    path === '/' ||
     path === '/login' ||
     path === '/privacy' ||
     path === '/terms' ||

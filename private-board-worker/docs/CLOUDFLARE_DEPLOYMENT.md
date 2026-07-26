@@ -139,7 +139,7 @@ npx wrangler secret list --config wrangler.jsonc
 /terms
 ```
 
-비로그인 상태에서 `/`, `/boards/free`, `/boards/inquiry`, `/tickets`, `/account`가 `/login`으로 이동하는지도 확인합니다.
+비로그인 상태에서 `/`에 자유게시판·개발·뉴스 최근 글 미리보기가 표시되고, `/boards/free`, `/boards/development`, `/boards/news`, `/boards/inquiry`, `/tickets`, `/account`가 `/login`으로 이동하는지도 확인합니다.
 
 ## 6. 이후 Secret 변경과 회전
 

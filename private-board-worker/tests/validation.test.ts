@@ -36,6 +36,8 @@ describe('입력 검증', () => {
 
   it('고정된 게시판과 티켓 상태만 허용한다', () => {
     expect(boardSlug('free')).toBe('free')
+    expect(boardSlug('development')).toBe('development')
+    expect(boardSlug('news')).toBe('news')
     expect(boardSlug('inquiry')).toBe('inquiry')
     expect(ticketLane('doing')).toBe('doing')
     expect(() => boardSlug('admin')).toThrow(ValidationError)

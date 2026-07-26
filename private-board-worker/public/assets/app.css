@@ -1391,6 +1391,126 @@ select:focus {
   padding-bottom: 0;
 }
 
+.guest-home {
+  display: grid;
+  gap: 24px;
+  width: min(1120px, 100%);
+  margin: auto;
+  padding: 28px 0;
+}
+
+.guest-home-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: clamp(24px, 5vw, 42px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+}
+
+.guest-home-header h1 {
+  margin: 4px 0 8px;
+  font-size: clamp(1.8rem, 4vw, 2.5rem);
+  line-height: 1.15;
+}
+
+.guest-home-header p:last-child,
+.guest-home-note {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.guest-login-button {
+  flex: 0 0 auto;
+}
+
+.guest-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.guest-preview-card {
+  overflow: hidden;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.guest-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.guest-preview-header h2 {
+  margin: 2px 0 0;
+  font-size: 1.15rem;
+}
+
+.guest-preview-header a {
+  flex: 0 0 auto;
+  color: var(--primary);
+  font-size: 0.84rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.guest-preview-list {
+  display: grid;
+}
+
+.guest-preview-row {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: 14px 18px;
+  text-decoration: none;
+}
+
+.guest-preview-row + .guest-preview-row {
+  border-top: 1px solid var(--border);
+}
+
+.guest-preview-row:hover {
+  background: #fafbfc;
+}
+
+.guest-preview-row strong {
+  overflow: hidden;
+  font-size: 0.94rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.guest-preview-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.guest-preview-empty {
+  margin: 0;
+  padding: 28px 18px;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.guest-home-note {
+  text-align: center;
+}
+
 .login-shell,
 .error-shell {
   width: min(440px, 100%);
@@ -2081,6 +2201,15 @@ select:focus {
     grid-template-columns: 1fr;
   }
 
+  .guest-home-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .guest-preview-grid {
+    grid-template-columns: 1fr;
+  }
+
   .bookmark-widget-form {
     grid-template-columns: 1fr;
   }
@@ -2239,6 +2368,10 @@ select:focus {
 
   .public-body {
     padding: 12px;
+  }
+
+  .guest-home {
+    padding: 0;
   }
 
   .login-card {
