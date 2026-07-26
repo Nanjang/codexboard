@@ -12,6 +12,7 @@ type ActiveNav =
   | 'images'
   | 'tickets'
   | 'account'
+  | 'admin'
   | null
 
 type ContextAction =
@@ -137,15 +138,22 @@ export function AppLayout({
               <a href="/memos" aria-current={activeNav === 'memos' ? 'page' : undefined}>
                 내 메모
               </a>
-              <a href="/images" aria-current={activeNav === 'images' ? 'page' : undefined}>
-                개인 이미지 저장
-              </a>
+              {user.imageStorageEnabled === true ? (
+                <a href="/images" aria-current={activeNav === 'images' ? 'page' : undefined}>
+                  개인 이미지 저장
+                </a>
+              ) : null}
               <a href="/tickets" aria-current={activeNav === 'tickets' ? 'page' : undefined}>
                 내 작업
               </a>
               <a href="/account" aria-current={activeNav === 'account' ? 'page' : undefined}>
                 내 계정
               </a>
+              {user.role === 'admin' ? (
+                <a href="/admin" aria-current={activeNav === 'admin' ? 'page' : undefined}>
+                  관리자 설정
+                </a>
+              ) : null}
             </nav>
             <div class="menu-footer">
               <span class="menu-email">{user.email}</span>

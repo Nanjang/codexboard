@@ -11,6 +11,7 @@ import type {
   PrivateImageRow,
   TicketRow,
 } from '../src/types'
+import { AdminPage } from '../src/views/admin'
 import { BoardListPage } from '../src/views/boards'
 import { DashboardPage } from '../src/views/dashboard'
 import { PublicErrorPage } from '../src/views/errors'
@@ -26,6 +27,13 @@ const user: CurrentUser = {
   role: 'user',
   status: 'active',
   email: 'member@example.com',
+}
+
+const adminUser: CurrentUser = {
+  ...user,
+  id: 'admin-1',
+  nickname: '관리자',
+  role: 'admin',
 }
 
 const deployInfo: DeployInfo = {
@@ -329,6 +337,8 @@ describe('핵심 화면', () => {
     expect(html).toContain('자유게시판')
     expect(html).toContain('문의')
     expect(html).toContain('문서 검토')
+    expect(html).not.toContain('개인 이미지 저장')
+    expect(html).not.toContain('관리자 설정')
     expect(html).not.toContain('<img')
   })
 
@@ -362,7 +372,7 @@ describe('핵심 화면', () => {
       await PrivateImagesPage({
         appName: 'Private Board',
         deployInfo,
-        user,
+        user: { ...user, imageStorageEnabled: true },
         csrfToken: 'csrf-test',
         images: privateImages.map((image) => ({
           image,
@@ -379,6 +389,46 @@ describe('핵심 화면', () => {
     expect(html).toContain('>복사</button>')
     expect(html).toContain('복사 이력 있음')
     expect(html).toContain('data-image-id="11"')
+  })
+
+  it('관리자 설정에서 기본 비활성 이미지 기능을 수동 활성화할 수 있다', async () => {
+    const html = String(
+      await AdminPage({
+        appName: 'Private Board',
+        deployInfo,
+        user: adminUser,
+        csrfToken: 'csrf-test',
+        imageStorageEnabled: false,
+        r2Configured: false,
+      }),
+    )
+
+    expect(html).toContain('관리자 전용')
+    expect(html).toContain('관리자 설정')
+    expect(html).toContain('>비활성</strong>')
+    expect(html).toContain('name="enabled" value="true"')
+    expect(html).toContain('이미지 기능 활성화')
+    expect(html).toContain('미설정 · 활성화 후 업로드 시 오류 toast 표시')
+    expect(html).not.toContain('href="/images"')
+  })
+
+  it('이미지 기능이 활성화되면 메뉴와 관리자 비활성화 동작을 표시한다', async () => {
+    const html = String(
+      await AdminPage({
+        appName: 'Private Board',
+        deployInfo,
+        user: { ...adminUser, imageStorageEnabled: true },
+        csrfToken: 'csrf-test',
+        imageStorageEnabled: true,
+        r2Configured: true,
+      }),
+    )
+
+    expect(html).toContain('href="/images"')
+    expect(html).toContain('>활성</strong>')
+    expect(html).toContain('name="enabled" value="false"')
+    expect(html).toContain('이미지 기능 비활성화')
+    expect(html).toContain('>준비됨</dd>')
   })
 
   it('숫자와 문자 메모 값은 사용자별 URL 규칙으로 구분해 조합한다', () => {

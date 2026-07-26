@@ -20,6 +20,8 @@ const NOTICE_MESSAGES: Record<string, string> = {
   'nickname-updated': '닉네임을 변경했습니다.',
   'widget-added': '대시보드에 위젯을 추가했습니다.',
   'widget-removed': '대시보드에서 위젯을 제거했습니다.',
+  'image-storage-enabled': '개인 이미지 저장 기능을 활성화했습니다.',
+  'image-storage-disabled': '개인 이미지 저장 기능을 비활성화했습니다.',
   'logged-out': '로그아웃했습니다.',
 }
 

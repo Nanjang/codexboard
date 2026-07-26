@@ -111,6 +111,10 @@ function requireR2Config(env: Bindings): R2Config {
   return config
 }
 
+export function isR2ImageStorageConfigured(env: Bindings): boolean {
+  return r2Config(env) !== null
+}
+
 function objectApiUrl(config: R2Config, objectKey: string): URL {
   const encodedBucket = encodeURIComponent(config.bucketName)
   const encodedKey = objectKey.split('/').map(encodeURIComponent).join('/')

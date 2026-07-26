@@ -29,6 +29,14 @@ npx wrangler d1 execute DB --remote --config wrangler.jsonc --command \
            WHERE provider='google' AND email='former-admin@example.com');"
 ```
 
+## 개인 이미지 기능 활성화
+
+개인 이미지 저장 기능은 최초 배포 시 비활성입니다. 관리자 계정으로 로그인한 뒤 메뉴의 `관리자 설정`에서 `이미지 기능 활성화`를 누르면 모든 로그인 회원에게 메뉴와 API가 열립니다.
+
+활성화 전에 [R2 개인 이미지 저장소 설정](R2_IMAGE_STORAGE_SETUP.md)에 따라 버킷, CORS, Custom Domain, Worker Secrets를 준비하는 것을 권장합니다. R2 설정 없이 활성화해도 다른 기능은 동작하지만 이미지 업로드는 설정 오류 toast로 거절됩니다.
+
+기능을 다시 비활성화하면 이미지 메뉴와 애플리케이션 API 접근은 닫히지만, 이전에 복사된 공개 캐시 URL은 계속 접근할 수 있습니다. 공개 URL 회수가 필요하면 R2에서 해당 객체를 정확히 식별해 삭제하고 필요한 경우 캐시를 purge해야 합니다.
+
 ## 계정 차단과 해제
 
 차단:

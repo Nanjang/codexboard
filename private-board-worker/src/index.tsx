@@ -40,6 +40,7 @@ import {
   getTicket,
   incrementPostViewCount,
   ensureUserDashboard,
+  isImageStorageEnabled,
   listDashboardWidgets,
   listComments,
   listMemoUrlPatterns,
@@ -56,6 +57,7 @@ import {
   reorderDashboardWidgets,
   reorderTickets,
   removeDashboardWidget,
+  setImageStorageEnabled,
   updateComment,
   updateMemoUrlPattern,
   upsertMemoUrlSettings,
@@ -72,6 +74,7 @@ import {
   imageObjectKey,
   imagePublicUrl,
   inspectUploadedImage,
+  isR2ImageStorageConfigured,
   MAX_IMAGE_BYTES,
   R2ConfigurationError,
   removeR2Object,
@@ -108,6 +111,7 @@ import type {
   TicketLane,
   TicketRow,
 } from './types'
+import { AdminPage } from './views/admin'
 import { AccountPage } from './views/account'
 import { BoardListPage, CommentEditPage, PostDetailPage, PostFormPage } from './views/boards'
 import { DashboardPage } from './views/dashboard'
@@ -197,6 +201,22 @@ function requireActiveAuth(c: AppContext) {
   const auth = requireAuth(c)
   if (auth.user.status !== 'active') {
     throw new HTTPException(403, { message: '계정 이용이 제한되었습니다.' })
+  }
+  return auth
+}
+
+function requireAdminAuth(c: AppContext) {
+  const auth = requireActiveAuth(c)
+  if (auth.user.role !== 'admin') {
+    throw new HTTPException(403, { message: '관리자만 접근할 수 있습니다.' })
+  }
+  return auth
+}
+
+function requireImageStorageAuth(c: AppContext) {
+  const auth = requireActiveAuth(c)
+  if (auth.user.imageStorageEnabled !== true) {
+    throw new HTTPException(404, { message: '개인 이미지 저장 기능이 비활성화되어 있습니다.' })
   }
   return auth
 }
@@ -308,6 +328,9 @@ app.use('*', async (c, next) => {
 
   if (!c.req.path.startsWith('/assets/')) {
     const auth = await loadAuthContext(c)
+    if (auth) {
+      auth.user.imageStorageEnabled = await isImageStorageEnabled(c.env.DB)
+    }
     c.set('auth', auth)
   }
 
@@ -795,8 +818,35 @@ app.post('/comments/:id/delete', async (c) => {
   return redirectWithNotice(c, `/posts/${comment.post_id}`, 'comment-deleted')
 })
 
+app.get('/admin', (c) => {
+  const auth = requireAdminAuth(c)
+  return c.html(
+    <AdminPage
+      {...viewMeta(c)}
+      user={auth.user}
+      csrfToken={auth.csrfToken}
+      imageStorageEnabled={auth.user.imageStorageEnabled === true}
+      r2Configured={isR2ImageStorageConfigured(c.env)}
+      notice={noticeFromRequest(c)}
+    />,
+  )
+})
+
+app.post('/admin/features/image-storage', async (c) => {
+  const auth = requireAdminAuth(c)
+  await enforceWriteRateLimit(c, 'admin-feature')
+  const form = await readForm(c)
+  const rawEnabled = form.get('enabled')
+  if (rawEnabled !== 'true' && rawEnabled !== 'false') {
+    throw new ValidationError('기능 활성화 값이 올바르지 않습니다.')
+  }
+  const enabled = rawEnabled === 'true'
+  await setImageStorageEnabled(c.env.DB, enabled, auth.user.id)
+  return redirectWithNotice(c, '/admin', enabled ? 'image-storage-enabled' : 'image-storage-disabled')
+})
+
 app.get('/images', async (c) => {
-  const auth = requireActiveAuth(c)
+  const auth = requireImageStorageAuth(c)
   const images = await listPrivateImages(c.env.DB, auth.user.id)
   return c.html(
     <PrivateImagesPage
@@ -809,7 +859,7 @@ app.get('/images', async (c) => {
 })
 
 app.post('/api/images/upload-url', async (c) => {
-  const auth = requireActiveAuth(c)
+  const auth = requireImageStorageAuth(c)
   await enforceWriteRateLimit(c, 'image-upload')
   assertCsrf(c, c.req.header('X-CSRF-Token'))
 
@@ -859,7 +909,7 @@ app.post('/api/images/upload-url', async (c) => {
 })
 
 app.post('/api/images/:id/complete', async (c) => {
-  const auth = requireActiveAuth(c)
+  const auth = requireImageStorageAuth(c)
   await enforceWriteRateLimit(c, 'image-upload')
   assertCsrf(c, c.req.header('X-CSRF-Token'))
   const imageId = positiveInteger(c.req.param('id'), '이미지 ID')
@@ -894,7 +944,7 @@ app.post('/api/images/:id/complete', async (c) => {
 })
 
 app.delete('/api/images/:id/pending', async (c) => {
-  const auth = requireActiveAuth(c)
+  const auth = requireImageStorageAuth(c)
   assertCsrf(c, c.req.header('X-CSRF-Token'))
   const imageId = positiveInteger(c.req.param('id'), '이미지 ID')
   const image = await getPrivateImage(c.env.DB, auth.user.id, imageId)
@@ -910,7 +960,7 @@ app.delete('/api/images/:id/pending', async (c) => {
 })
 
 app.post('/api/images/:id/copied', async (c) => {
-  const auth = requireActiveAuth(c)
+  const auth = requireImageStorageAuth(c)
   await enforceWriteRateLimit(c, 'image-copy')
   assertCsrf(c, c.req.header('X-CSRF-Token'))
   const imageId = positiveInteger(c.req.param('id'), '이미지 ID')

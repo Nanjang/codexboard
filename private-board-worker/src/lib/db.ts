@@ -20,6 +20,35 @@ export const MAX_MEMOS_PER_USER = 1000
 export const MAX_MEMO_PATTERNS_PER_USER = 50
 export const MAX_RSS_WIDGETS_PER_USER = 10
 export const MAX_PRIVATE_IMAGES_PER_USER = 5000
+const PRIVATE_IMAGES_FEATURE_KEY = 'private_images'
+
+export async function isImageStorageEnabled(db: D1Database): Promise<boolean> {
+  const setting = await db
+    .prepare('SELECT enabled FROM feature_settings WHERE feature_key = ?1 LIMIT 1')
+    .bind(PRIVATE_IMAGES_FEATURE_KEY)
+    .first<{ enabled: number }>()
+  return setting?.enabled === 1
+}
+
+export async function setImageStorageEnabled(
+  db: D1Database,
+  enabled: boolean,
+  updatedBy: string,
+): Promise<void> {
+  await db
+    .prepare(
+      `
+      INSERT INTO feature_settings (feature_key, enabled, updated_by, updated_at)
+      VALUES (?1, ?2, ?3, ?4)
+      ON CONFLICT(feature_key) DO UPDATE SET
+        enabled = excluded.enabled,
+        updated_by = excluded.updated_by,
+        updated_at = excluded.updated_at
+      `,
+    )
+    .bind(PRIVATE_IMAGES_FEATURE_KEY, enabled ? 1 : 0, updatedBy, Date.now())
+    .run()
+}
 
 const EMPTY_MEMO_URL_SETTINGS: MemoUrlSettings = {
   numeric_prefix: '',

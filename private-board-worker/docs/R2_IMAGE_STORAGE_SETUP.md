@@ -190,6 +190,7 @@ npm run deploy
 
 배포 후 다음 순서로 확인합니다.
 
+- [ ] 관리자 설정에서 개인 이미지 저장 기능을 수동 활성화
 - [ ] R2 버킷의 저장 등급이 `Standard`인지 확인
 - [ ] R2 Custom Domain 상태가 `Active`인지 확인
 - [ ] 운영 게시판 origin과 CORS `AllowedOrigins`가 문자 단위로 일치하는지 확인

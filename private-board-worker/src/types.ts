@@ -52,6 +52,7 @@ export interface CurrentUser {
   role: UserRole
   status: UserStatus
   email: string
+  imageStorageEnabled?: boolean
 }
 
 export interface AuthContext {
