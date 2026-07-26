@@ -590,7 +590,14 @@ button {
   font-size: 1rem;
 }
 
-.dashboard-section-heading > small {
+.dashboard-section-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.dashboard-section-actions > small {
   color: var(--text-muted);
   font-size: 0.72rem;
 }
@@ -842,10 +849,10 @@ button {
 .bookmark-quick-link-main {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
-  min-height: 74px;
-  padding: 11px 12px;
+  min-height: 52px;
+  padding: 8px 10px;
   text-decoration: none;
 }
 
@@ -858,20 +865,14 @@ button {
   min-width: 0;
 }
 
-.bookmark-quick-link-main strong,
-.bookmark-quick-link-main small {
+.bookmark-quick-link-main strong {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .bookmark-quick-link-main strong {
-  font-size: 0.86rem;
-}
-
-.bookmark-quick-link-main small {
-  color: var(--text-muted);
-  font-size: 0.7rem;
+  font-size: 0.82rem;
 }
 
 .bookmark-quick-link-actions {
@@ -879,7 +880,7 @@ button {
 }
 
 .dashboard-root.is-editing .bookmark-quick-link-main {
-  padding-bottom: 46px;
+  padding-bottom: 40px;
   pointer-events: none;
 }
 
@@ -917,9 +918,61 @@ button {
 }
 
 .bookmark-quick-link .bookmark-widget-icon {
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  font-size: 0.82rem;
+}
+
+.bookmark-quick-link .bookmark-widget-icon img {
+  display: block;
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+}
+
+.bookmark-dialog {
+  width: min(520px, calc(100% - 24px));
+}
+
+.bookmark-dialog-content {
+  display: grid;
+  gap: 18px;
+  padding: 22px;
+}
+
+.bookmark-dialog-fields {
+  display: grid;
+  gap: 12px;
+}
+
+.bookmark-dialog-fields label {
+  display: grid;
+  gap: 6px;
+}
+
+.bookmark-dialog-fields label > span {
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.bookmark-dialog-fields input {
+  width: 100%;
+}
+
+.bookmark-icon-hint {
+  margin: -4px 0 0;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  line-height: 1.5;
+}
+
+.bookmark-dialog-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .widget-catalog-rss .widget-catalog-icon {
@@ -2826,7 +2879,7 @@ button.privacy-toggle.is-on > span {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .dashboard-section-heading > small {
+  .dashboard-section-actions > small {
     display: none;
   }
 

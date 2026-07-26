@@ -267,7 +267,14 @@ describe('핵심 화면', () => {
     expect(html).toContain('data-dashboard-sortable="widgets"')
     expect(html).toContain('class="bookmark-quick-link"')
     expect(html).toContain('내 북마크')
-    expect(html).toContain('북마크끼리 순서를 바꿀 수 있습니다.')
+    expect(html).toContain('data-dialog-open="bookmark-add-dialog"')
+    expect(html).toContain('action="/dashboard/bookmarks"')
+    expect(html).toContain('action="/dashboard/bookmarks/2/update"')
+    expect(html).toContain('사이트 아이콘 가져와 추가')
+    expect(html).toContain('사이트 아이콘 갱신')
+    expect(html).not.toContain('name="widgetType" value="bookmark"')
+    const bookmarkCard = html.match(/<article class="bookmark-quick-link"[\s\S]*?<\/article>/u)?.[0]
+    expect(bookmarkCard).not.toContain('<small>')
     expect(html).toContain('data-dashboard-add-slot')
     expect(html).toContain('data-dashboard-edit-toggle')
     expect(html).toContain('data-dashboard-save-status')
@@ -279,7 +286,7 @@ describe('핵심 화면', () => {
     expect(html).toContain('RSS 최신 글')
     expect(html).toContain('새로운 개발 소식')
     expect(html).toContain('최근 글의 짧은 요약입니다.')
-    expect(html).toContain('현재 자유게시판 요약, URL 북마크, RSS 최신 글 위젯을 지원합니다.')
+    expect(html).toContain('현재 자유게시판 요약과 RSS 최신 글 위젯을 지원합니다.')
   })
 
   it('내부 오류 사유 대신 추적 가능한 오류 코드만 표시한다', async () => {

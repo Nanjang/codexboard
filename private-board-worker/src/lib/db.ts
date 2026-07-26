@@ -237,6 +237,76 @@ export async function addBookmarkDashboardWidget(
   return widgetId
 }
 
+export async function getBookmarkDashboardWidget(
+  db: D1Database,
+  userId: string,
+  widgetId: number,
+): Promise<DashboardWidgetRow | null> {
+  return db
+    .prepare(
+      `
+      SELECT id, user_id, widget_type, title, url, sort_order, created_at
+      FROM dashboard_widgets
+      WHERE id = ?1 AND user_id = ?2 AND widget_type = 'bookmark'
+      LIMIT 1
+      `,
+    )
+    .bind(widgetId, userId)
+    .first<DashboardWidgetRow>()
+}
+
+export async function updateBookmarkDashboardWidget(
+  db: D1Database,
+  userId: string,
+  widgetId: number,
+  title: string,
+  url: string,
+  clearIcon: boolean,
+): Promise<boolean> {
+  const result = clearIcon
+    ? await db
+        .prepare(
+          `
+          UPDATE dashboard_widgets
+          SET title = ?1, url = ?2, icon_content_type = NULL, icon_data = NULL, icon_updated_at = NULL
+          WHERE id = ?3 AND user_id = ?4 AND widget_type = 'bookmark'
+          `,
+        )
+        .bind(title, url, widgetId, userId)
+        .run()
+    : await db
+        .prepare(
+          `
+          UPDATE dashboard_widgets
+          SET title = ?1, url = ?2
+          WHERE id = ?3 AND user_id = ?4 AND widget_type = 'bookmark'
+          `,
+        )
+        .bind(title, url, widgetId, userId)
+        .run()
+  return result.meta.changes > 0
+}
+
+export async function saveBookmarkDashboardIcon(
+  db: D1Database,
+  userId: string,
+  widgetId: number,
+  contentType: string,
+  bytes: Uint8Array,
+): Promise<boolean> {
+  const result = await db
+    .prepare(
+      `
+      UPDATE dashboard_widgets
+      SET icon_content_type = ?1, icon_data = ?2, icon_updated_at = ?3
+      WHERE id = ?4 AND user_id = ?5 AND widget_type = 'bookmark'
+      `,
+    )
+    .bind(contentType, bytes, Date.now(), widgetId, userId)
+    .run()
+  return result.meta.changes > 0
+}
+
 export async function addRssDashboardWidget(
   db: D1Database,
   userId: string,

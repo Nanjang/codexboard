@@ -20,27 +20,31 @@ interface DashboardPageProps {
   rssResults: Record<number, RssWidgetResult>
 }
 
-function WidgetEditControls({ label }: { label: string }) {
+function WidgetEditControls({ label, compact = false }: { label: string; compact?: boolean }) {
   return (
     <div class="dashboard-edit-controls" aria-label={`${label} 순서 편집`}>
-      <button
-        class="icon-button icon-button-small dashboard-move-button"
-        type="button"
-        aria-label={`${label} 앞으로 이동`}
-        title="앞으로 이동"
-        data-dashboard-move="-1"
-      >
-        ←
-      </button>
-      <button
-        class="icon-button icon-button-small dashboard-move-button"
-        type="button"
-        aria-label={`${label} 뒤로 이동`}
-        title="뒤로 이동"
-        data-dashboard-move="1"
-      >
-        →
-      </button>
+      {compact ? null : (
+        <>
+          <button
+            class="icon-button icon-button-small dashboard-move-button"
+            type="button"
+            aria-label={`${label} 앞으로 이동`}
+            title="앞으로 이동"
+            data-dashboard-move="-1"
+          >
+            ←
+          </button>
+          <button
+            class="icon-button icon-button-small dashboard-move-button"
+            type="button"
+            aria-label={`${label} 뒤로 이동`}
+            title="뒤로 이동"
+            data-dashboard-move="1"
+          >
+            →
+          </button>
+        </>
+      )}
       <button
         class="icon-button icon-button-small dashboard-drag-handle"
         type="button"
@@ -127,7 +131,6 @@ function BookmarkQuickLink({
 }) {
   if (!widget.title || !widget.url) return null
 
-  const hostname = new URL(widget.url).hostname
   return (
     <article class="bookmark-quick-link" data-dashboard-widget-id={widget.id}>
       <a
@@ -137,14 +140,29 @@ function BookmarkQuickLink({
         rel="noopener noreferrer"
       >
         <span class="bookmark-widget-icon" aria-hidden="true">
-          ↗
+          <img
+            src={`/dashboard/widgets/${widget.id}/icon`}
+            alt=""
+            width="20"
+            height="20"
+            loading="lazy"
+            decoding="async"
+          />
         </span>
         <span>
           <strong>{widget.title}</strong>
-          <small>{hostname}</small>
         </span>
       </a>
       <div class="bookmark-quick-link-actions">
+        <button
+          class="icon-button icon-button-small"
+          type="button"
+          aria-label={`${widget.title} 북마크 정보 변경`}
+          title="북마크 정보 변경"
+          data-dialog-open={`bookmark-edit-dialog-${widget.id}`}
+        >
+          ✎
+        </button>
         <form
           class="dashboard-remove-form"
           action={`/dashboard/widgets/${widget.id}/delete`}
@@ -161,9 +179,114 @@ function BookmarkQuickLink({
             ×
           </button>
         </form>
-        <WidgetEditControls label={`${widget.title} 북마크`} />
+        <WidgetEditControls label={`${widget.title} 북마크`} compact />
       </div>
     </article>
+  )
+}
+
+function BookmarkFormFields({ widget }: { widget?: DashboardWidgetRow }) {
+  return (
+    <div class="bookmark-dialog-fields">
+      <label>
+        <span>표시 이름</span>
+        <input
+          type="text"
+          name="title"
+          maxlength={60}
+          value={widget?.title ?? ''}
+          required
+          autocomplete="off"
+        />
+      </label>
+      <label>
+        <span>URL</span>
+        <input
+          type="url"
+          name="url"
+          maxlength={2048}
+          value={widget?.url ?? ''}
+          placeholder="https://example.com/"
+          required
+          autocomplete="url"
+        />
+      </label>
+    </div>
+  )
+}
+
+function BookmarkAddDialog({ csrfToken }: { csrfToken: string }) {
+  return (
+    <dialog id="bookmark-add-dialog" class="ticket-dialog bookmark-dialog">
+      <form action="/dashboard/bookmarks" method="post" class="bookmark-dialog-content">
+        <CsrfInput token={csrfToken} />
+        <div class="dialog-header">
+          <div>
+            <span class="dashboard-widget-kicker">빠른 이동</span>
+            <h2>북마크 추가</h2>
+          </div>
+          <button type="button" class="icon-button" aria-label="닫기" data-dialog-close>
+            ×
+          </button>
+        </div>
+        <BookmarkFormFields />
+        <p class="bookmark-icon-hint">
+          사이트 아이콘은 원할 때만 한 번 가져와 D1에 저장합니다.
+        </p>
+        <div class="bookmark-dialog-actions">
+          <button class="button button-secondary" type="submit">
+            아이콘 없이 추가
+          </button>
+          <button class="button" type="submit" name="action" value="fetch-icon">
+            사이트 아이콘 가져와 추가
+          </button>
+        </div>
+      </form>
+    </dialog>
+  )
+}
+
+function BookmarkEditDialog({
+  widget,
+  csrfToken,
+}: {
+  widget: DashboardWidgetRow
+  csrfToken: string
+}) {
+  if (!widget.title || !widget.url) return null
+
+  return (
+    <dialog id={`bookmark-edit-dialog-${widget.id}`} class="ticket-dialog bookmark-dialog">
+      <form
+        action={`/dashboard/bookmarks/${widget.id}/update`}
+        method="post"
+        class="bookmark-dialog-content"
+      >
+        <CsrfInput token={csrfToken} />
+        <div class="dialog-header">
+          <div>
+            <span class="dashboard-widget-kicker">북마크 설정</span>
+            <h2>북마크 정보 변경</h2>
+          </div>
+          <button type="button" class="icon-button" aria-label="닫기" data-dialog-close>
+            ×
+          </button>
+        </div>
+        <BookmarkFormFields widget={widget} />
+        <p class="bookmark-icon-hint">
+          URL의 사이트가 바뀌면 기존 아이콘은 비워집니다. 갱신 버튼을 누를 때만 새로
+          가져옵니다.
+        </p>
+        <div class="bookmark-dialog-actions">
+          <button class="button button-secondary" type="submit" name="action" value="save">
+            정보만 저장
+          </button>
+          <button class="button" type="submit" name="action" value="refresh-icon">
+            사이트 아이콘 갱신
+          </button>
+        </div>
+      </form>
+    </dialog>
   )
 }
 
@@ -283,26 +406,35 @@ export function DashboardPage({
       </section>
 
       <div class="dashboard-root" data-dashboard>
-        {bookmarkWidgets.length > 0 ? (
-          <section class="dashboard-quick-links-section" aria-labelledby="dashboard-quick-links-title">
-            <div class="dashboard-section-heading">
-              <div>
-                <span class="dashboard-widget-kicker">빠른 이동</span>
-                <h3 id="dashboard-quick-links-title">내 북마크</h3>
-              </div>
-              <small>북마크끼리 순서를 바꿀 수 있습니다.</small>
+        <section class="dashboard-quick-links-section" aria-labelledby="dashboard-quick-links-title">
+          <div class="dashboard-section-heading">
+            <div>
+              <span class="dashboard-widget-kicker">빠른 이동</span>
+              <h3 id="dashboard-quick-links-title">내 북마크</h3>
             </div>
-            <div
-              class="dashboard-quick-links"
-              aria-label="내 북마크 목록"
-              data-dashboard-sortable="bookmarks"
-            >
-              {bookmarkWidgets.map((widget) => (
-                <BookmarkQuickLink key={widget.id} widget={widget} csrfToken={csrfToken} />
-              ))}
+            <div class="dashboard-section-actions">
+              {bookmarkWidgets.length > 1 ? (
+                <small>북마크끼리 순서를 바꿀 수 있습니다.</small>
+              ) : null}
+              <button
+                class="button button-secondary button-compact"
+                type="button"
+                data-dialog-open="bookmark-add-dialog"
+              >
+                북마크 추가
+              </button>
             </div>
-          </section>
-        ) : null}
+          </div>
+          <div
+            class="dashboard-quick-links"
+            aria-label="내 북마크 목록"
+            data-dashboard-sortable="bookmarks"
+          >
+            {bookmarkWidgets.map((widget) => (
+              <BookmarkQuickLink key={widget.id} widget={widget} csrfToken={csrfToken} />
+            ))}
+          </div>
+        </section>
 
         <section
           class="dashboard-grid"
@@ -346,6 +478,11 @@ export function DashboardPage({
         </section>
       </div>
 
+      <BookmarkAddDialog csrfToken={csrfToken} />
+      {bookmarkWidgets.map((widget) => (
+        <BookmarkEditDialog key={widget.id} widget={widget} csrfToken={csrfToken} />
+      ))}
+
       <dialog id="widget-add-dialog" class="ticket-dialog widget-dialog">
         <div class="widget-dialog-content">
           <div class="dialog-header">
@@ -383,40 +520,6 @@ export function DashboardPage({
             )}
           </article>
 
-          <article class="widget-catalog-item widget-catalog-bookmark">
-            <div class="widget-catalog-copy">
-              <span class="widget-catalog-icon" aria-hidden="true">
-                ↗
-              </span>
-              <div>
-                <h3>URL 북마크</h3>
-                <p>자주 방문하는 웹페이지를 내 대시보드에 바로가기 위젯으로 추가합니다.</p>
-              </div>
-            </div>
-            <form action="/dashboard/widgets" method="post" class="bookmark-widget-form">
-              <CsrfInput token={csrfToken} />
-              <input type="hidden" name="widgetType" value="bookmark" />
-              <label>
-                <span>표시 이름</span>
-                <input type="text" name="title" maxlength={60} required autocomplete="off" />
-              </label>
-              <label>
-                <span>URL</span>
-                <input
-                  type="url"
-                  name="url"
-                  maxlength={2048}
-                  placeholder="https://example.com/"
-                  required
-                  autocomplete="url"
-                />
-              </label>
-              <button class="button" type="submit">
-                북마크 추가
-              </button>
-            </form>
-          </article>
-
           <article class="widget-catalog-item widget-catalog-rss">
             <div class="widget-catalog-copy">
               <span class="widget-catalog-icon" aria-hidden="true">
@@ -452,7 +555,7 @@ export function DashboardPage({
           </article>
 
           <p class="widget-catalog-hint">
-            현재 자유게시판 요약, URL 북마크, RSS 최신 글 위젯을 지원합니다.
+            현재 자유게시판 요약과 RSS 최신 글 위젯을 지원합니다.
           </p>
         </div>
       </dialog>
