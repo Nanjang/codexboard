@@ -203,6 +203,42 @@ export async function removeDashboardWidget(
   return result.meta.changes > 0
 }
 
+export async function reorderDashboardWidgets(
+  db: D1Database,
+  userId: string,
+  widgetIds: number[],
+): Promise<void> {
+  if (new Set(widgetIds).size !== widgetIds.length) {
+    throw new Error('중복된 위젯 ID가 있습니다.')
+  }
+
+  const existingResult = await db
+    .prepare('SELECT id FROM dashboard_widgets WHERE user_id = ?1 ORDER BY id')
+    .bind(userId)
+    .all<{ id: number }>()
+  const existing = existingResult.results.map((row) => row.id).sort((a, b) => a - b)
+  const incoming = [...widgetIds].sort((a, b) => a - b)
+
+  if (existing.length !== incoming.length || existing.some((id, index) => id !== incoming[index])) {
+    throw new Error('위젯 목록이 최신 상태가 아닙니다. 페이지를 새로고침하세요.')
+  }
+  if (widgetIds.length === 0) return
+
+  const statements = widgetIds.map((id, index) =>
+    db
+      .prepare(
+        `
+        UPDATE dashboard_widgets
+        SET sort_order = ?1
+        WHERE id = ?2 AND user_id = ?3
+        `,
+      )
+      .bind((index + 1) * 1000, id, userId),
+  )
+
+  await db.batch(statements)
+}
+
 export async function getPost(db: D1Database, postId: number): Promise<PostDetailRow | null> {
   return db
     .prepare(

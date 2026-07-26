@@ -36,6 +36,7 @@ import {
   listRecentPostsByBoardSlug,
   listTickets,
   moveTicket,
+  reorderDashboardWidgets,
   reorderTickets,
   removeDashboardWidget,
   updateComment,
@@ -382,6 +383,26 @@ app.post('/dashboard/widgets/:id/delete', async (c) => {
   const widgetId = positiveInteger(c.req.param('id'), '위젯 ID')
   await removeDashboardWidget(c.env.DB, auth.user.id, widgetId)
   return redirectWithNotice(c, '/', 'widget-removed')
+})
+
+app.put('/api/dashboard/widgets/order', async (c) => {
+  const auth = requireActiveAuth(c)
+  await enforceWriteRateLimit(c, 'dashboard-widget-order')
+  assertCsrf(c, c.req.header('X-CSRF-Token'))
+
+  const payload = (await c.req.json().catch(() => null)) as Record<string, unknown> | null
+  const value = payload?.widgetIds
+  if (!Array.isArray(value)) throw new ValidationError('위젯 순서 데이터가 올바르지 않습니다.')
+
+  const widgetIds = value.map((id) => {
+    if (typeof id !== 'number' || !Number.isSafeInteger(id) || id <= 0) {
+      throw new ValidationError('위젯 ID가 올바르지 않습니다.')
+    }
+    return id
+  })
+
+  await reorderDashboardWidgets(c.env.DB, auth.user.id, widgetIds)
+  return c.json({ ok: true })
 })
 
 app.get('/boards/:slug', async (c) => {

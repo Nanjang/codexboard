@@ -13,6 +13,39 @@ interface DashboardPageProps {
   freeBoardPosts: PostListRow[]
 }
 
+function WidgetEditControls({ label }: { label: string }) {
+  return (
+    <div class="dashboard-edit-controls" aria-label={`${label} 순서 편집`}>
+      <button
+        class="icon-button icon-button-small dashboard-move-button"
+        type="button"
+        aria-label={`${label} 앞으로 이동`}
+        title="앞으로 이동"
+        data-dashboard-move="-1"
+      >
+        ←
+      </button>
+      <button
+        class="icon-button icon-button-small dashboard-move-button"
+        type="button"
+        aria-label={`${label} 뒤로 이동`}
+        title="뒤로 이동"
+        data-dashboard-move="1"
+      >
+        →
+      </button>
+      <button
+        class="icon-button icon-button-small dashboard-drag-handle"
+        type="button"
+        aria-label={`${label} 끌어서 순서 변경`}
+        title="끌어서 순서 변경"
+      >
+        ⠿
+      </button>
+    </div>
+  )
+}
+
 function FreeBoardWidget({
   widgetId,
   posts,
@@ -23,7 +56,7 @@ function FreeBoardWidget({
   csrfToken: string
 }) {
   return (
-    <article class="dashboard-widget">
+    <article class="dashboard-widget" data-dashboard-widget-id={widgetId}>
       <header class="dashboard-widget-header">
         <div>
           <span class="dashboard-widget-kicker">게시판 요약</span>
@@ -34,6 +67,7 @@ function FreeBoardWidget({
             전체 보기
           </a>
           <form
+            class="dashboard-remove-form"
             action={`/dashboard/widgets/${widgetId}/delete`}
             method="post"
             data-confirm="대시보드에서 자유게시판 위젯을 제거할까요?"
@@ -43,6 +77,7 @@ function FreeBoardWidget({
               제거
             </button>
           </form>
+          <WidgetEditControls label="자유게시판 위젯" />
         </div>
       </header>
 
@@ -85,22 +120,26 @@ function BookmarkWidget({
 
   const hostname = new URL(widget.url).hostname
   return (
-    <article class="dashboard-widget bookmark-widget">
+    <article class="dashboard-widget bookmark-widget" data-dashboard-widget-id={widget.id}>
       <header class="dashboard-widget-header">
         <div>
           <span class="dashboard-widget-kicker">내 북마크</span>
           <h3>{widget.title}</h3>
         </div>
-        <form
-          action={`/dashboard/widgets/${widget.id}/delete`}
-          method="post"
-          data-confirm="이 북마크 위젯을 제거할까요?"
-        >
-          <CsrfInput token={csrfToken} />
-          <button class="text-button widget-remove-button" type="submit">
-            제거
-          </button>
-        </form>
+        <div class="dashboard-widget-actions">
+          <form
+            class="dashboard-remove-form"
+            action={`/dashboard/widgets/${widget.id}/delete`}
+            method="post"
+            data-confirm="이 북마크 위젯을 제거할까요?"
+          >
+            <CsrfInput token={csrfToken} />
+            <button class="text-button widget-remove-button" type="submit">
+              제거
+            </button>
+          </form>
+          <WidgetEditControls label={`${widget.title} 북마크 위젯`} />
+        </div>
       </header>
       <a class="bookmark-widget-link" href={widget.url} target="_blank" rel="noopener noreferrer">
         <span class="bookmark-widget-icon" aria-hidden="true">
@@ -143,9 +182,20 @@ export function DashboardPage({
           <h2>{user.nickname}님의 대시보드</h2>
           <p>자주 확인하는 정보를 위젯으로 구성하는 나만의 첫 화면입니다.</p>
         </div>
+        <div class="dashboard-edit-panel">
+          <span class="dashboard-save-status" aria-live="polite" data-dashboard-save-status />
+          <button
+            class="button button-secondary button-compact"
+            type="button"
+            aria-pressed="false"
+            data-dashboard-edit-toggle
+          >
+            대시보드 편집
+          </button>
+        </div>
       </section>
 
-      <section class="dashboard-grid" aria-label="내 위젯">
+      <section class="dashboard-grid" aria-label="내 위젯" data-dashboard>
         {widgets.map((widget) =>
           widget.widget_type === 'free-board' ? (
             <FreeBoardWidget
@@ -163,6 +213,7 @@ export function DashboardPage({
           class="dashboard-add-slot"
           type="button"
           aria-label="대시보드 위젯 추가"
+          data-dashboard-add-slot
           data-dialog-open="widget-add-dialog"
         >
           <span class="dashboard-add-icon" aria-hidden="true">

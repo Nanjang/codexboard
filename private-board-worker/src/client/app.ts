@@ -211,6 +211,133 @@ function setupTicketBoard(): void {
   })
 }
 
+function dashboardWidgetIds(grid: HTMLElement): number[] {
+  return Array.from(grid.querySelectorAll<HTMLElement>(':scope > [data-dashboard-widget-id]'))
+    .map((widget) => Number.parseInt(widget.dataset.dashboardWidgetId ?? '', 10))
+    .filter(Number.isSafeInteger)
+}
+
+function setDashboardStatus(message: string): void {
+  const status = document.querySelector<HTMLElement>('[data-dashboard-save-status]')
+  if (status) status.textContent = message
+}
+
+async function saveDashboardOrder(grid: HTMLElement): Promise<void> {
+  if (grid.dataset.saving === 'true') {
+    grid.dataset.pendingSave = 'true'
+    return
+  }
+
+  grid.dataset.saving = 'true'
+  grid.classList.add('is-saving')
+  grid.setAttribute('aria-busy', 'true')
+  setDashboardStatus('순서 저장 중…')
+  let failed = false
+
+  try {
+    const response = await fetch('/api/dashboard/widgets/order', {
+      method: 'PUT',
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        'X-CSRF-Token': csrfToken(),
+      },
+      body: JSON.stringify({ widgetIds: dashboardWidgetIds(grid) }),
+    })
+
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => null)) as { error?: string } | null
+      throw new Error(payload?.error ?? '위젯 순서를 저장하지 못했습니다.')
+    }
+    setDashboardStatus('순서를 저장했습니다.')
+  } catch (error) {
+    failed = true
+    window.alert(error instanceof Error ? error.message : '위젯 순서를 저장하지 못했습니다.')
+    window.location.reload()
+  } finally {
+    delete grid.dataset.saving
+    grid.classList.remove('is-saving')
+    grid.removeAttribute('aria-busy')
+
+    if (!failed && grid.dataset.pendingSave === 'true') {
+      delete grid.dataset.pendingSave
+      void saveDashboardOrder(grid)
+    }
+  }
+}
+
+function moveDashboardWidget(grid: HTMLElement, widget: HTMLElement, direction: -1 | 1): void {
+  const widgets = Array.from(grid.querySelectorAll<HTMLElement>(':scope > [data-dashboard-widget-id]'))
+  const index = widgets.indexOf(widget)
+  const sibling = widgets[index + direction]
+  if (index < 0 || !sibling) return
+
+  if (direction === -1) grid.insertBefore(widget, sibling)
+  else grid.insertBefore(sibling, widget)
+
+  void saveDashboardOrder(grid)
+}
+
+function setupDashboardEditing(): void {
+  const grid = document.querySelector<HTMLElement>('[data-dashboard]')
+  const toggle = document.querySelector<HTMLButtonElement>('[data-dashboard-edit-toggle]')
+  if (!grid || !toggle) return
+
+  const sortable = Sortable.create(grid, {
+    animation: 150,
+    handle: '.dashboard-drag-handle',
+    draggable: '.dashboard-widget',
+    ghostClass: 'dashboard-widget-ghost',
+    chosenClass: 'dashboard-widget-chosen',
+    dragClass: 'dashboard-widget-drag',
+    fallbackOnBody: true,
+    swapThreshold: 0.65,
+    disabled: true,
+    onEnd: (event) => {
+      const addSlot = grid.querySelector<HTMLElement>('[data-dashboard-add-slot]')
+      if (addSlot) grid.insertBefore(addSlot, null)
+      if (event.oldIndex !== event.newIndex) void saveDashboardOrder(grid)
+    },
+  })
+
+  toggle.addEventListener('click', () => {
+    const editing = !grid.classList.contains('is-editing')
+    grid.classList.toggle('is-editing', editing)
+    sortable.option('disabled', !editing)
+    toggle.setAttribute('aria-pressed', String(editing))
+    toggle.textContent = editing ? '편집 완료' : '대시보드 편집'
+    setDashboardStatus(editing ? '끌거나 화살표 버튼으로 순서를 변경하세요.' : '')
+  })
+
+  grid.addEventListener('click', (event) => {
+    const target = event.target
+    if (!(target instanceof Element) || !grid.classList.contains('is-editing')) return
+    const button = target.closest<HTMLButtonElement>('[data-dashboard-move]')
+    const widget = button?.closest<HTMLElement>('[data-dashboard-widget-id]')
+    if (!button || !widget) return
+
+    const direction = button.dataset.dashboardMove === '-1' ? -1 : 1
+    moveDashboardWidget(grid, widget, direction)
+  })
+
+  grid.addEventListener('keydown', (event) => {
+    if (!grid.classList.contains('is-editing') || !event.altKey) return
+    const target = event.target
+    if (!(target instanceof Element)) return
+    const widget = target.closest<HTMLElement>('[data-dashboard-widget-id]')
+    if (!widget) return
+
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+      event.preventDefault()
+      moveDashboardWidget(grid, widget, -1)
+    } else if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+      event.preventDefault()
+      moveDashboardWidget(grid, widget, 1)
+    }
+  })
+}
+
 function initialize(): void {
   setupMenu()
   setupDialogs()
@@ -218,6 +345,7 @@ function initialize(): void {
   setupConfirmations()
   setupNotices()
   setupTicketBoard()
+  setupDashboardEditing()
 }
 
 if (document.readyState === 'loading') {

@@ -520,6 +520,20 @@ button {
   align-items: stretch;
 }
 
+.dashboard-edit-panel {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  flex: 0 0 auto;
+}
+
+.dashboard-save-status {
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  white-space: nowrap;
+}
+
 .dashboard-widget {
   overflow: hidden;
   min-width: 0;
@@ -527,6 +541,27 @@ button {
   border-radius: var(--radius-md);
   background: var(--surface);
   box-shadow: var(--shadow-sm);
+}
+
+.dashboard-grid.is-editing .dashboard-widget {
+  border-color: var(--border-strong);
+}
+
+.dashboard-grid.is-saving {
+  opacity: 0.76;
+  pointer-events: none;
+}
+
+.dashboard-widget-ghost {
+  opacity: 0.35;
+}
+
+.dashboard-widget-chosen {
+  border-color: var(--primary);
+}
+
+.dashboard-widget-drag {
+  transform: rotate(0.5deg);
 }
 
 .dashboard-widget-header {
@@ -557,6 +592,8 @@ button {
 .dashboard-widget-actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 10px;
   flex: 0 0 auto;
 }
@@ -564,6 +601,35 @@ button {
 .dashboard-widget-actions form,
 .dashboard-widget-header > form {
   display: inline-flex;
+}
+
+.dashboard-remove-form,
+.dashboard-edit-controls {
+  display: none !important;
+}
+
+.dashboard-grid.is-editing .dashboard-remove-form,
+.dashboard-grid.is-editing .dashboard-edit-controls {
+  display: inline-flex !important;
+}
+
+.dashboard-edit-controls {
+  align-items: center;
+  gap: 4px;
+}
+
+.dashboard-move-button,
+.dashboard-drag-handle {
+  color: var(--text-muted);
+}
+
+.dashboard-drag-handle {
+  cursor: grab;
+  touch-action: none;
+}
+
+.dashboard-drag-handle:active {
+  cursor: grabbing;
 }
 
 .widget-remove-button {
@@ -645,6 +711,7 @@ button {
 
 .dashboard-add-slot {
   display: grid;
+  order: 2147483647;
   min-height: 210px;
   place-items: center;
   align-content: center;
@@ -1503,6 +1570,15 @@ select:focus {
   .dashboard-widget-header,
   .dashboard-post-row {
     padding-inline: 14px;
+  }
+
+  .dashboard-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .dashboard-edit-panel {
+    justify-content: space-between;
   }
 
   .form-actions {
