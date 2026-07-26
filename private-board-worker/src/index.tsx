@@ -391,16 +391,16 @@ app.use('*', async (c, next) => {
     return c.redirect('/account/blocked', 303)
   }
 
-  await next()
-
-  const shouldAcknowledgeThemeNotice =
+  const shouldConsumeThemeNotice =
     auth?.user.themeOrphanNoticePending === true &&
     c.req.method === 'GET' &&
-    c.res.status < 400 &&
-    c.res.headers.get('Content-Type')?.includes('text/html') === true
-  if (shouldAcknowledgeThemeNotice) {
-    await acknowledgeThemeOrphanNotice(c.env.DB, auth.user.id)
+    (c.req.path === '/' || !isPublicPath(c.req.path)) &&
+    (c.req.header('Accept')?.includes('text/html') === true || c.req.header('Sec-Fetch-Dest') === 'document')
+  if (shouldConsumeThemeNotice) {
+    auth.user.themeOrphanNoticePending = await acknowledgeThemeOrphanNotice(c.env.DB, auth.user.id)
   }
+
+  await next()
 })
 
 app.get('/assets/*', (c) => c.env.ASSETS.fetch(c.req.raw))

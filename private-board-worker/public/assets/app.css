@@ -374,7 +374,7 @@ button {
   padding: 9px 16px;
   border: 1px solid var(--primary);
   border-radius: var(--radius-sm);
-  color: #fff;
+  color: var(--background);
   background: var(--primary);
   cursor: pointer;
   text-decoration: none;

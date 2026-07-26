@@ -603,8 +603,8 @@ export async function deleteOwnedTheme(
   return result.meta.changes > 0
 }
 
-export async function acknowledgeThemeOrphanNotice(db: D1Database, userId: string): Promise<void> {
-  await db
+export async function acknowledgeThemeOrphanNotice(db: D1Database, userId: string): Promise<boolean> {
+  const result = await db
     .prepare(
       `
       UPDATE user_theme_preferences
@@ -614,6 +614,7 @@ export async function acknowledgeThemeOrphanNotice(db: D1Database, userId: strin
     )
     .bind(Date.now(), userId)
     .run()
+  return result.meta.changes > 0
 }
 
 function relativeLuminance(hex: string): number {
