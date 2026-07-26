@@ -40,6 +40,9 @@
 users
   ├─ auth_accounts
   ├─ sessions
+  ├─ custom_themes
+  ├─ user_shared_themes
+  ├─ user_theme_preferences
   ├─ posts ── comments
   ├─ private_memos
   ├─ user_memo_settings
@@ -97,6 +100,14 @@ WHERE id = ? AND owner_id = ?;
 드래그 정렬 API는 전송된 모든 티켓 ID가 현재 사용자의 전체 티켓 집합과 정확히 일치하는지 확인한 뒤 D1 batch로 순서를 갱신합니다.
 
 개인 메모와 URL 설정도 동일하게 클라이언트의 사용자 ID를 받지 않고 인증 컨텍스트의 ID로만 조회·변경합니다. URL 설정은 숫자와 문자 유형별 자동 패턴을 사용자마다 한 행으로 저장하고, 추가 사용자 패턴은 `memo_url_patterns`에 저장합니다. 메모의 `pattern_id`가 비어 있으면 숫자·문자를 자동 판별하며, 값이 있으면 반드시 현재 사용자가 소유한 패턴인지 확인한 뒤 저장합니다. 완성된 주소는 `http` 또는 `https` 프로토콜인지 다시 검증합니다.
+
+## 개인 색상 테마
+
+내장 테마는 Worker 코드에 읽기 전용 프리셋으로 포함됩니다. 사용자가 개인 테마를 만들면 현재 선택된 팔레트를 `custom_themes`에 복제하고, 선택 상태는 `user_theme_preferences`에 저장합니다.
+
+공유 코드로 가져온 테마는 복사본을 만들지 않고 `user_shared_themes`에서 원본 `custom_themes.id`를 참조합니다. 따라서 원소유자의 수정이 다음 테마 CSS 요청부터 그대로 적용됩니다. 원본 삭제 전 트리거는 해당 테마를 사용 중인 다른 회원을 기본 테마로 전환하고 `orphan_notice_pending`을 설정합니다. 다음 문서 요청 하나가 이 값을 원자적으로 소비하여 안내 팝업을 한 번만 표시합니다.
+
+사용자 팔레트는 인라인 스타일 대신 인증된 `/account/theme.css` 응답으로 전달합니다. 이 경로는 기존 `style-src 'self'` CSP를 유지하면서 CSS 사용자 정의 속성만 출력합니다.
 
 ## 개인 이미지 흐름
 
