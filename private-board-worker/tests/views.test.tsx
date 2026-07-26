@@ -5,6 +5,7 @@ import type {
   DashboardWidgetRow,
   DeployInfo,
   MemoRow,
+  MemoUrlPatternRow,
   MemoUrlSettings,
   PostListRow,
   TicketRow,
@@ -13,7 +14,7 @@ import { BoardListPage } from '../src/views/boards'
 import { DashboardPage } from '../src/views/dashboard'
 import { PublicErrorPage } from '../src/views/errors'
 import { LoginPage } from '../src/views/login'
-import { composeMemoUrl, MemoBoardPage } from '../src/views/memos'
+import { composeMemoUrl, MemoBoardPage, MemoSettingsPage } from '../src/views/memos'
 import { TicketsPage } from '../src/views/tickets'
 
 const user: CurrentUser = {
@@ -100,12 +101,29 @@ const memoSettings: MemoUrlSettings = {
   text_suffix: '&from=memo',
 }
 
+const memoPatterns: MemoUrlPatternRow[] = [
+  {
+    id: 7,
+    user_id: user.id,
+    name: '상품 상세',
+    prefix: 'https://shop.example.com/products/',
+    suffix: '?ref=memo',
+    sort_order: 1000,
+    created_at: 1,
+    updated_at: 1,
+  },
+]
+
 const memos: MemoRow[] = [
   {
     id: 1,
     owner_id: user.id,
     memo: '상품 번호',
     value: '00123',
+    pattern_id: null,
+    pattern_name: null,
+    pattern_prefix: null,
+    pattern_suffix: null,
     created_at: 1,
     updated_at: 1,
   },
@@ -114,8 +132,24 @@ const memos: MemoRow[] = [
     owner_id: user.id,
     memo: '검색어',
     value: '한글 단어',
+    pattern_id: null,
+    pattern_name: null,
+    pattern_prefix: null,
+    pattern_suffix: null,
     created_at: 2,
     updated_at: 2,
+  },
+  {
+    id: 3,
+    owner_id: user.id,
+    memo: '선택한 상품',
+    value: 'ABC-42',
+    pattern_id: memoPatterns[0]!.id,
+    pattern_name: memoPatterns[0]!.name,
+    pattern_prefix: memoPatterns[0]!.prefix,
+    pattern_suffix: memoPatterns[0]!.suffix,
+    created_at: 3,
+    updated_at: 3,
   },
 ]
 
@@ -252,6 +286,7 @@ describe('핵심 화면', () => {
         csrfToken: 'csrf-test',
         memos,
         settings: memoSettings,
+        patterns: memoPatterns,
       }),
     )
 
@@ -260,6 +295,9 @@ describe('핵심 화면', () => {
     expect(html).toContain('검색어')
     expect(html).toContain('https://example.com/items/00123?from=memo')
     expect(html).toContain('https://example.com/search?q=%ED%95%9C%EA%B8%80%20%EB%8B%A8%EC%96%B4&amp;from=memo')
+    expect(html).toContain('https://shop.example.com/products/ABC-42?ref=memo')
+    expect(html).toContain('자동 (숫자/문자 판별)')
+    expect(html).toContain('상품 상세')
     expect(html).toContain('action="/memos/1/delete"')
     expect(html).not.toContain('/memos/1"')
   })
@@ -270,5 +308,31 @@ describe('핵심 화면', () => {
       'https://example.com/search?q=%ED%95%9C%EA%B8%80%20%EB%8B%A8%EC%96%B4&from=memo',
     )
     expect(composeMemoUrl('값', { ...memoSettings, text_prefix: '', text_suffix: '' })).toBeNull()
+    expect(composeMemoUrl('ABC-42', memoSettings, memoPatterns[0]!)).toBe(
+      'https://shop.example.com/products/ABC-42?ref=memo',
+    )
+    expect(composeMemoUrl('42', memoSettings, memoPatterns[0]!)).toBe(
+      'https://shop.example.com/products/42?ref=memo',
+    )
+  })
+
+  it('메모 설정에서 사용자 패턴을 추가·수정·삭제할 수 있다', async () => {
+    const html = String(
+      await MemoSettingsPage({
+        appName: 'Private Board',
+        deployInfo,
+        user,
+        csrfToken: 'csrf-test',
+        settings: memoSettings,
+        patterns: memoPatterns,
+      }),
+    )
+
+    expect(html).toContain('숫자·문자 자동 판별')
+    expect(html).toContain('내 패턴')
+    expect(html).toContain('action="/memos/patterns"')
+    expect(html).toContain('action="/memos/patterns/7/update"')
+    expect(html).toContain('action="/memos/patterns/7/delete"')
+    expect(html).toContain('상품 상세')
   })
 })

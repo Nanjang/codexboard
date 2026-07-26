@@ -21,14 +21,17 @@ import {
   canManageResource,
   createComment,
   createMemo,
+  createMemoUrlPattern,
   createPost,
   createTicket,
   deleteComment,
   deleteMemo,
+  deleteMemoUrlPattern,
   deletePost,
   deleteTicket,
   getBoardBySlug,
   getComment,
+  getMemoUrlPattern,
   getMemoUrlSettings,
   getPost,
   getTicket,
@@ -36,16 +39,19 @@ import {
   ensureUserDashboard,
   listDashboardWidgets,
   listComments,
+  listMemoUrlPatterns,
   listMemos,
   listPosts,
   listRecentPostsByBoardSlug,
   listTickets,
+  MAX_MEMO_PATTERNS_PER_USER,
   MAX_RSS_WIDGETS_PER_USER,
   moveTicket,
   reorderDashboardWidgets,
   reorderTickets,
   removeDashboardWidget,
   updateComment,
+  updateMemoUrlPattern,
   upsertMemoUrlSettings,
   updatePost,
   updateTicket,
@@ -90,7 +96,7 @@ import { DashboardPage } from './views/dashboard'
 import { AppErrorPage, BlockedPage, PublicErrorPage } from './views/errors'
 import { PrivacyPage, TermsPage } from './views/legal'
 import { LoginPage } from './views/login'
-import { MemoBoardPage, MemoSettingsPage } from './views/memos'
+import { MemoBoardPage, MemoSettingsPage, type MemoPatternDraft } from './views/memos'
 import { TicketFormPage, TicketsPage } from './views/tickets'
 
 const app = new Hono<AppEnv>()
@@ -212,6 +218,43 @@ function draftTicket(ownerId: string, title: string, note: string, lane: TicketL
 
 function rawFormString(value: FormDataEntryValue | null): string {
   return typeof value === 'string' ? value : ''
+}
+
+function selectedMemoPatternId(value: FormDataEntryValue | null): number | null {
+  if (value === null || value === 'auto') return null
+  if (typeof value !== 'string') throw new ValidationError('메모 패턴 형식이 올바르지 않습니다.')
+  return positiveInteger(value, '메모 패턴 ID')
+}
+
+function rawMemoPatternDraft(form: FormData, id: number | null): MemoPatternDraft {
+  return {
+    id,
+    name: rawFormString(form.get('name')),
+    prefix: rawFormString(form.get('prefix')),
+    suffix: rawFormString(form.get('suffix')),
+  }
+}
+
+function validateMemoPatternDraft(draft: MemoPatternDraft): MemoPatternDraft {
+  const normalized: MemoPatternDraft = {
+    id: draft.id,
+    name: singleLine(draft.name, '패턴 이름', 60),
+    prefix: optionalSingleLine(draft.prefix, '패턴 앞 URL', 1000),
+    suffix: optionalSingleLine(draft.suffix, '패턴 뒤 URL', 1000),
+  }
+  if (!normalized.prefix && !normalized.suffix) {
+    throw new ValidationError('패턴의 앞 URL 또는 뒤 URL을 입력하세요.')
+  }
+  validateMemoUrlTemplate(normalized.prefix, normalized.suffix, normalized.name)
+  return normalized
+}
+
+function memoPatternErrorMessage(error: unknown): string | null {
+  if (error instanceof ValidationError) return error.message
+  if (error instanceof Error && /UNIQUE|constraint/i.test(error.message)) {
+    return '같은 이름의 패턴이 이미 있습니다.'
+  }
+  return null
 }
 
 app.use(
@@ -706,9 +749,10 @@ app.post('/comments/:id/delete', async (c) => {
 
 app.get('/memos', async (c) => {
   const auth = requireActiveAuth(c)
-  const [memos, settings] = await Promise.all([
+  const [memos, settings, patterns] = await Promise.all([
     listMemos(c.env.DB, auth.user.id),
     getMemoUrlSettings(c.env.DB, auth.user.id),
+    listMemoUrlPatterns(c.env.DB, auth.user.id),
   ])
   return c.html(
     <MemoBoardPage
@@ -718,6 +762,7 @@ app.get('/memos', async (c) => {
       notice={noticeFromRequest(c)}
       memos={memos}
       settings={settings}
+      patterns={patterns}
     />,
   )
 })
@@ -728,17 +773,25 @@ app.post('/memos', async (c) => {
   const form = await readForm(c)
   const draftMemo = rawFormString(form.get('memo'))
   const draftValue = rawFormString(form.get('value'))
+  const draftPatternId = rawFormString(form.get('patternId')) || 'auto'
 
   try {
     const memo = singleLine(form.get('memo'), '메모', 240)
     const value = singleLine(form.get('value'), '값', 500)
-    await createMemo(c.env.DB, auth.user.id, memo, value)
+    const patternId = selectedMemoPatternId(form.get('patternId'))
+    if (patternId !== null) {
+      const pattern = await getMemoUrlPattern(c.env.DB, auth.user.id, patternId)
+      if (!pattern) throw new ValidationError('선택한 메모 패턴을 찾을 수 없습니다.')
+    }
+    const memoId = await createMemo(c.env.DB, auth.user.id, memo, value, patternId)
+    if (!memoId) throw new ValidationError('선택한 메모 패턴을 찾을 수 없습니다.')
     return redirectWithNotice(c, '/memos', 'memo-created')
   } catch (error) {
     if (!(error instanceof ValidationError)) throw error
-    const [memos, settings] = await Promise.all([
+    const [memos, settings, patterns] = await Promise.all([
       listMemos(c.env.DB, auth.user.id),
       getMemoUrlSettings(c.env.DB, auth.user.id),
+      listMemoUrlPatterns(c.env.DB, auth.user.id),
     ])
     return c.html(
       <MemoBoardPage
@@ -747,8 +800,10 @@ app.post('/memos', async (c) => {
         csrfToken={auth.csrfToken}
         memos={memos}
         settings={settings}
+        patterns={patterns}
         draftMemo={draftMemo}
         draftValue={draftValue}
+        draftPatternId={draftPatternId}
         error={error.message}
       />,
       400,
@@ -768,13 +823,17 @@ app.post('/memos/:id/delete', async (c) => {
 
 app.get('/memos/settings', async (c) => {
   const auth = requireActiveAuth(c)
-  const settings = await getMemoUrlSettings(c.env.DB, auth.user.id)
+  const [settings, patterns] = await Promise.all([
+    getMemoUrlSettings(c.env.DB, auth.user.id),
+    listMemoUrlPatterns(c.env.DB, auth.user.id),
+  ])
   return c.html(
     <MemoSettingsPage
       {...viewMeta(c)}
       user={auth.user}
       csrfToken={auth.csrfToken}
       settings={settings}
+      patterns={patterns}
     />,
   )
 })
@@ -803,17 +862,108 @@ app.post('/memos/settings', async (c) => {
     return redirectWithNotice(c, '/memos', 'memo-settings-updated')
   } catch (error) {
     if (!(error instanceof ValidationError)) throw error
+    const patterns = await listMemoUrlPatterns(c.env.DB, auth.user.id)
     return c.html(
       <MemoSettingsPage
         {...viewMeta(c)}
         user={auth.user}
         csrfToken={auth.csrfToken}
         settings={rawSettings}
+        patterns={patterns}
         error={error.message}
       />,
       400,
     )
   }
+})
+
+app.post('/memos/patterns', async (c) => {
+  const auth = requireActiveAuth(c)
+  await enforceWriteRateLimit(c, 'memo-pattern')
+  const form = await readForm(c)
+  const rawDraft = rawMemoPatternDraft(form, null)
+
+  try {
+    const patterns = await listMemoUrlPatterns(c.env.DB, auth.user.id)
+    if (patterns.length >= MAX_MEMO_PATTERNS_PER_USER) {
+      throw new ValidationError(`메모 패턴은 최대 ${MAX_MEMO_PATTERNS_PER_USER}개까지 만들 수 있습니다.`)
+    }
+    const draft = validateMemoPatternDraft(rawDraft)
+    await createMemoUrlPattern(c.env.DB, auth.user.id, draft.name, draft.prefix, draft.suffix)
+    return redirectWithNotice(c, '/memos/settings', 'memo-pattern-created')
+  } catch (error) {
+    const message = memoPatternErrorMessage(error)
+    if (!message) throw error
+    const [settings, patterns] = await Promise.all([
+      getMemoUrlSettings(c.env.DB, auth.user.id),
+      listMemoUrlPatterns(c.env.DB, auth.user.id),
+    ])
+    return c.html(
+      <MemoSettingsPage
+        {...viewMeta(c)}
+        user={auth.user}
+        csrfToken={auth.csrfToken}
+        settings={settings}
+        patterns={patterns}
+        patternDraft={rawDraft}
+        error={message}
+      />,
+      400,
+    )
+  }
+})
+
+app.post('/memos/patterns/:id/update', async (c) => {
+  const auth = requireActiveAuth(c)
+  await enforceWriteRateLimit(c, 'memo-pattern')
+  const patternId = positiveInteger(c.req.param('id'), '메모 패턴 ID')
+  const current = await getMemoUrlPattern(c.env.DB, auth.user.id, patternId)
+  if (!current) throw new HTTPException(404, { message: '메모 패턴을 찾을 수 없습니다.' })
+  const form = await readForm(c)
+  const rawDraft = rawMemoPatternDraft(form, patternId)
+
+  try {
+    const draft = validateMemoPatternDraft(rawDraft)
+    const updated = await updateMemoUrlPattern(
+      c.env.DB,
+      auth.user.id,
+      patternId,
+      draft.name,
+      draft.prefix,
+      draft.suffix,
+    )
+    if (!updated) throw new HTTPException(404, { message: '메모 패턴을 찾을 수 없습니다.' })
+    return redirectWithNotice(c, '/memos/settings', 'memo-pattern-updated')
+  } catch (error) {
+    const message = memoPatternErrorMessage(error)
+    if (!message) throw error
+    const [settings, patterns] = await Promise.all([
+      getMemoUrlSettings(c.env.DB, auth.user.id),
+      listMemoUrlPatterns(c.env.DB, auth.user.id),
+    ])
+    return c.html(
+      <MemoSettingsPage
+        {...viewMeta(c)}
+        user={auth.user}
+        csrfToken={auth.csrfToken}
+        settings={settings}
+        patterns={patterns}
+        patternDraft={rawDraft}
+        error={message}
+      />,
+      400,
+    )
+  }
+})
+
+app.post('/memos/patterns/:id/delete', async (c) => {
+  const auth = requireActiveAuth(c)
+  await enforceWriteRateLimit(c, 'memo-pattern')
+  const patternId = positiveInteger(c.req.param('id'), '메모 패턴 ID')
+  await readForm(c)
+  const deleted = await deleteMemoUrlPattern(c.env.DB, auth.user.id, patternId)
+  if (!deleted) throw new HTTPException(404, { message: '메모 패턴을 찾을 수 없습니다.' })
+  return redirectWithNotice(c, '/memos/settings', 'memo-pattern-deleted')
 })
 
 app.get('/tickets', async (c) => {

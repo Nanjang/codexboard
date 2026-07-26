@@ -4,6 +4,7 @@ import type {
   CurrentUser,
   DashboardWidgetRow,
   MemoRow,
+  MemoUrlPatternRow,
   MemoUrlSettings,
   PostDetailRow,
   PostListRow,
@@ -15,6 +16,7 @@ export const POSTS_PER_PAGE = 20
 export const DASHBOARD_POSTS_LIMIT = 5
 export const MAX_TICKETS_PER_USER = 200
 export const MAX_MEMOS_PER_USER = 1000
+export const MAX_MEMO_PATTERNS_PER_USER = 50
 export const MAX_RSS_WIDGETS_PER_USER = 10
 
 const EMPTY_MEMO_URL_SETTINGS: MemoUrlSettings = {
@@ -664,10 +666,23 @@ export async function listMemos(db: D1Database, ownerId: string): Promise<MemoRo
   const result = await db
     .prepare(
       `
-      SELECT id, owner_id, memo, value, created_at, updated_at
-      FROM private_memos
-      WHERE owner_id = ?1
-      ORDER BY id DESC
+      SELECT
+        m.id,
+        m.owner_id,
+        m.memo,
+        m.value,
+        m.pattern_id,
+        p.name AS pattern_name,
+        p.prefix AS pattern_prefix,
+        p.suffix AS pattern_suffix,
+        m.created_at,
+        m.updated_at
+      FROM private_memos m
+      LEFT JOIN memo_url_patterns p
+        ON p.id = m.pattern_id
+        AND p.user_id = m.owner_id
+      WHERE m.owner_id = ?1
+      ORDER BY m.id DESC
       LIMIT ?2
       `,
     )
@@ -685,7 +700,8 @@ export async function createMemo(
   ownerId: string,
   memo: string,
   value: string,
-): Promise<number> {
+  patternId: number | null,
+): Promise<number | null> {
   const count = await db
     .prepare('SELECT COUNT(*) AS count FROM private_memos WHERE owner_id = ?1')
     .bind(ownerId)
@@ -695,19 +711,31 @@ export async function createMemo(
   }
 
   const now = Date.now()
-  const result = await db
-    .prepare(
-      `
-      INSERT INTO private_memos (owner_id, memo, value, created_at, updated_at)
-      VALUES (?1, ?2, ?3, ?4, ?4)
-      `,
-    )
-    .bind(ownerId, memo, value, now)
-    .run()
+  const result =
+    patternId === null
+      ? await db
+          .prepare(
+            `
+            INSERT INTO private_memos (owner_id, memo, value, pattern_id, created_at, updated_at)
+            VALUES (?1, ?2, ?3, NULL, ?4, ?4)
+            `,
+          )
+          .bind(ownerId, memo, value, now)
+          .run()
+      : await db
+          .prepare(
+            `
+            INSERT INTO private_memos (owner_id, memo, value, pattern_id, created_at, updated_at)
+            SELECT ?1, ?2, ?3, id, ?5, ?5
+            FROM memo_url_patterns
+            WHERE id = ?4 AND user_id = ?1
+            `,
+          )
+          .bind(ownerId, memo, value, patternId, now)
+          .run()
 
   const memoId = result.meta.last_row_id
-  if (!memoId) throw new Error('메모 ID를 확인할 수 없습니다.')
-  return memoId
+  return memoId || null
 }
 
 export async function deleteMemo(db: D1Database, ownerId: string, memoId: number): Promise<boolean> {
@@ -767,4 +795,115 @@ export async function upsertMemoUrlSettings(
       Date.now(),
     )
     .run()
+}
+
+export async function listMemoUrlPatterns(db: D1Database, userId: string): Promise<MemoUrlPatternRow[]> {
+  const result = await db
+    .prepare(
+      `
+      SELECT id, user_id, name, prefix, suffix, sort_order, created_at, updated_at
+      FROM memo_url_patterns
+      WHERE user_id = ?1
+      ORDER BY sort_order, id
+      LIMIT ?2
+      `,
+    )
+    .bind(userId, MAX_MEMO_PATTERNS_PER_USER + 1)
+    .all<MemoUrlPatternRow>()
+
+  if (result.results.length > MAX_MEMO_PATTERNS_PER_USER) {
+    throw new Error(`메모 패턴은 사용자당 최대 ${MAX_MEMO_PATTERNS_PER_USER}개까지 지원합니다.`)
+  }
+  return result.results
+}
+
+export async function getMemoUrlPattern(
+  db: D1Database,
+  userId: string,
+  patternId: number,
+): Promise<MemoUrlPatternRow | null> {
+  return db
+    .prepare(
+      `
+      SELECT id, user_id, name, prefix, suffix, sort_order, created_at, updated_at
+      FROM memo_url_patterns
+      WHERE id = ?1 AND user_id = ?2
+      LIMIT 1
+      `,
+    )
+    .bind(patternId, userId)
+    .first<MemoUrlPatternRow>()
+}
+
+export async function createMemoUrlPattern(
+  db: D1Database,
+  userId: string,
+  name: string,
+  prefix: string,
+  suffix: string,
+): Promise<number> {
+  const count = await db
+    .prepare('SELECT COUNT(*) AS count FROM memo_url_patterns WHERE user_id = ?1')
+    .bind(userId)
+    .first<{ count: number }>()
+  if ((count?.count ?? 0) >= MAX_MEMO_PATTERNS_PER_USER) {
+    throw new Error(`메모 패턴은 사용자당 최대 ${MAX_MEMO_PATTERNS_PER_USER}개까지 만들 수 있습니다.`)
+  }
+
+  const order = await db
+    .prepare('SELECT COALESCE(MAX(sort_order), 0) + 1000 AS next_order FROM memo_url_patterns WHERE user_id = ?1')
+    .bind(userId)
+    .first<{ next_order: number }>()
+  const now = Date.now()
+  const result = await db
+    .prepare(
+      `
+      INSERT INTO memo_url_patterns (user_id, name, prefix, suffix, sort_order, created_at, updated_at)
+      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)
+      `,
+    )
+    .bind(userId, name, prefix, suffix, order?.next_order ?? 1000, now)
+    .run()
+
+  const patternId = result.meta.last_row_id
+  if (!patternId) throw new Error('메모 패턴 ID를 확인할 수 없습니다.')
+  return patternId
+}
+
+export async function updateMemoUrlPattern(
+  db: D1Database,
+  userId: string,
+  patternId: number,
+  name: string,
+  prefix: string,
+  suffix: string,
+): Promise<boolean> {
+  const result = await db
+    .prepare(
+      `
+      UPDATE memo_url_patterns
+      SET name = ?1, prefix = ?2, suffix = ?3, updated_at = ?4
+      WHERE id = ?5 AND user_id = ?6
+      `,
+    )
+    .bind(name, prefix, suffix, Date.now(), patternId, userId)
+    .run()
+  return result.meta.changes > 0
+}
+
+export async function deleteMemoUrlPattern(
+  db: D1Database,
+  userId: string,
+  patternId: number,
+): Promise<boolean> {
+  const pattern = await getMemoUrlPattern(db, userId, patternId)
+  if (!pattern) return false
+
+  await db.batch([
+    db
+      .prepare('UPDATE private_memos SET pattern_id = NULL, updated_at = ?1 WHERE owner_id = ?2 AND pattern_id = ?3')
+      .bind(Date.now(), userId, patternId),
+    db.prepare('DELETE FROM memo_url_patterns WHERE id = ?1 AND user_id = ?2').bind(patternId, userId),
+  ])
+  return true
 }

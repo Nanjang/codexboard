@@ -147,6 +147,10 @@ export interface MemoRow {
   owner_id: string
   memo: string
   value: string
+  pattern_id: number | null
+  pattern_name: string | null
+  pattern_prefix: string | null
+  pattern_suffix: string | null
   created_at: number
   updated_at: number
 }
@@ -156,4 +160,15 @@ export interface MemoUrlSettings {
   numeric_suffix: string
   text_prefix: string
   text_suffix: string
+}
+
+export interface MemoUrlPatternRow {
+  id: number
+  user_id: string
+  name: string
+  prefix: string
+  suffix: string
+  sort_order: number
+  created_at: number
+  updated_at: number
 }
