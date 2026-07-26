@@ -4,6 +4,8 @@ import type {
   CurrentUser,
   DashboardWidgetRow,
   DeployInfo,
+  MemoRow,
+  MemoUrlSettings,
   PostListRow,
   TicketRow,
 } from '../src/types'
@@ -11,6 +13,7 @@ import { BoardListPage } from '../src/views/boards'
 import { DashboardPage } from '../src/views/dashboard'
 import { PublicErrorPage } from '../src/views/errors'
 import { LoginPage } from '../src/views/login'
+import { composeMemoUrl, MemoBoardPage } from '../src/views/memos'
 import { TicketsPage } from '../src/views/tickets'
 
 const user: CurrentUser = {
@@ -78,6 +81,32 @@ const dashboardWidgets: DashboardWidgetRow[] = [
     url: 'https://example.com/docs',
     sort_order: 2000,
     created_at: 1,
+  },
+]
+
+const memoSettings: MemoUrlSettings = {
+  numeric_prefix: 'https://example.com/items/',
+  numeric_suffix: '?from=memo',
+  text_prefix: 'https://example.com/search?q=',
+  text_suffix: '&from=memo',
+}
+
+const memos: MemoRow[] = [
+  {
+    id: 1,
+    owner_id: user.id,
+    memo: '상품 번호',
+    value: '00123',
+    created_at: 1,
+    updated_at: 1,
+  },
+  {
+    id: 2,
+    owner_id: user.id,
+    memo: '검색어',
+    value: '한글 단어',
+    created_at: 2,
+    updated_at: 2,
   },
 ]
 
@@ -181,5 +210,34 @@ describe('핵심 화면', () => {
     expect(html).toContain('문의')
     expect(html).toContain('문서 검토')
     expect(html).not.toContain('<img')
+  })
+
+  it('개인 메모는 상세 페이지 없이 값과 조합된 링크를 목록에 표시한다', async () => {
+    const html = String(
+      await MemoBoardPage({
+        appName: 'Private Board',
+        deployInfo,
+        user,
+        csrfToken: 'csrf-test',
+        memos,
+        settings: memoSettings,
+      }),
+    )
+
+    expect(html).toContain('개인 전용')
+    expect(html).toContain('상품 번호')
+    expect(html).toContain('검색어')
+    expect(html).toContain('https://example.com/items/00123?from=memo')
+    expect(html).toContain('https://example.com/search?q=%ED%95%9C%EA%B8%80%20%EB%8B%A8%EC%96%B4&amp;from=memo')
+    expect(html).toContain('action="/memos/1/delete"')
+    expect(html).not.toContain('/memos/1"')
+  })
+
+  it('숫자와 문자 메모 값은 사용자별 URL 규칙으로 구분해 조합한다', () => {
+    expect(composeMemoUrl('42', memoSettings)).toBe('https://example.com/items/42?from=memo')
+    expect(composeMemoUrl('한글 단어', memoSettings)).toBe(
+      'https://example.com/search?q=%ED%95%9C%EA%B8%80%20%EB%8B%A8%EC%96%B4&from=memo',
+    )
+    expect(composeMemoUrl('값', { ...memoSettings, text_prefix: '', text_suffix: '' })).toBeNull()
   })
 })

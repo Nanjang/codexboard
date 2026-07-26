@@ -3,6 +3,8 @@ import type {
   CommentRow,
   CurrentUser,
   DashboardWidgetRow,
+  MemoRow,
+  MemoUrlSettings,
   PostDetailRow,
   PostListRow,
   TicketLane,
@@ -12,6 +14,14 @@ import type {
 export const POSTS_PER_PAGE = 20
 export const DASHBOARD_POSTS_LIMIT = 5
 export const MAX_TICKETS_PER_USER = 200
+export const MAX_MEMOS_PER_USER = 1000
+
+const EMPTY_MEMO_URL_SETTINGS: MemoUrlSettings = {
+  numeric_prefix: '',
+  numeric_suffix: '',
+  text_prefix: '',
+  text_suffix: '',
+}
 
 export async function listBoards(db: D1Database): Promise<BoardRow[]> {
   const result = await db
@@ -615,4 +625,113 @@ export async function reorderTickets(
   )
 
   await db.batch(statements)
+}
+
+export async function listMemos(db: D1Database, ownerId: string): Promise<MemoRow[]> {
+  const result = await db
+    .prepare(
+      `
+      SELECT id, owner_id, memo, value, created_at, updated_at
+      FROM private_memos
+      WHERE owner_id = ?1
+      ORDER BY id DESC
+      LIMIT ?2
+      `,
+    )
+    .bind(ownerId, MAX_MEMOS_PER_USER + 1)
+    .all<MemoRow>()
+
+  if (result.results.length > MAX_MEMOS_PER_USER) {
+    throw new Error(`메모는 사용자당 최대 ${MAX_MEMOS_PER_USER}개까지 지원합니다.`)
+  }
+  return result.results
+}
+
+export async function createMemo(
+  db: D1Database,
+  ownerId: string,
+  memo: string,
+  value: string,
+): Promise<number> {
+  const count = await db
+    .prepare('SELECT COUNT(*) AS count FROM private_memos WHERE owner_id = ?1')
+    .bind(ownerId)
+    .first<{ count: number }>()
+  if ((count?.count ?? 0) >= MAX_MEMOS_PER_USER) {
+    throw new Error(`메모는 사용자당 최대 ${MAX_MEMOS_PER_USER}개까지 만들 수 있습니다.`)
+  }
+
+  const now = Date.now()
+  const result = await db
+    .prepare(
+      `
+      INSERT INTO private_memos (owner_id, memo, value, created_at, updated_at)
+      VALUES (?1, ?2, ?3, ?4, ?4)
+      `,
+    )
+    .bind(ownerId, memo, value, now)
+    .run()
+
+  const memoId = result.meta.last_row_id
+  if (!memoId) throw new Error('메모 ID를 확인할 수 없습니다.')
+  return memoId
+}
+
+export async function deleteMemo(db: D1Database, ownerId: string, memoId: number): Promise<boolean> {
+  const result = await db
+    .prepare('DELETE FROM private_memos WHERE id = ?1 AND owner_id = ?2')
+    .bind(memoId, ownerId)
+    .run()
+  return result.meta.changes > 0
+}
+
+export async function getMemoUrlSettings(db: D1Database, userId: string): Promise<MemoUrlSettings> {
+  const settings = await db
+    .prepare(
+      `
+      SELECT numeric_prefix, numeric_suffix, text_prefix, text_suffix
+      FROM user_memo_settings
+      WHERE user_id = ?1
+      LIMIT 1
+      `,
+    )
+    .bind(userId)
+    .first<MemoUrlSettings>()
+  return settings ?? { ...EMPTY_MEMO_URL_SETTINGS }
+}
+
+export async function upsertMemoUrlSettings(
+  db: D1Database,
+  userId: string,
+  settings: MemoUrlSettings,
+): Promise<void> {
+  await db
+    .prepare(
+      `
+      INSERT INTO user_memo_settings (
+        user_id,
+        numeric_prefix,
+        numeric_suffix,
+        text_prefix,
+        text_suffix,
+        updated_at
+      )
+      VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+      ON CONFLICT(user_id) DO UPDATE SET
+        numeric_prefix = excluded.numeric_prefix,
+        numeric_suffix = excluded.numeric_suffix,
+        text_prefix = excluded.text_prefix,
+        text_suffix = excluded.text_suffix,
+        updated_at = excluded.updated_at
+      `,
+    )
+    .bind(
+      userId,
+      settings.numeric_prefix,
+      settings.numeric_suffix,
+      settings.text_prefix,
+      settings.text_suffix,
+      Date.now(),
+    )
+    .run()
 }

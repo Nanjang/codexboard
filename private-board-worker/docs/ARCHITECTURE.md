@@ -27,6 +27,7 @@
 | 상태 확인 | `/health` | 공개 |
 | 공용 게시판 | `/boards/free`, `/boards/inquiry` | 인증 필요 |
 | 게시글·댓글 | `/posts/*`, `/comments/*` | 인증 필요 |
+| 개인 메모 | `/memos`, `/memos/settings` | 인증 필요, 소유자 제한 |
 | 개인 티켓 | `/tickets`, `/api/tickets/order` | 인증 필요, 소유자 제한 |
 | 계정 | `/account` | 인증 필요 |
 
@@ -37,6 +38,8 @@ users
   ├─ auth_accounts
   ├─ sessions
   ├─ posts ── comments
+  ├─ private_memos
+  ├─ user_memo_settings
   └─ tickets
 
 boards
@@ -84,6 +87,8 @@ WHERE id = ? AND owner_id = ?;
 ```
 
 드래그 정렬 API는 전송된 모든 티켓 ID가 현재 사용자의 전체 티켓 집합과 정확히 일치하는지 확인한 뒤 D1 batch로 순서를 갱신합니다.
+
+개인 메모와 URL 설정도 동일하게 클라이언트의 사용자 ID를 받지 않고 인증 컨텍스트의 ID로만 조회·변경합니다. URL 설정은 숫자와 문자 유형별 앞부분·뒷부분을 사용자마다 한 행으로 저장하며, 완성된 주소는 `http` 또는 `https` 프로토콜인지 다시 검증합니다.
 
 ## 보안 헤더
 

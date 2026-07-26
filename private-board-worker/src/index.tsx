@@ -19,19 +19,23 @@ import {
   addFreeBoardDashboardWidget,
   canManageResource,
   createComment,
+  createMemo,
   createPost,
   createTicket,
   deleteComment,
+  deleteMemo,
   deletePost,
   deleteTicket,
   getBoardBySlug,
   getComment,
+  getMemoUrlSettings,
   getPost,
   getTicket,
   incrementPostViewCount,
   ensureUserDashboard,
   listDashboardWidgets,
   listComments,
+  listMemos,
   listPosts,
   listRecentPostsByBoardSlug,
   listTickets,
@@ -40,6 +44,7 @@ import {
   reorderTickets,
   removeDashboardWidget,
   updateComment,
+  upsertMemoUrlSettings,
   updatePost,
   updateTicket,
 } from './lib/db'
@@ -59,18 +64,21 @@ import {
   bookmarkUrl,
   multiline,
   nickname,
+  optionalSingleLine,
   positiveInteger,
   singleLine,
   ticketLane,
+  validateMemoUrlTemplate,
   ValidationError,
 } from './lib/validation'
-import type { AppContext, AppEnv, PostDetailRow, TicketLane, TicketRow } from './types'
+import type { AppContext, AppEnv, MemoUrlSettings, PostDetailRow, TicketLane, TicketRow } from './types'
 import { AccountPage } from './views/account'
 import { BoardListPage, CommentEditPage, PostDetailPage, PostFormPage } from './views/boards'
 import { DashboardPage } from './views/dashboard'
 import { AppErrorPage, BlockedPage, PublicErrorPage } from './views/errors'
 import { PrivacyPage, TermsPage } from './views/legal'
 import { LoginPage } from './views/login'
+import { MemoBoardPage, MemoSettingsPage } from './views/memos'
 import { TicketFormPage, TicketsPage } from './views/tickets'
 
 const app = new Hono<AppEnv>()
@@ -188,6 +196,10 @@ function draftTicket(ownerId: string, title: string, note: string, lane: TicketL
     created_at: 0,
     updated_at: 0,
   }
+}
+
+function rawFormString(value: FormDataEntryValue | null): string {
+  return typeof value === 'string' ? value : ''
 }
 
 app.use(
@@ -632,6 +644,118 @@ app.post('/comments/:id/delete', async (c) => {
   await readForm(c)
   await deleteComment(c.env.DB, commentId, comment.post_id)
   return redirectWithNotice(c, `/posts/${comment.post_id}`, 'comment-deleted')
+})
+
+app.get('/memos', async (c) => {
+  const auth = requireActiveAuth(c)
+  const [memos, settings] = await Promise.all([
+    listMemos(c.env.DB, auth.user.id),
+    getMemoUrlSettings(c.env.DB, auth.user.id),
+  ])
+  return c.html(
+    <MemoBoardPage
+      {...viewMeta(c)}
+      user={auth.user}
+      csrfToken={auth.csrfToken}
+      notice={noticeFromRequest(c)}
+      memos={memos}
+      settings={settings}
+    />,
+  )
+})
+
+app.post('/memos', async (c) => {
+  const auth = requireActiveAuth(c)
+  await enforceWriteRateLimit(c, 'memo')
+  const form = await readForm(c)
+  const draftMemo = rawFormString(form.get('memo'))
+  const draftValue = rawFormString(form.get('value'))
+
+  try {
+    const memo = singleLine(form.get('memo'), '메모', 240)
+    const value = singleLine(form.get('value'), '값', 500)
+    await createMemo(c.env.DB, auth.user.id, memo, value)
+    return redirectWithNotice(c, '/memos', 'memo-created')
+  } catch (error) {
+    if (!(error instanceof ValidationError)) throw error
+    const [memos, settings] = await Promise.all([
+      listMemos(c.env.DB, auth.user.id),
+      getMemoUrlSettings(c.env.DB, auth.user.id),
+    ])
+    return c.html(
+      <MemoBoardPage
+        {...viewMeta(c)}
+        user={auth.user}
+        csrfToken={auth.csrfToken}
+        memos={memos}
+        settings={settings}
+        draftMemo={draftMemo}
+        draftValue={draftValue}
+        error={error.message}
+      />,
+      400,
+    )
+  }
+})
+
+app.post('/memos/:id/delete', async (c) => {
+  const auth = requireActiveAuth(c)
+  await enforceWriteRateLimit(c, 'memo')
+  const memoId = positiveInteger(c.req.param('id'), '메모 ID')
+  await readForm(c)
+  const deleted = await deleteMemo(c.env.DB, auth.user.id, memoId)
+  if (!deleted) throw new HTTPException(404, { message: '메모를 찾을 수 없습니다.' })
+  return redirectWithNotice(c, '/memos', 'memo-deleted')
+})
+
+app.get('/memos/settings', async (c) => {
+  const auth = requireActiveAuth(c)
+  const settings = await getMemoUrlSettings(c.env.DB, auth.user.id)
+  return c.html(
+    <MemoSettingsPage
+      {...viewMeta(c)}
+      user={auth.user}
+      csrfToken={auth.csrfToken}
+      settings={settings}
+    />,
+  )
+})
+
+app.post('/memos/settings', async (c) => {
+  const auth = requireActiveAuth(c)
+  await enforceWriteRateLimit(c, 'memo-settings')
+  const form = await readForm(c)
+  const rawSettings: MemoUrlSettings = {
+    numeric_prefix: rawFormString(form.get('numericPrefix')),
+    numeric_suffix: rawFormString(form.get('numericSuffix')),
+    text_prefix: rawFormString(form.get('textPrefix')),
+    text_suffix: rawFormString(form.get('textSuffix')),
+  }
+
+  try {
+    const settings: MemoUrlSettings = {
+      numeric_prefix: optionalSingleLine(form.get('numericPrefix'), '숫자 앞 URL', 1000),
+      numeric_suffix: optionalSingleLine(form.get('numericSuffix'), '숫자 뒤 URL', 1000),
+      text_prefix: optionalSingleLine(form.get('textPrefix'), '문자 앞 URL', 1000),
+      text_suffix: optionalSingleLine(form.get('textSuffix'), '문자 뒤 URL', 1000),
+    }
+    validateMemoUrlTemplate(settings.numeric_prefix, settings.numeric_suffix, '숫자')
+    validateMemoUrlTemplate(settings.text_prefix, settings.text_suffix, '문자')
+    await upsertMemoUrlSettings(c.env.DB, auth.user.id, settings)
+    return redirectWithNotice(c, '/memos', 'memo-settings-updated')
+  } catch (error) {
+    if (!(error instanceof ValidationError)) throw error
+    return c.html(
+      <MemoSettingsPage
+        {...viewMeta(c)}
+        user={auth.user}
+        csrfToken={auth.csrfToken}
+        settings={rawSettings}
+        error={error.message}
+      />,
+      400,
+    )
+  }
 })
 
 app.get('/tickets', async (c) => {

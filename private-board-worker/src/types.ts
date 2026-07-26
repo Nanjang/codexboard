@@ -122,3 +122,19 @@ export interface TicketRow {
   created_at: number
   updated_at: number
 }
+
+export interface MemoRow {
+  id: number
+  owner_id: string
+  memo: string
+  value: string
+  created_at: number
+  updated_at: number
+}
+
+export interface MemoUrlSettings {
+  numeric_prefix: string
+  numeric_suffix: string
+  text_prefix: string
+  text_suffix: string
+}

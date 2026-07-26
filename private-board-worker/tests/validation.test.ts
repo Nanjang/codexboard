@@ -2,11 +2,14 @@ import { describe, expect, it } from 'vitest'
 import {
   boardSlug,
   bookmarkUrl,
+  isNumericMemoValue,
   multiline,
   nickname,
+  optionalSingleLine,
   positiveInteger,
   singleLine,
   ticketLane,
+  validateMemoUrlTemplate,
   ValidationError,
 } from '../src/lib/validation'
 
@@ -42,5 +45,26 @@ describe('입력 검증', () => {
     expect(bookmarkUrl('https://example.com/docs')).toBe('https://example.com/docs')
     expect(() => bookmarkUrl('javascript:alert(1)')).toThrow(ValidationError)
     expect(() => bookmarkUrl('https://user:password@example.com/')).toThrow(ValidationError)
+  })
+
+  it('메모 값의 숫자 여부를 부호와 소수까지 일관되게 판별한다', () => {
+    expect(isNumericMemoValue('00123')).toBe(true)
+    expect(isNumericMemoValue('-12.5')).toBe(true)
+    expect(isNumericMemoValue('12A')).toBe(false)
+    expect(isNumericMemoValue('검색어')).toBe(false)
+  })
+
+  it('URL 일부는 빈 값을 허용하고 줄바꿈을 정규화한다', () => {
+    expect(optionalSingleLine(null, '앞 URL', 1000)).toBe('')
+    expect(optionalSingleLine(' https://example.com/\r\nsearch/ ', '앞 URL', 1000)).toBe(
+      'https://example.com/ search/',
+    )
+  })
+
+  it('메모 URL 조합은 안전한 절대 http 또는 https 주소만 허용한다', () => {
+    expect(() => validateMemoUrlTemplate('https://example.com/search?q=', '&from=memo', '문자')).not.toThrow()
+    expect(() => validateMemoUrlTemplate('', '', '문자')).not.toThrow()
+    expect(() => validateMemoUrlTemplate('javascript:alert(', ')', '문자')).toThrow(ValidationError)
+    expect(() => validateMemoUrlTemplate('/relative/', '', '숫자')).toThrow(ValidationError)
   })
 })
