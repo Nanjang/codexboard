@@ -41,10 +41,14 @@ export function AppLayout({
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="color-scheme" content="light" />
+        <meta name="theme-color" content="#f97316" />
         <meta name="csrf-token" content={csrfToken} />
         <title>
           {documentTitle} · {appName}
         </title>
+        <link rel="icon" href="/favicon.ico" sizes="any" />
+        <link rel="icon" type="image/png" href="/favicon.png" sizes="64x64" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
         <link rel="stylesheet" href="/assets/app.css" />
         <script src="/assets/app.js" defer></script>
       </head>
@@ -161,9 +165,13 @@ export function PublicLayout({ appName, deployInfo, documentTitle, children, inc
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="color-scheme" content="light" />
+        <meta name="theme-color" content="#f97316" />
         <title>
           {documentTitle} · {appName}
         </title>
+        <link rel="icon" href="/favicon.ico" sizes="any" />
+        <link rel="icon" type="image/png" href="/favicon.png" sizes="64x64" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
         <link rel="stylesheet" href="/assets/app.css" />
         {includeTurnstile ? (
           <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
