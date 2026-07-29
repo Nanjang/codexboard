@@ -34,6 +34,7 @@ import {
   getBoardBySlug,
   getComment,
   getDevlogAuthor,
+  getDevlogExportSnapshot,
   getImageServiceRecord,
   getImageServiceSettings,
   getMemoUrlPattern,
@@ -56,7 +57,6 @@ import {
   listRecentPostsByBoardSlug,
   listTickets,
   listTrashedTickets,
-  DEVLOG_EXPORT_POSTS_PER_PAGE,
   MAX_MEMO_PATTERNS_PER_USER,
   MAX_RSS_WIDGETS_PER_USER,
   moveTicket,
@@ -110,7 +110,6 @@ import {
 } from './lib/image-service'
 import { decryptSecret, encryptSecret } from './lib/secret-box'
 import { creationRequestId } from './lib/idempotency'
-import { storedZipStream, type StoredZipEntry } from './lib/zip'
 import {
   createImageUploadUrl,
   IMAGE_CACHE_CONTROL,
@@ -174,7 +173,6 @@ import type {
   AuthContext,
   BoardSlug,
   BookmarkIconColor,
-  DevlogExportPostRow,
   MemoUrlSettings,
   PostDetailRow,
   RssWidgetResult,
@@ -184,7 +182,12 @@ import type {
 import { AdminPage } from './views/admin'
 import { AccountPage } from './views/account'
 import { BoardListPage, CommentEditPage, PostDetailPage, PostFormPage } from './views/boards'
-import { DevlogDirectoryPage, DevlogPostPage, UserDevlogPage } from './views/devlogs'
+import {
+  DevlogDirectoryPage,
+  DevlogExportPage,
+  DevlogPostPage,
+  UserDevlogPage,
+} from './views/devlogs'
 import { DashboardPage } from './views/dashboard'
 import { AppErrorPage, BlockedPage, PublicErrorPage, type AdminErrorDetail } from './views/errors'
 import { GuestHomePage } from './views/home'
@@ -200,27 +203,6 @@ import {
 
 const app = new Hono<AppEnv>()
 const MAX_REQUEST_BYTES = 64 * 1024
-const utf8Encoder = new TextEncoder()
-
-async function* devlogMarkdownArchiveEntries(
-  db: D1Database,
-  authorId: string,
-  firstPage: DevlogExportPostRow[],
-): AsyncGenerator<StoredZipEntry> {
-  let posts = firstPage
-  while (posts.length > 0) {
-    for (const post of posts) {
-      yield {
-        name: devlogMarkdownFilename(post),
-        data: utf8Encoder.encode(devlogMarkdownDocument(post)),
-        modifiedAt: post.created_at,
-      }
-    }
-
-    if (posts.length < DEVLOG_EXPORT_POSTS_PER_PAGE) return
-    posts = await listDevlogExportPostsPage(db, authorId, posts.at(-1)!.id)
-  }
-}
 
 type ErrorStatus = 400 | 401 | 403 | 404 | 409 | 413 | 429 | 500 | 503
 
@@ -1025,7 +1007,7 @@ app.get('/devlogs/u/:authorId', async (c) => {
   )
 })
 
-app.get('/devlogs/u/:authorId/export.zip', async (c) => {
+app.get('/devlogs/u/:authorId/export', async (c) => {
   const auth = requireActiveAuth(c)
   const authorId = c.req.param('authorId')
   const author = await getDevlogAuthor(c.env.DB, authorId)
@@ -1034,18 +1016,37 @@ app.get('/devlogs/u/:authorId/export.zip', async (c) => {
     throw new HTTPException(403, { message: '내보내기 권한이 없습니다.' })
   }
 
-  const firstPage = await listDevlogExportPostsPage(c.env.DB, author.id, null)
-  const archive = storedZipStream(
-    devlogMarkdownArchiveEntries(c.env.DB, author.id, firstPage),
+  const snapshot = await getDevlogExportSnapshot(c.env.DB, author.id)
+  c.header('Cache-Control', 'private, no-store')
+  return c.html(
+    <DevlogExportPage
+      {...viewMeta(c)}
+      user={auth.user}
+      csrfToken={auth.csrfToken}
+      author={author}
+      totalCount={snapshot.total}
+      snapshotMaxId={snapshot.maxId}
+      archiveFilename={devlogMarkdownArchiveFilename(author.id)}
+    />,
   )
-  return new Response(archive, {
-    headers: {
-      'Cache-Control': 'private, no-store',
-      'Content-Disposition': `attachment; filename="${devlogMarkdownArchiveFilename(author.id)}"`,
-      'Content-Type': 'application/zip',
-      'X-Content-Type-Options': 'nosniff',
-    },
-  })
+})
+
+app.get('/api/devlogs/u/:authorId/export', async (c) => {
+  const auth = requireActiveAuth(c)
+  const authorId = c.req.param('authorId')
+  const author = await getDevlogAuthor(c.env.DB, authorId)
+  if (!author) throw new HTTPException(404, { message: '개발일지 사용자를 찾을 수 없습니다.' })
+  if (!canManageResource(auth.user, author.id)) {
+    throw new HTTPException(403, { message: '내보내기 권한이 없습니다.' })
+  }
+
+  const maxId = positiveInteger(c.req.query('maxId') ?? '', '내보내기 기준 ID')
+  const afterRaw = c.req.query('after')
+  const after = afterRaw ? positiveInteger(afterRaw, '내보내기 커서') : null
+  const page = await listDevlogExportPostsPage(c.env.DB, author.id, maxId, after)
+  const nextAfter = page.hasMore ? (page.posts.at(-1)?.id ?? null) : null
+  c.header('Cache-Control', 'private, no-store')
+  return c.json({ posts: page.posts, nextAfter })
 })
 
 app.get('/devlogs/u/:authorId/posts/:postId', async (c) => {

@@ -18,7 +18,7 @@ import { BUILTIN_THEMES } from '../src/lib/themes'
 import { AccountPage } from '../src/views/account'
 import { AdminPage } from '../src/views/admin'
 import { BoardListPage, PostFormPage } from '../src/views/boards'
-import { DevlogPostPage, UserDevlogPage } from '../src/views/devlogs'
+import { DevlogExportPage, DevlogPostPage, UserDevlogPage } from '../src/views/devlogs'
 import { DashboardPage } from '../src/views/dashboard'
 import { AppErrorPage, PublicErrorPage } from '../src/views/errors'
 import { GuestHomePage } from '../src/views/home'
@@ -583,7 +583,8 @@ describe('핵심 화면', () => {
     expect(html).toContain(`class="devlog-post-card-preview"`)
     expect(html).toContain(`src="/devlog-images/i/${'b'.repeat(64)}.gif"`)
     expect(html).toContain(`src="/devlog-images/i/${'c'.repeat(64)}.avif"`)
-    expect(html).toContain(`href="/devlogs/u/${user.id}/export.zip"`)
+    expect(html).toContain(`href="/devlogs/u/${user.id}/export"`)
+    expect(html).toContain('target="_blank"')
     expect(html).toContain('전체 Markdown ZIP 내보내기')
   })
 
@@ -611,8 +612,32 @@ describe('핵심 화면', () => {
       }),
     )
 
-    expect(html).not.toContain(`/devlogs/u/${user.id}/export.zip`)
+    expect(html).not.toContain(`/devlogs/u/${user.id}/export`)
     expect(html).not.toContain('전체 Markdown ZIP 내보내기')
+  })
+
+  it('개발일지 내보내기 화면에는 개수 진행률만 표시한다', async () => {
+    const html = String(
+      await DevlogExportPage({
+        appName: 'Private Board',
+        deployInfo,
+        user,
+        csrfToken: 'csrf-test',
+        author: { id: user.id, nickname: user.nickname, role: user.role },
+        totalCount: 124,
+        snapshotMaxId: 321,
+        archiveFilename: 'user-1-devlog-markdown.zip',
+      }),
+    )
+
+    expect(html).toContain('data-devlog-export')
+    expect(html).toContain('data-total-count="124"')
+    expect(html).toContain('data-snapshot-max-id="321"')
+    expect(html).toContain('data-archive-filename="user-1-devlog-markdown.zip"')
+    expect(html).toContain('0 / 124')
+    expect(html).toContain('게시물 내용은 이 화면에 표시하지 않습니다.')
+    expect(html).not.toContain('<ul')
+    expect(html).not.toContain('<ol')
   })
 
   it('인증 화면은 문맥형 탑바와 오른쪽 단일 메뉴 토글을 포함한다', async () => {

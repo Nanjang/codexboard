@@ -231,13 +231,82 @@ export function UserDevlogPage({
             </div>
             <a
               class="button button-secondary"
-              href={`/devlogs/u/${encodeURIComponent(author.id)}/export.zip`}
-              download
+              href={`/devlogs/u/${encodeURIComponent(author.id)}/export`}
+              target="_blank"
+              rel="noopener"
             >
               전체 Markdown ZIP 내보내기
             </a>
           </footer>
         ) : null}
+      </section>
+    </DevlogShell>
+  )
+}
+
+export function DevlogExportPage({
+  appName,
+  deployInfo,
+  user,
+  csrfToken,
+  author,
+  totalCount,
+  snapshotMaxId,
+  archiveFilename,
+}: ViewerProps & {
+  user: CurrentUser
+  csrfToken: string
+  author: DevlogAuthor
+  totalCount: number
+  snapshotMaxId: number
+  archiveFilename: string
+}) {
+  return (
+    <DevlogShell
+      appName={appName}
+      deployInfo={deployInfo}
+      user={user}
+      csrfToken={csrfToken}
+      documentTitle="개발일지 전체 내보내기"
+      topbarTitle="개발일지 내보내기"
+      backHref={`/devlogs/u/${encodeURIComponent(author.id)}`}
+    >
+      <section
+        class="devlog-export-page"
+        data-devlog-export
+        data-author-id={author.id}
+        data-total-count={String(totalCount)}
+        data-snapshot-max-id={String(snapshotMaxId)}
+        data-archive-filename={archiveFilename}
+      >
+        <p class="eyebrow">MARKDOWN ARCHIVE</p>
+        <h1>{author.nickname}님의 개발일지</h1>
+        <p class="devlog-export-description">
+          Markdown 파일을 브라우저에서 만들고 ZIP으로 압축합니다. 이 창을 닫지 마세요.
+        </p>
+        <div class="devlog-export-progress" aria-live="polite">
+          <div class="devlog-export-progress-heading">
+            <strong data-export-status>내보내기를 준비하고 있습니다.</strong>
+            <span data-export-count>
+              0 / {totalCount}
+            </span>
+          </div>
+          <progress data-export-progress max={Math.max(totalCount, 1)} value="0">
+            0%
+          </progress>
+          <p data-export-detail>게시물 내용은 이 화면에 표시하지 않습니다.</p>
+        </div>
+        <div class="devlog-export-actions">
+          <a class="button" data-export-download hidden>
+            ZIP 다운로드
+          </a>
+          <button class="button" type="button" data-export-retry hidden>
+            다시 시도
+          </button>
+          <a class="button button-secondary" href={`/devlogs/u/${encodeURIComponent(author.id)}`}>
+            개발일지로 돌아가기
+          </a>
+        </div>
       </section>
     </DevlogShell>
   )

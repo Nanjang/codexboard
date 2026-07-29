@@ -24,6 +24,7 @@
   },
   "dependencies": {
     "aws4fetch": "1.0.20",
+    "fflate": "0.8.3",
     "hono": "4.12.30",
     "jose": "6.2.3",
     "sortablejs": "1.15.7"

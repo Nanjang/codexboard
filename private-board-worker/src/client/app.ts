@@ -1,4 +1,10 @@
 import Sortable from 'sortablejs'
+import { strToU8, Zip, ZipDeflate } from 'fflate'
+import {
+  devlogMarkdownDocument,
+  devlogMarkdownFilename,
+  type DevlogMarkdownSource,
+} from '../lib/devlog-markdown'
 import {
   devlogImageValidationError,
   localImageValidationError,
@@ -448,6 +454,155 @@ async function jsonError(response: Response, fallback: string): Promise<Error> {
   return new Error(payload?.error ?? fallback)
 }
 
+interface DevlogExportPageResponse {
+  posts: DevlogMarkdownSource[]
+  nextAfter: number | null
+}
+
+function nextPaint(): Promise<void> {
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => resolve())
+  })
+}
+
+function setupDevlogExport(): void {
+  const root = document.querySelector<HTMLElement>('[data-devlog-export]')
+  const status = root?.querySelector<HTMLElement>('[data-export-status]')
+  const count = root?.querySelector<HTMLElement>('[data-export-count]')
+  const detail = root?.querySelector<HTMLElement>('[data-export-detail]')
+  const progress = root?.querySelector<HTMLProgressElement>('[data-export-progress]')
+  const retry = root?.querySelector<HTMLButtonElement>('[data-export-retry]')
+  const download = root?.querySelector<HTMLAnchorElement>('[data-export-download]')
+  if (!root || !status || !count || !detail || !progress || !retry || !download) return
+
+  const authorId = root.dataset.authorId ?? ''
+  const totalCount = Number.parseInt(root.dataset.totalCount ?? '', 10)
+  const snapshotMaxId = Number.parseInt(root.dataset.snapshotMaxId ?? '', 10)
+  const archiveFilename = root.dataset.archiveFilename ?? 'devlog-markdown.zip'
+  if (
+    !authorId
+    || !Number.isSafeInteger(totalCount)
+    || totalCount < 0
+    || !Number.isSafeInteger(snapshotMaxId)
+    || snapshotMaxId < 0
+  ) {
+    status.textContent = '내보내기 정보를 확인할 수 없습니다.'
+    detail.textContent = '개발일지 화면으로 돌아가 다시 시도해 주세요.'
+    return
+  }
+
+  let running = false
+  let archiveUrl: string | null = null
+
+  const clearArchiveUrl = (): void => {
+    if (archiveUrl) URL.revokeObjectURL(archiveUrl)
+    archiveUrl = null
+    download.hidden = true
+    download.removeAttribute('href')
+  }
+  window.addEventListener('pagehide', clearArchiveUrl, { once: true })
+
+  const run = async (): Promise<void> => {
+    if (running) return
+    running = true
+    clearArchiveUrl()
+    retry.hidden = true
+    retry.disabled = true
+    progress.max = Math.max(totalCount, 1)
+    progress.value = 0
+    count.textContent = `0 / ${totalCount.toLocaleString()}`
+    status.textContent = totalCount === 0
+      ? '빈 ZIP 파일을 만들고 있습니다.'
+      : '게시물을 가져와 압축하고 있습니다.'
+    detail.textContent = '게시물 내용은 이 화면에 표시하지 않습니다.'
+    root.setAttribute('aria-busy', 'true')
+
+    let zip: Zip | null = null
+    try {
+      const chunks: ArrayBuffer[] = []
+      let resolveArchive!: (blob: Blob) => void
+      let rejectArchive!: (error: Error) => void
+      const archiveReady = new Promise<Blob>((resolve, reject) => {
+        resolveArchive = resolve
+        rejectArchive = reject
+      })
+      zip = new Zip((error, chunk, final) => {
+        if (error) {
+          rejectArchive(error)
+          return
+        }
+        if (chunk.length > 0) {
+          const copy = Uint8Array.from(chunk)
+          chunks.push(copy.buffer)
+        }
+        if (final) resolveArchive(new Blob(chunks, { type: 'application/zip' }))
+      })
+
+      let processed = 0
+      let after: number | null = null
+      while (processed < totalCount) {
+        const params = new URLSearchParams({ maxId: String(snapshotMaxId) })
+        if (after !== null) params.set('after', String(after))
+        const response = await fetch(
+          `/api/devlogs/u/${encodeURIComponent(authorId)}/export?${params.toString()}`,
+          { credentials: 'same-origin', headers: { Accept: 'application/json' } },
+        )
+        if (!response.ok) throw await jsonError(response, '개발일지를 가져오지 못했습니다.')
+        const page = (await response.json()) as DevlogExportPageResponse
+        if (!Array.isArray(page.posts)) throw new Error('내보내기 응답 형식이 올바르지 않습니다.')
+
+        for (const post of page.posts) {
+          const file = new ZipDeflate(devlogMarkdownFilename(post), { level: 6 })
+          file.mtime = post.created_at
+          zip.add(file)
+          file.push(strToU8(devlogMarkdownDocument(post)), true)
+          processed += 1
+          progress.value = Math.min(processed, progress.max)
+          count.textContent = `${processed.toLocaleString()} / ${totalCount.toLocaleString()}`
+          if (processed % 10 === 0 || processed === totalCount) await nextPaint()
+        }
+
+        if (page.nextAfter === null) break
+        if (
+          !Number.isSafeInteger(page.nextAfter)
+          || page.nextAfter <= (after ?? 0)
+          || page.posts.length === 0
+        ) {
+          throw new Error('내보내기 페이지 커서가 올바르지 않습니다.')
+        }
+        after = page.nextAfter
+      }
+
+      status.textContent = 'ZIP 파일을 마무리하고 있습니다.'
+      await nextPaint()
+      zip.end()
+      const archive = await archiveReady
+      archiveUrl = URL.createObjectURL(archive)
+      download.href = archiveUrl
+      download.download = archiveFilename
+      download.hidden = false
+      status.textContent = '내보내기가 완료되었습니다.'
+      count.textContent = `${processed.toLocaleString()}개 완료`
+      detail.textContent = 'ZIP 다운로드를 시작했습니다. 다시 받으려면 다운로드 버튼을 누르세요.'
+      download.click()
+    } catch (error) {
+      zip?.terminate()
+      status.textContent = '내보내기에 실패했습니다.'
+      detail.textContent = error instanceof Error ? error.message : '잠시 후 다시 시도해 주세요.'
+      retry.hidden = false
+      retry.disabled = false
+    } finally {
+      running = false
+      root.removeAttribute('aria-busy')
+    }
+  }
+
+  retry.addEventListener('click', () => {
+    void run()
+  })
+  void run()
+}
+
 function setupBookmarkIconLookup(): void {
   document.addEventListener('click', (event) => {
     const target = event.target
@@ -890,6 +1045,7 @@ function initialize(): void {
   setupTicketEditing()
   setupConfirmations()
   setupDevlogEditor()
+  setupDevlogExport()
   setupDoubleSubmitPrevention()
   setupNotices()
   setupBookmarkIconLookup()
