@@ -16,13 +16,16 @@ import type {
   PrivateImageRow,
   TicketRow,
   TrashedTicketRow,
+  VisitorPageViewRow,
 } from '../src/types'
 import type { ThemeLibrary } from '../src/lib/themes'
 import { BUILTIN_THEMES } from '../src/lib/themes'
 import { AccountPage } from '../src/views/account'
 import { AdminPage } from '../src/views/admin'
 import { AdminMemberActivityPage, AdminMembersPage } from '../src/views/admin-members'
+import { AdminVisitorLogsPage } from '../src/views/admin-visitors'
 import { BoardListPage, PostDetailPage, PostFormPage } from '../src/views/boards'
+import { DeployFooter } from '../src/views/components'
 import { DevlogExportPage, DevlogPostPage, UserDevlogPage } from '../src/views/devlogs'
 import { DashboardPage } from '../src/views/dashboard'
 import { AppErrorPage, PublicErrorPage } from '../src/views/errors'
@@ -462,6 +465,7 @@ describe('핵심 화면', () => {
     expect(html).toContain('손님 홈에서는 공용 게시판의 최근 글을 미리 볼 수 있습니다')
     expect(html).toContain('deploy 0d2e4a11')
     expect(html).toContain('2026. 07. 25. 17:28 KST')
+    expect(html).toContain('data-database-usage')
     expect(html).not.toContain('data-ticket-board')
     expect(html).not.toContain('<img')
   })
@@ -1021,6 +1025,70 @@ describe('핵심 화면', () => {
     expect(html).toContain('D1 · 조회 전용')
     expect(html).toContain('회원 정보 보기')
     expect(html).toContain('href="/admin/members"')
+  })
+
+  it('공통 푸터에 오늘과 누적 방문자 카운터 자리를 표시한다', async () => {
+    const html = String(await DeployFooter({ deployInfo }))
+
+    expect(html).toContain('class="visitor-footer"')
+    expect(html).toContain('data-visitor-today')
+    expect(html).toContain('data-visitor-total')
+    expect(html).toContain('data-database-usage')
+    expect(html).toContain('data-database-usage-bar')
+    expect(html).not.toContain('style=')
+    expect(html).toContain('오늘')
+    expect(html).toContain('누적')
+    expect(html).not.toContain('aria-hidden="true" class="deploy-footer"')
+  })
+
+  it('관리자 설정에서 방문자 접속 기록으로 이동할 수 있다', async () => {
+    const html = String(
+      await AdminPage({
+        appName: 'Private Board',
+        deployInfo,
+        user: adminUser,
+        csrfToken: 'csrf-test',
+      }),
+    )
+
+    expect(html).toContain('방문자 접속 기록')
+    expect(html).toContain('href="/admin/visitors"')
+    expect(html).toContain('접속 기록 보기')
+  })
+
+  it('관리자에게 IP와 Referer 전체가 포함된 접속 기록을 표시한다', async () => {
+    const log: VisitorPageViewRow = {
+      id: 91,
+      visit_day: '2026-07-30',
+      visited_at: Date.UTC(2026, 6, 30, 3),
+      ip_address: '2001:db8::91',
+      referer: 'https://search.example.com/results?q=전체+원문&token=visible-to-admin',
+      user_agent: 'Visitor Browser/2.0',
+      path: '/devlogs?page=2',
+      user_id: null,
+      response_status: 200,
+    }
+    const html = String(
+      await AdminVisitorLogsPage({
+        appName: 'Private Board',
+        deployInfo,
+        user: adminUser,
+        csrfToken: 'csrf-test',
+        logs: {
+          items: [log],
+          page: 1,
+          pageSize: 50,
+          totalItems: 51,
+          totalPages: 2,
+        },
+      }),
+    )
+
+    expect(html).toContain('2001:db8::91')
+    expect(html).toContain('search.example.com/results?q=전체+원문&amp;token=visible-to-admin')
+    expect(html).toContain('Visitor Browser/2.0')
+    expect(html).toContain('>비회원</td>')
+    expect(html).toContain('href="/admin/visitors?page=2"')
   })
 
   it('회원 DB 정보와 각 회원의 최근 활동 링크를 표시한다', async () => {

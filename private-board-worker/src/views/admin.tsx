@@ -51,6 +51,22 @@ export function AdminPage({
         <article class="form-card admin-feature-card">
           <div class="admin-feature-heading">
             <div>
+              <p class="eyebrow">D1 · 관리자 전용</p>
+              <h3>방문자 접속 기록</h3>
+            </div>
+            <strong class="feature-status is-enabled">기록 중</strong>
+          </div>
+          <p>HTML 페이지 이동마다 저장된 원본 IP, 전체 Referer와 User-Agent를 확인합니다.</p>
+          <nav class="admin-feature-links" aria-label="방문자 접속 기록 조회">
+            <a class="button button-secondary" href="/admin/visitors">
+              접속 기록 보기
+            </a>
+          </nav>
+        </article>
+
+        <article class="form-card admin-feature-card">
+          <div class="admin-feature-heading">
+            <div>
               <p class="eyebrow">D1 · 조회 전용</p>
               <h3>회원 정보</h3>
             </div>

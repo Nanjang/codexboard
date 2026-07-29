@@ -171,6 +171,18 @@ export interface AdminMemberActivityRow {
   updated_at: number
 }
 
+export interface VisitorPageViewRow {
+  id: number
+  visit_day: string
+  visited_at: number
+  ip_address: string
+  referer: string
+  user_agent: string
+  path: string
+  user_id: string | null
+  response_status: number
+}
+
 export interface DevlogImageCacheRequestRow {
   id: number
   image_hash: string

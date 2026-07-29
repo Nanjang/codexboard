@@ -32,6 +32,11 @@ export function PrivacyPage({ appName, deployInfo, contactEmail }: LegalPageProp
             회원 닉네임, 공용 게시글과 댓글, 개인 작업 티켓, 로그인 세션 정보가 Cloudflare D1에 저장됩니다.
             개인 작업 티켓은 해당 회원만 조회·수정하도록 접근 조건을 적용합니다.
           </p>
+          <p>
+            회원과 비회원의 일별 유니크 방문자 및 유입 경로 통계를 위해 접속 IP 주소와 브라우저가 전송한
+            Referer 헤더 전체 URL, User-Agent, 방문 경로, 방문 시각과 응답 상태를 실제 HTML 페이지 이동마다
+            저장합니다. 공개 카운터용 일별 유니크 집계와 관리자 확인용 접속 기록은 별도 테이블로 관리합니다.
+          </p>
 
           <h2>보유 및 삭제</h2>
           <p>

@@ -2,7 +2,17 @@ import type { CurrentUser, DeployInfo, UserRole } from '../types'
 
 export function DeployFooter({ deployInfo }: { deployInfo: DeployInfo }) {
   return (
-    <footer class="deploy-footer" aria-hidden="true">
+    <footer class="deploy-footer">
+      <span class="visitor-footer" aria-label="방문자 통계">
+        오늘 <strong data-visitor-today>—</strong>
+        <span aria-hidden="true"> · </span>
+        누적 <strong data-visitor-total>—</strong>
+        <span class="database-usage">
+          <progress data-database-usage-bar max="100" value="0" aria-hidden="true"></progress>
+          <span data-database-usage aria-label="사용량 확인 중">—</span>
+        </span>
+      </span>
+      <span aria-hidden="true">·</span>
       <span>deploy {deployInfo.version}</span>
       <span aria-hidden="true">·</span>
       <time datetime={deployInfo.timestamp}>{deployInfo.displayTimestamp}</time>

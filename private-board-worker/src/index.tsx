@@ -99,6 +99,12 @@ import {
 import { validateDevlogPreviewImageReset } from './lib/devlog-preview'
 import { RequestProcessError, type RequestProcessDiagnostic } from './lib/request-diagnostics'
 import {
+  injectVisitorStats,
+  listVisitorPageViews,
+  recordVisitor,
+  shouldTrackVisitor,
+} from './lib/visitor-stats'
+import {
   DEVLOG_IMAGE_CACHE_HEADER,
   adminPageNumber,
   listDevlogImageCacheFileStats,
@@ -178,6 +184,7 @@ import type {
 } from './types'
 import { AdminPage } from './views/admin'
 import { AdminMemberActivityPage, AdminMembersPage } from './views/admin-members'
+import { AdminVisitorLogsPage } from './views/admin-visitors'
 import { AccountPage } from './views/account'
 import { BoardListPage, CommentEditPage, PostDetailPage, PostFormPage } from './views/boards'
 import {
@@ -627,6 +634,26 @@ const devlogImageBodyLimit = bodyLimit({
 const personalImageBodyLimit = bodyLimit({
   maxSize: MAX_IMAGE_BYTES,
   onError: (c) => c.json({ error: '이미지는 최대 5MiB까지 업로드할 수 있습니다.' }, 413),
+})
+app.use('*', async (c, next) => {
+  await next()
+
+  if (!shouldTrackVisitor(c.req.raw, c.res)) return
+  try {
+    const stats = await recordVisitor(
+      c.env.DB,
+      c.req.raw,
+      c.env.SESSION_SECRET,
+      c.get('auth')?.user.id ?? null,
+      c.res.status,
+    )
+    if (stats) c.res = injectVisitorStats(c.res, stats)
+  } catch (error) {
+    console.error('Visitor stats failed', {
+      name: error instanceof Error ? error.name : 'UnknownError',
+      path: c.req.path,
+    })
+  }
 })
 app.use('*', async (c, next) => {
   if (c.req.path === '/api/devlog/images') return devlogImageBodyLimit(c, next)
@@ -1653,6 +1680,20 @@ app.get('/admin/members/:memberId/activity', async (c) => {
       csrfToken={auth.csrfToken}
       member={member}
       activities={activities}
+    />,
+  )
+})
+
+app.get('/admin/visitors', async (c) => {
+  const auth = requireAdminAuth(c)
+  const logs = await listVisitorPageViews(c.env.DB, adminPageNumber(c.req.query('page')))
+  c.header('Cache-Control', 'private, no-store')
+  return c.html(
+    <AdminVisitorLogsPage
+      {...viewMeta(c)}
+      user={auth.user}
+      csrfToken={auth.csrfToken}
+      logs={logs}
     />,
   )
 })
