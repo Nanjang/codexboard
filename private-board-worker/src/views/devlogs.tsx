@@ -187,7 +187,7 @@ export function UserDevlogPage({
                   data-devlog-archive-toggle
                   data-toggle-label="개발일지 전체 보관"
                 >
-                  <span aria-hidden="true">⚙</span>
+                  <img class="gear-icon" src="/assets/gear-tilted.png" alt="" aria-hidden="true" />
                   <span class="visually-hidden" data-devlog-archive-toggle-label>
                     개발일지 전체 보관 열기
                   </span>
@@ -384,7 +384,7 @@ export function DevlogPostPage({
                 data-devlog-archive-toggle
                 data-toggle-label="개별 Markdown 내보내기"
               >
-                <span aria-hidden="true">⚙</span>
+                <img class="gear-icon" src="/assets/gear-tilted.png" alt="" aria-hidden="true" />
                 <span class="visually-hidden" data-devlog-archive-toggle-label>
                   개별 Markdown 내보내기 열기
                 </span>

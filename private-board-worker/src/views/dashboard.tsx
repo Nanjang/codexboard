@@ -480,12 +480,13 @@ export function DashboardPage({
         <div class="dashboard-edit-panel">
           <span class="dashboard-save-status" aria-live="polite" data-dashboard-save-status />
           <button
-            class="button button-secondary button-compact"
+            class="button button-secondary button-compact dashboard-edit-toggle"
             type="button"
             aria-pressed="false"
             data-dashboard-edit-toggle
           >
-            대시보드 편집
+            <img class="gear-icon dashboard-edit-icon" src="/assets/gear-tilted.png" alt="" aria-hidden="true" />
+            <span data-dashboard-edit-label>대시보드 편집</span>
           </button>
         </div>
       </section>

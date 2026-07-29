@@ -622,6 +622,22 @@ button {
   flex: 0 0 auto;
 }
 
+.gear-icon {
+  display: block;
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+}
+
+.dashboard-edit-toggle {
+  gap: 7px;
+}
+
+.dashboard-edit-icon {
+  width: 19px;
+  height: 19px;
+}
+
 .dashboard-save-status {
   color: var(--text-muted);
   font-size: 0.76rem;
@@ -3863,6 +3879,11 @@ button.privacy-toggle.is-on > span {
   height: 30px;
   margin-left: 2px;
   font-size: 0.95rem;
+}
+
+.devlog-post-export-toggle .gear-icon {
+  width: 17px;
+  height: 17px;
 }
 
 .devlog-post-export-panel {
