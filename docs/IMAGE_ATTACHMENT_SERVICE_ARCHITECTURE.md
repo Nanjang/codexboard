@@ -2,6 +2,12 @@
 
 CodexBoard의 자유게시판·개발일지 첨부 이미지와 개인 이미지 저장소는 하나의 통합 이미지 경로를 사용합니다. Cloudflare Worker를 공개 진입점으로 사용하고, Workers VPC와 Cloudflare Tunnel을 통해 Raspberry Pi의 외장 SSD에 저장합니다. 파일명은 원본 바이트의 SHA-256 해시이므로 동일 URL의 내용은 바뀌지 않습니다.
 
+## 한눈에 보기
+
+![브라우저, Cloudflare Worker, Edge Cache, VPC, Raspberry Pi와 D1 통계로 구성된 이미지 첨부 서비스](assets/image-attachment-service-architecture.png)
+
+위 이미지는 전체 구성의 개념도이며, 정확한 요청 순서와 경로는 아래 Mermaid 도식을 기준으로 합니다.
+
 ## 전체 구성
 
 ```mermaid
