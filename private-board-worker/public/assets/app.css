@@ -3537,6 +3537,26 @@ button.privacy-toggle.is-on > span {
   color: var(--text-muted);
 }
 
+.devlog-archive-export {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-top: 34px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+}
+
+.devlog-archive-export p {
+  margin: 5px 0 0;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.devlog-archive-export .button {
+  flex: 0 0 auto;
+}
+
 .devlog-post-card-meta,
 .devlog-entry-meta {
   display: flex;
@@ -3756,6 +3776,15 @@ button.privacy-toggle.is-on > span {
 
   .devlog-post-grid {
     grid-template-columns: 1fr;
+  }
+
+  .devlog-archive-export {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .devlog-archive-export .button {
+    width: 100%;
   }
 
   .devlog-blog-header {

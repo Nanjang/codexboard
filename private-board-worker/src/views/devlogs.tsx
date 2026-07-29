@@ -147,6 +147,7 @@ export function UserDevlogPage({
   hasMore: boolean
 }) {
   const canWrite = user?.id === author.id
+  const canExport = user ? canManageResource(user, author.id) : false
   const lastPost = posts.at(-1)
   return (
     <DevlogShell
@@ -220,6 +221,22 @@ export function UserDevlogPage({
               이전 기록 더 보기
             </a>
           </nav>
+        ) : null}
+
+        {canExport ? (
+          <footer class="devlog-archive-export">
+            <div>
+              <strong>개발일지 전체 보관</strong>
+              <p>모든 게시물을 Markdown 파일로 묶고 이미지 경로는 images/ 하위로 유지합니다.</p>
+            </div>
+            <a
+              class="button button-secondary"
+              href={`/devlogs/u/${encodeURIComponent(author.id)}/export.zip`}
+              download
+            >
+              전체 Markdown ZIP 내보내기
+            </a>
+          </footer>
         ) : null}
       </section>
     </DevlogShell>

@@ -5,6 +5,7 @@ import type {
   DashboardWidgetRow,
   DevlogAuthor,
   DevlogAuthorRow,
+  DevlogExportPostRow,
   DevlogPostListRow,
   ImageServiceSettings,
   MemoRow,
@@ -30,6 +31,7 @@ export const MAX_MEMO_PATTERNS_PER_USER = 50
 export const MAX_RSS_WIDGETS_PER_USER = 10
 export const MAX_PRIVATE_IMAGES_PER_USER = 5000
 export const DEVLOG_POSTS_PER_PAGE = 12
+export const DEVLOG_EXPORT_POSTS_PER_PAGE = 100
 const PRIVATE_IMAGES_FEATURE_KEY = 'private_images'
 
 export interface ImageServiceRecord {
@@ -304,6 +306,35 @@ export async function listDevlogPosts(
     posts: result.results.slice(0, DEVLOG_POSTS_PER_PAGE),
     hasMore: result.results.length > DEVLOG_POSTS_PER_PAGE,
   }
+}
+
+export async function listDevlogExportPostsPage(
+  db: D1Database,
+  authorId: string,
+  afterId: number | null,
+): Promise<DevlogExportPostRow[]> {
+  const baseSql = `
+    SELECT
+      p.id,
+      p.title,
+      p.body,
+      p.body_format,
+      p.created_at
+    FROM posts p
+    JOIN boards b ON b.id = p.board_id
+    WHERE b.slug = 'development'
+      AND p.author_id = ?1
+      AND p.status = 'published'
+  `
+  const statement = afterId
+    ? db
+        .prepare(`${baseSql} AND p.id > ?2 ORDER BY p.id ASC LIMIT ?3`)
+        .bind(authorId, afterId, DEVLOG_EXPORT_POSTS_PER_PAGE)
+    : db
+        .prepare(`${baseSql} ORDER BY p.id ASC LIMIT ?2`)
+        .bind(authorId, DEVLOG_EXPORT_POSTS_PER_PAGE)
+  const result = await statement.all<DevlogExportPostRow>()
+  return result.results
 }
 
 export async function ensureUserDashboard(db: D1Database, userId: string): Promise<void> {

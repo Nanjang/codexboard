@@ -583,6 +583,36 @@ describe('핵심 화면', () => {
     expect(html).toContain(`class="devlog-post-card-preview"`)
     expect(html).toContain(`src="/devlog-images/i/${'b'.repeat(64)}.gif"`)
     expect(html).toContain(`src="/devlog-images/i/${'c'.repeat(64)}.avif"`)
+    expect(html).toContain(`href="/devlogs/u/${user.id}/export.zip"`)
+    expect(html).toContain('전체 Markdown ZIP 내보내기')
+  })
+
+  it('공개 개발일지 목록에서는 전체 ZIP 내보내기를 노출하지 않는다', async () => {
+    const html = String(
+      await UserDevlogPage({
+        appName: 'Private Board',
+        deployInfo,
+        user: undefined,
+        csrfToken: undefined,
+        author: { id: user.id, nickname: user.nickname, role: user.role },
+        posts: [
+          {
+            ...post,
+            board_id: 2,
+            board_slug: 'development',
+            board_name: '개발일지',
+            body: '<p>공개 기록입니다.</p>',
+            body_format: 'rich',
+            visibility: 'public',
+            preview_image_url: null,
+          },
+        ],
+        hasMore: false,
+      }),
+    )
+
+    expect(html).not.toContain(`/devlogs/u/${user.id}/export.zip`)
+    expect(html).not.toContain('전체 Markdown ZIP 내보내기')
   })
 
   it('인증 화면은 문맥형 탑바와 오른쪽 단일 메뉴 토글을 포함한다', async () => {

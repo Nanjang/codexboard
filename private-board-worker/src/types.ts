@@ -117,6 +117,14 @@ export interface DevlogPostListRow extends PostListRow {
   preview_image_url: string | null
 }
 
+export interface DevlogExportPostRow {
+  id: number
+  title: string
+  body: string
+  body_format: PostBodyFormat
+  created_at: number
+}
+
 export interface DevlogAuthorRow {
   id: string
   nickname: string

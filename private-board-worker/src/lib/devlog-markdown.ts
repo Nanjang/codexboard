@@ -1,6 +1,6 @@
 import type { PostBodyFormat } from '../types'
 
-interface DevlogMarkdownSource {
+export interface DevlogMarkdownSource {
   id: number
   title: string
   body: string
@@ -265,4 +265,13 @@ export function devlogMarkdownFilename(post: Pick<DevlogMarkdownSource, 'id' | '
   const part = (type: Intl.DateTimeFormatPartTypes): string =>
     dateParts.find((entry) => entry.type === type)?.value ?? '00'
   return `${part('year')}-${part('month')}-${part('day')}-devlog-${post.id}.md`
+}
+
+export function devlogMarkdownArchiveFilename(authorId: string): string {
+  const safeAuthorId = authorId
+    .normalize('NFKC')
+    .replaceAll(/[^a-z0-9_-]+/giu, '-')
+    .replaceAll(/^-+|-+$/gu, '')
+    .slice(0, 80)
+  return `${safeAuthorId || 'user'}-devlog-markdown.zip`
 }

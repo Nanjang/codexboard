@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  devlogMarkdownArchiveFilename,
   devlogMarkdownDocument,
   devlogMarkdownFilename,
   richDevlogHtmlToMarkdown,
@@ -46,5 +47,12 @@ describe('개발일지 Markdown 내보내기', () => {
 
     expect(devlogMarkdownDocument(post)).toBe('# VPC \\[연결\\]\n\n완료했습니다.\n')
     expect(devlogMarkdownFilename(post)).toBe('2026-07-29-devlog-42.md')
+  })
+
+  it('작성자 식별자를 안전한 ZIP 파일명으로 변환한다', () => {
+    expect(devlogMarkdownArchiveFilename('user_01@example.com')).toBe(
+      'user_01-example-com-devlog-markdown.zip',
+    )
+    expect(devlogMarkdownArchiveFilename('***')).toBe('user-devlog-markdown.zip')
   })
 })

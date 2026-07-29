@@ -45,6 +45,7 @@ import {
   ensureUserDashboard,
   isImageStorageEnabled,
   listDevlogAuthors,
+  listDevlogExportPostsPage,
   listDevlogPosts,
   listDashboardWidgets,
   listComments,
@@ -55,6 +56,7 @@ import {
   listRecentPostsByBoardSlug,
   listTickets,
   listTrashedTickets,
+  DEVLOG_EXPORT_POSTS_PER_PAGE,
   MAX_MEMO_PATTERNS_PER_USER,
   MAX_RSS_WIDGETS_PER_USER,
   moveTicket,
@@ -87,7 +89,11 @@ import { normalizeBookmarkIconColor } from './lib/bookmark-icon-palette'
 import { getAppName, getDeployInfo, turnstileEnabled } from './lib/env'
 import { acceptsJson, noticeFromRequest, redirectWithNotice } from './lib/http'
 import { postVisibility, sanitizeDevlogHtml } from './lib/devlog'
-import { devlogMarkdownDocument, devlogMarkdownFilename } from './lib/devlog-markdown'
+import {
+  devlogMarkdownArchiveFilename,
+  devlogMarkdownDocument,
+  devlogMarkdownFilename,
+} from './lib/devlog-markdown'
 import { validateDevlogPreviewImageReset } from './lib/devlog-preview'
 import { RequestProcessError, type RequestProcessDiagnostic } from './lib/request-diagnostics'
 import {
@@ -104,6 +110,7 @@ import {
 } from './lib/image-service'
 import { decryptSecret, encryptSecret } from './lib/secret-box'
 import { creationRequestId } from './lib/idempotency'
+import { storedZipStream, type StoredZipEntry } from './lib/zip'
 import {
   createImageUploadUrl,
   IMAGE_CACHE_CONTROL,
@@ -167,6 +174,7 @@ import type {
   AuthContext,
   BoardSlug,
   BookmarkIconColor,
+  DevlogExportPostRow,
   MemoUrlSettings,
   PostDetailRow,
   RssWidgetResult,
@@ -192,6 +200,27 @@ import {
 
 const app = new Hono<AppEnv>()
 const MAX_REQUEST_BYTES = 64 * 1024
+const utf8Encoder = new TextEncoder()
+
+async function* devlogMarkdownArchiveEntries(
+  db: D1Database,
+  authorId: string,
+  firstPage: DevlogExportPostRow[],
+): AsyncGenerator<StoredZipEntry> {
+  let posts = firstPage
+  while (posts.length > 0) {
+    for (const post of posts) {
+      yield {
+        name: devlogMarkdownFilename(post),
+        data: utf8Encoder.encode(devlogMarkdownDocument(post)),
+        modifiedAt: post.created_at,
+      }
+    }
+
+    if (posts.length < DEVLOG_EXPORT_POSTS_PER_PAGE) return
+    posts = await listDevlogExportPostsPage(db, authorId, posts.at(-1)!.id)
+  }
+}
 
 type ErrorStatus = 400 | 401 | 403 | 404 | 409 | 413 | 429 | 500 | 503
 
@@ -994,6 +1023,29 @@ app.get('/devlogs/u/:authorId', async (c) => {
       hasMore={hasMore}
     />,
   )
+})
+
+app.get('/devlogs/u/:authorId/export.zip', async (c) => {
+  const auth = requireActiveAuth(c)
+  const authorId = c.req.param('authorId')
+  const author = await getDevlogAuthor(c.env.DB, authorId)
+  if (!author) throw new HTTPException(404, { message: '개발일지 사용자를 찾을 수 없습니다.' })
+  if (!canManageResource(auth.user, author.id)) {
+    throw new HTTPException(403, { message: '내보내기 권한이 없습니다.' })
+  }
+
+  const firstPage = await listDevlogExportPostsPage(c.env.DB, author.id, null)
+  const archive = storedZipStream(
+    devlogMarkdownArchiveEntries(c.env.DB, author.id, firstPage),
+  )
+  return new Response(archive, {
+    headers: {
+      'Cache-Control': 'private, no-store',
+      'Content-Disposition': `attachment; filename="${devlogMarkdownArchiveFilename(author.id)}"`,
+      'Content-Type': 'application/zip',
+      'X-Content-Type-Options': 'nosniff',
+    },
+  })
 })
 
 app.get('/devlogs/u/:authorId/posts/:postId', async (c) => {
