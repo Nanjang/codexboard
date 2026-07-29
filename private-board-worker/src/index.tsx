@@ -97,7 +97,14 @@ import {
 import { validateDevlogPreviewImageReset } from './lib/devlog-preview'
 import { RequestProcessError, type RequestProcessDiagnostic } from './lib/request-diagnostics'
 import {
-  DEVLOG_IMAGE_CACHE_CONTROL,
+  DEVLOG_IMAGE_CACHE_HEADER,
+  adminPageNumber,
+  listDevlogImageCacheFileStats,
+  listDevlogImageCacheRequests,
+  matchesIfNoneMatch,
+  recordDevlogImageCacheAccess,
+} from './lib/devlog-image-cache'
+import {
   DEVLOG_IMAGE_MAX_BYTES,
   ImageServiceVerificationError,
   devlogImagePublicUrl,
@@ -191,6 +198,10 @@ import {
 import { DashboardPage } from './views/dashboard'
 import { AppErrorPage, BlockedPage, PublicErrorPage, type AdminErrorDetail } from './views/errors'
 import { GuestHomePage } from './views/home'
+import {
+  DevlogImageCacheFilesPage,
+  DevlogImageCacheRequestsPage,
+} from './views/image-cache'
 import { PrivacyPage, TermsPage } from './views/legal'
 import { LoginPage } from './views/login'
 import { PrivateImagesPage } from './views/images'
@@ -199,7 +210,10 @@ import { TicketFormPage, TicketsPage, TicketTrashPage } from './views/tickets'
 import {
   DEVLOG_IMAGE_FILENAME_PATTERN,
   imageContentTypeForExtension,
+  isAllowedImageExtension,
 } from './shared/images'
+
+export { DevlogImageCache } from './devlog-image-cache-entrypoint'
 
 const app = new Hono<AppEnv>()
 const MAX_REQUEST_BYTES = 64 * 1024
@@ -566,59 +580,76 @@ app.on(['GET', 'HEAD'], '/devlog-images/i/:image', async (c) => {
 
   const hash = match[1]!
   const extension = match[2]!
+  if (!isAllowedImageExtension(extension)) return new Response(null, { status: 404 })
   const expectedContentType = imageContentTypeForExtension(extension)
   if (!expectedContentType) return new Response(null, { status: 404 })
 
-  let upstream: Response
-  try {
-    const headers = new Headers({ Accept: expectedContentType })
-    const ifNoneMatch = c.req.header('If-None-Match')
-    if (ifNoneMatch) headers.set('If-None-Match', ifNoneMatch)
-
-    upstream = await imageServiceFetch(c.env, `/i/${hash}.${extension}`, {
-      method: c.req.method,
+  const startedAt = performance.now()
+  const method = c.req.method === 'HEAD' ? 'HEAD' : 'GET'
+  const rawColo = c.req.raw.cf?.colo
+  const colo = typeof rawColo === 'string' ? rawColo : null
+  const trackResponse = (response: Response, cacheStatus: 'HIT' | 'MISS'): Response => {
+    const headers = new Headers(response.headers)
+    headers.set(DEVLOG_IMAGE_CACHE_HEADER, cacheStatus)
+    const tracked = new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
       headers,
-      signal: AbortSignal.timeout(15_000),
     })
-  } catch {
-    return new Response(null, { status: 503 })
+    c.executionCtx.waitUntil(
+      recordDevlogImageCacheAccess(c.env.DB, {
+        hash,
+        extension,
+        method,
+        cacheStatus,
+        responseStatus: tracked.status,
+        durationMs: performance.now() - startedAt,
+        colo,
+      }).catch((error: unknown) => {
+        console.warn('Devlog image cache access recording failed', {
+          cacheStatus,
+          error: error instanceof Error ? error.message.slice(0, 200) : 'unknown',
+          path: `/devlog-images/i/${hash}.${extension}`,
+        })
+      }),
+    )
+    return tracked
   }
 
-  const responseHeaders = new Headers({
-    'Cache-Control': upstream.headers.get('Cache-Control') ?? DEVLOG_IMAGE_CACHE_CONTROL,
-    'Content-Type': upstream.headers.get('Content-Type') ?? expectedContentType,
-    ETag: upstream.headers.get('ETag') ?? `"sha256-${hash}"`,
-  })
-  const contentLength = upstream.headers.get('Content-Length')
-  if (contentLength) responseHeaders.set('Content-Length', contentLength)
+  const ifNoneMatch = c.req.header('If-None-Match')
+  const cacheUrl = new URL(c.req.url)
+  cacheUrl.search = ''
+  cacheUrl.hash = ''
+  const cacheHeaders = new Headers({ Accept: expectedContentType })
 
-  if (upstream.status === 304) {
-    await upstream.body?.cancel()
-    return new Response(null, { status: 304, headers: responseHeaders })
-  }
-  if (upstream.status === 404) {
-    await upstream.body?.cancel()
-    return new Response(null, { status: 404 })
-  }
-  const upstreamContentType =
-    upstream.headers.get('Content-Type')?.split(';', 1)[0]?.trim().toLowerCase() ?? ''
-  if (!upstream.ok || upstreamContentType !== expectedContentType) {
-    await upstream.body?.cancel()
-    return new Response(null, { status: 503 })
-  }
-
-  if (c.req.method === 'HEAD') {
-    await upstream.body?.cancel()
-    return new Response(null, {
-      status: upstream.status,
-      headers: responseHeaders,
+  let response: Response
+  try {
+    response = await c.executionCtx.exports.DevlogImageCache.fetch(
+      new Request(cacheUrl, {
+        method,
+        headers: cacheHeaders,
+      }),
+    )
+  } catch (error) {
+    console.warn('Devlog image cache entrypoint failed', {
+      error: error instanceof Error ? error.message.slice(0, 200) : 'unknown',
+      path: `/devlog-images/i/${hash}.${extension}`,
     })
+    response = new Response(null, { status: 503 })
   }
 
-  return new Response(upstream.body, {
-    status: upstream.status,
-    headers: responseHeaders,
-  })
+  const cloudflareCacheStatus = response.headers.get('Cf-Cache-Status')?.toUpperCase()
+  if (
+    (method === 'GET' || method === 'HEAD') &&
+    response.status === 200 &&
+    matchesIfNoneMatch(ifNoneMatch, response.headers.get('ETag'))
+  ) {
+    await response.body?.cancel()
+    const headers = new Headers(response.headers)
+    headers.delete('Content-Length')
+    response = new Response(null, { status: 304, headers })
+  }
+  return trackResponse(response, cloudflareCacheStatus === 'HIT' ? 'HIT' : 'MISS')
 })
 app.get('/account/theme.css', async (c) => {
   const auth = requireActiveAuth(c)
@@ -1459,6 +1490,32 @@ app.get('/admin', async (c) => {
       imageServiceBound={imageServiceBindingConfigured(c.env)}
       imageService={imageService}
       notice={noticeFromRequest(c)}
+    />,
+  )
+})
+
+app.get('/admin/image-cache/requests', async (c) => {
+  const auth = requireAdminAuth(c)
+  const requests = await listDevlogImageCacheRequests(c.env.DB, adminPageNumber(c.req.query('page')))
+  return c.html(
+    <DevlogImageCacheRequestsPage
+      {...viewMeta(c)}
+      user={auth.user}
+      csrfToken={auth.csrfToken}
+      requests={requests}
+    />,
+  )
+})
+
+app.get('/admin/image-cache/files', async (c) => {
+  const auth = requireAdminAuth(c)
+  const files = await listDevlogImageCacheFileStats(c.env.DB, adminPageNumber(c.req.query('page')))
+  return c.html(
+    <DevlogImageCacheFilesPage
+      {...viewMeta(c)}
+      user={auth.user}
+      csrfToken={auth.csrfToken}
+      files={files}
     />,
   )
 })

@@ -78,6 +78,14 @@ export function AdminPage({
               </dd>
             </div>
           </dl>
+          <nav class="admin-feature-links" aria-label="개발일지 이미지 캐시 통계">
+            <a class="button button-secondary" href="/admin/image-cache/requests">
+              최근 캐시 요청
+            </a>
+            <a class="button button-secondary" href="/admin/image-cache/files">
+              파일별 캐시 통계
+            </a>
+          </nav>
           <form action="/admin/image-service" method="post" class="stack-form">
             <CsrfInput token={csrfToken} />
             <label>

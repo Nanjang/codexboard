@@ -10,6 +10,7 @@ export type PostVisibility = 'public' | 'private'
 export type DashboardWidgetType = 'free-board' | 'bookmark' | 'rss'
 export type BookmarkIconColor = 'green' | 'blue' | 'purple' | 'orange' | 'rose'
 export type PrivateImageStatus = 'pending' | 'ready'
+export type DevlogImageCacheStatus = 'HIT' | 'MISS'
 
 export interface RateLimiterBinding {
   limit(input: { key: string }): Promise<{ success: boolean }>
@@ -143,6 +144,37 @@ export interface ImageServiceSettings {
   configured: boolean
   enabled: boolean
   updatedAt: number | null
+}
+
+export interface DevlogImageCacheRequestRow {
+  id: number
+  image_hash: string
+  extension: string
+  method: 'GET' | 'HEAD'
+  cache_status: DevlogImageCacheStatus
+  response_status: number
+  duration_ms: number
+  colo: string | null
+  created_at: number
+}
+
+export interface DevlogImageCacheFileStatsRow {
+  image_hash: string
+  extension: string
+  hit_count: number
+  miss_count: number
+  request_count: number
+  last_cache_status: DevlogImageCacheStatus
+  last_response_status: number
+  last_accessed_at: number
+}
+
+export interface PaginatedResult<T> {
+  items: T[]
+  page: number
+  pageSize: number
+  totalItems: number
+  totalPages: number
 }
 
 export interface DashboardWidgetRow {

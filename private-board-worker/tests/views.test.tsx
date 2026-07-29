@@ -4,6 +4,8 @@ import type {
   CurrentUser,
   DashboardWidgetRow,
   DeployInfo,
+  DevlogImageCacheFileStatsRow,
+  DevlogImageCacheRequestRow,
   MemoRow,
   MemoUrlPatternRow,
   MemoUrlSettings,
@@ -22,6 +24,7 @@ import { DevlogExportPage, DevlogPostPage, UserDevlogPage } from '../src/views/d
 import { DashboardPage } from '../src/views/dashboard'
 import { AppErrorPage, PublicErrorPage } from '../src/views/errors'
 import { GuestHomePage } from '../src/views/home'
+import { DevlogImageCacheFilesPage, DevlogImageCacheRequestsPage } from '../src/views/image-cache'
 import { LoginPage } from '../src/views/login'
 import { PrivateImagesPage } from '../src/views/images'
 import { composeMemoUrl, MemoBoardPage, MemoSettingsPage } from '../src/views/memos'
@@ -881,6 +884,8 @@ describe('핵심 화면', () => {
     expect(html).toContain('미설정 · 활성화 후 업로드 시 오류 toast 표시')
     expect(html).toContain('VPC 미연결')
     expect(html).toContain('IMAGE_VAULT 바인딩 필요')
+    expect(html).toContain('href="/admin/image-cache/requests"')
+    expect(html).toContain('href="/admin/image-cache/files"')
     expect(html).not.toContain('href="/images"')
   })
 
@@ -902,6 +907,100 @@ describe('핵심 화면', () => {
     expect(html).toContain('name="enabled" value="false"')
     expect(html).toContain('이미지 기능 비활성화')
     expect(html).toContain('>준비됨</dd>')
+  })
+
+  it('최근 개발일지 이미지 요청의 캐시 결과와 페이지 이동을 표시한다', async () => {
+    const requests: DevlogImageCacheRequestRow[] = [
+      {
+        id: 1000,
+        image_hash: 'a1b4093f8da2e457974b57ab9f069cbc2282d25de2126bf51b7d1c93e4bb508f',
+        extension: 'png',
+        method: 'GET',
+        cache_status: 'HIT',
+        response_status: 200,
+        duration_ms: 4,
+        colo: 'ICN',
+        created_at: Date.UTC(2026, 6, 29, 10, 0),
+      },
+      {
+        id: 999,
+        image_hash: 'aad479229ef2485e45b4654c60ad4c539d792cfc18e187f76fe62655654d30c4',
+        extension: 'png',
+        method: 'HEAD',
+        cache_status: 'MISS',
+        response_status: 404,
+        duration_ms: 18,
+        colo: null,
+        created_at: Date.UTC(2026, 6, 29, 9, 59),
+      },
+    ]
+
+    const html = String(
+      await DevlogImageCacheRequestsPage({
+        appName: 'Private Board',
+        deployInfo,
+        user: adminUser,
+        csrfToken: 'csrf-test',
+        requests: {
+          items: requests,
+          page: 2,
+          pageSize: 50,
+          totalItems: 125,
+          totalPages: 3,
+        },
+      }),
+    )
+
+    expect(html).toContain('최근 캐시 요청')
+    expect(html).toContain('a1b4093f8da2e457974b57ab9f069cbc2282d25de2126bf51b7d1c93e4bb508f.png')
+    expect(html).toContain('cache-status-hit')
+    expect(html).toContain('>HIT</strong>')
+    expect(html).toContain('cache-status-miss')
+    expect(html).toContain('>MISS</strong>')
+    expect(html).toContain('>ICN</td>')
+    expect(html).toContain('href="/admin/image-cache/requests?page=1"')
+    expect(html).toContain('href="/admin/image-cache/requests?page=3"')
+    expect(html).toContain('총 125건 · 2/3페이지')
+  })
+
+  it('개발일지 이미지 파일별 히트율과 페이지 이동을 표시한다', async () => {
+    const files: DevlogImageCacheFileStatsRow[] = [
+      {
+        image_hash: 'a1b4093f8da2e457974b57ab9f069cbc2282d25de2126bf51b7d1c93e4bb508f',
+        extension: 'png',
+        hit_count: 9,
+        miss_count: 1,
+        request_count: 10,
+        last_cache_status: 'HIT',
+        last_response_status: 200,
+        last_accessed_at: Date.UTC(2026, 6, 29, 10, 0),
+      },
+    ]
+
+    const html = String(
+      await DevlogImageCacheFilesPage({
+        appName: 'Private Board',
+        deployInfo,
+        user: adminUser,
+        csrfToken: 'csrf-test',
+        files: {
+          items: files,
+          page: 1,
+          pageSize: 50,
+          totalItems: 51,
+          totalPages: 2,
+        },
+      }),
+    )
+
+    expect(html).toContain('파일별 캐시 통계')
+    expect(html).toContain('>10</td>')
+    expect(html).toContain('>9</td>')
+    expect(html).toContain('>1</td>')
+    expect(html).toContain('>90.0%</td>')
+    expect(html).toContain('>HIT</strong>')
+    expect(html).toContain('href="/admin/image-cache/files?page=2"')
+    expect(html).toContain('총 51건 · 1/2페이지')
   })
 
   it('숫자와 문자 메모 값은 사용자별 URL 규칙으로 구분해 조합한다', () => {
