@@ -75,7 +75,7 @@ export async function imageServiceFetch(
   return env.IMAGE_VAULT.fetch(
     new Request(imageServiceUrl(path), {
       ...init,
-      redirect: 'error',
+      redirect: 'manual',
     }),
   )
 }

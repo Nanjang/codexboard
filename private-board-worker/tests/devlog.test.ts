@@ -51,9 +51,12 @@ describe('개발일지 이미지 서비스', () => {
 
   it('VPC 바인딩을 통해 내부 상태 엔드포인트를 확인한다', async () => {
     let requestedUrl = ''
+    let requestedRedirect = ''
     const fetcher = {
       async fetch(input: RequestInfo | URL) {
-        requestedUrl = new Request(input).url
+        const request = new Request(input)
+        requestedUrl = request.url
+        requestedRedirect = request.redirect
         return Response.json({ status: 'ok' })
       },
     } as unknown as Fetcher
@@ -62,6 +65,7 @@ describe('개발일지 이미지 서비스', () => {
     expect(imageServiceBindingConfigured(imageEnv(fetcher))).toBe(true)
     await expect(verifyImageService(imageEnv(fetcher))).resolves.toBeUndefined()
     expect(requestedUrl).toBe('http://localhost:8085/health')
+    expect(requestedRedirect).toBe('manual')
     await expect(verifyImageService(imageEnv())).rejects.toThrow('VPC Service ID')
   })
 
