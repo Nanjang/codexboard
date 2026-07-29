@@ -1,4 +1,6 @@
 import type {
+  AdminMemberActivityRow,
+  AdminMemberRow,
   BoardRow,
   CommentRow,
   CurrentUser,
@@ -12,6 +14,7 @@ import type {
   MemoRow,
   MemoUrlPatternRow,
   MemoUrlSettings,
+  PaginatedResult,
   PrivateImageRow,
   PostDetailRow,
   PostBodyFormat,
@@ -34,6 +37,8 @@ export const MAX_RSS_WIDGETS_PER_USER = 10
 export const MAX_PRIVATE_IMAGES_PER_USER = 5000
 export const DEVLOG_POSTS_PER_PAGE = 12
 export const DEVLOG_EXPORT_POSTS_PER_PAGE = 50
+export const ADMIN_MEMBERS_PER_PAGE = 50
+export const ADMIN_MEMBER_ACTIVITIES_PER_PAGE = 50
 
 export interface ImageServiceRecord {
   base_url: string
@@ -98,6 +103,209 @@ export async function setImageServiceEnabled(
     .bind(enabled ? 1 : 0, updatedBy, Date.now())
     .run()
   return result.meta.changes > 0
+}
+
+export async function listAdminMembers(
+  db: D1Database,
+  page: number,
+): Promise<PaginatedResult<AdminMemberRow>> {
+  const total = await db.prepare('SELECT COUNT(*) AS count FROM users').first<{ count: number }>()
+  const totalItems = total?.count ?? 0
+  const totalPages = Math.ceil(totalItems / ADMIN_MEMBERS_PER_PAGE)
+  const offset = (page - 1) * ADMIN_MEMBERS_PER_PAGE
+  const result = await db
+    .prepare(
+      `
+      WITH
+        google_accounts AS (
+          SELECT user_id, MIN(email) AS email
+          FROM auth_accounts
+          WHERE provider = 'google'
+          GROUP BY user_id
+        ),
+        post_stats AS (
+          SELECT author_id, COUNT(*) AS post_count, MAX(created_at) AS latest_post_at
+          FROM posts
+          GROUP BY author_id
+        ),
+        comment_stats AS (
+          SELECT author_id, COUNT(*) AS comment_count, MAX(created_at) AS latest_comment_at
+          FROM comments
+          GROUP BY author_id
+        ),
+        session_stats AS (
+          SELECT user_id, MAX(last_seen_at) AS last_seen_at
+          FROM sessions
+          GROUP BY user_id
+        )
+      SELECT
+        u.id,
+        u.nickname,
+        ga.email,
+        u.email_hidden,
+        u.role,
+        u.status,
+        u.created_at,
+        u.updated_at,
+        COALESCE(ps.post_count, 0) AS post_count,
+        COALESCE(cs.comment_count, 0) AS comment_count,
+        ss.last_seen_at,
+        CASE
+          WHEN ps.latest_post_at IS NULL THEN cs.latest_comment_at
+          WHEN cs.latest_comment_at IS NULL THEN ps.latest_post_at
+          WHEN ps.latest_post_at >= cs.latest_comment_at THEN ps.latest_post_at
+          ELSE cs.latest_comment_at
+        END AS last_activity_at
+      FROM users u
+      LEFT JOIN google_accounts ga ON ga.user_id = u.id
+      LEFT JOIN post_stats ps ON ps.author_id = u.id
+      LEFT JOIN comment_stats cs ON cs.author_id = u.id
+      LEFT JOIN session_stats ss ON ss.user_id = u.id
+      ORDER BY u.created_at DESC, u.id ASC
+      LIMIT ?1 OFFSET ?2
+      `,
+    )
+    .bind(ADMIN_MEMBERS_PER_PAGE, offset)
+    .all<AdminMemberRow>()
+
+  return {
+    items: result.results,
+    page,
+    pageSize: ADMIN_MEMBERS_PER_PAGE,
+    totalItems,
+    totalPages,
+  }
+}
+
+export async function getAdminMember(db: D1Database, memberId: string): Promise<AdminMemberRow | null> {
+  return db
+    .prepare(
+      `
+      WITH
+        google_accounts AS (
+          SELECT user_id, MIN(email) AS email
+          FROM auth_accounts
+          WHERE provider = 'google'
+          GROUP BY user_id
+        ),
+        post_stats AS (
+          SELECT author_id, COUNT(*) AS post_count, MAX(created_at) AS latest_post_at
+          FROM posts
+          GROUP BY author_id
+        ),
+        comment_stats AS (
+          SELECT author_id, COUNT(*) AS comment_count, MAX(created_at) AS latest_comment_at
+          FROM comments
+          GROUP BY author_id
+        ),
+        session_stats AS (
+          SELECT user_id, MAX(last_seen_at) AS last_seen_at
+          FROM sessions
+          GROUP BY user_id
+        )
+      SELECT
+        u.id,
+        u.nickname,
+        ga.email,
+        u.email_hidden,
+        u.role,
+        u.status,
+        u.created_at,
+        u.updated_at,
+        COALESCE(ps.post_count, 0) AS post_count,
+        COALESCE(cs.comment_count, 0) AS comment_count,
+        ss.last_seen_at,
+        CASE
+          WHEN ps.latest_post_at IS NULL THEN cs.latest_comment_at
+          WHEN cs.latest_comment_at IS NULL THEN ps.latest_post_at
+          WHEN ps.latest_post_at >= cs.latest_comment_at THEN ps.latest_post_at
+          ELSE cs.latest_comment_at
+        END AS last_activity_at
+      FROM users u
+      LEFT JOIN google_accounts ga ON ga.user_id = u.id
+      LEFT JOIN post_stats ps ON ps.author_id = u.id
+      LEFT JOIN comment_stats cs ON cs.author_id = u.id
+      LEFT JOIN session_stats ss ON ss.user_id = u.id
+      WHERE u.id = ?1
+      LIMIT 1
+      `,
+    )
+    .bind(memberId)
+    .first<AdminMemberRow>()
+}
+
+export async function listAdminMemberActivities(
+  db: D1Database,
+  memberId: string,
+  page: number,
+): Promise<PaginatedResult<AdminMemberActivityRow>> {
+  const total = await db
+    .prepare(
+      `
+      SELECT
+        (SELECT COUNT(*) FROM posts WHERE author_id = ?1)
+        + (SELECT COUNT(*) FROM comments WHERE author_id = ?1) AS count
+      `,
+    )
+    .bind(memberId)
+    .first<{ count: number }>()
+  const totalItems = total?.count ?? 0
+  const totalPages = Math.ceil(totalItems / ADMIN_MEMBER_ACTIVITIES_PER_PAGE)
+  const offset = (page - 1) * ADMIN_MEMBER_ACTIVITIES_PER_PAGE
+  const result = await db
+    .prepare(
+      `
+      SELECT *
+      FROM (
+        SELECT
+          'post' AS kind,
+          p.id AS activity_id,
+          p.id AS post_id,
+          p.author_id AS post_author_id,
+          b.slug AS board_slug,
+          p.title AS post_title,
+          p.body,
+          p.status,
+          p.visibility,
+          p.created_at,
+          p.updated_at
+        FROM posts p
+        JOIN boards b ON b.id = p.board_id
+        WHERE p.author_id = ?1
+
+        UNION ALL
+
+        SELECT
+          'comment' AS kind,
+          c.id AS activity_id,
+          c.post_id,
+          p.author_id AS post_author_id,
+          b.slug AS board_slug,
+          p.title AS post_title,
+          c.body,
+          c.status,
+          p.visibility,
+          c.created_at,
+          c.updated_at
+        FROM comments c
+        JOIN posts p ON p.id = c.post_id
+        JOIN boards b ON b.id = p.board_id
+        WHERE c.author_id = ?1
+      )
+      ORDER BY created_at DESC, kind ASC, activity_id DESC
+      LIMIT ?2 OFFSET ?3
+      `,
+    )
+    .bind(memberId, ADMIN_MEMBER_ACTIVITIES_PER_PAGE, offset)
+    .all<AdminMemberActivityRow>()
+
+  return {
+    items: result.results,
+    page,
+    pageSize: ADMIN_MEMBER_ACTIVITIES_PER_PAGE,
+    totalItems,
+    totalPages,
+  }
 }
 
 const EMPTY_MEMO_URL_SETTINGS: MemoUrlSettings = {

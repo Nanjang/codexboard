@@ -51,6 +51,22 @@ export function AdminPage({
         <article class="form-card admin-feature-card">
           <div class="admin-feature-heading">
             <div>
+              <p class="eyebrow">D1 · 조회 전용</p>
+              <h3>회원 정보</h3>
+            </div>
+            <strong class="feature-status is-enabled">조회</strong>
+          </div>
+          <p>가입 계정의 이메일, 상태, 접속 기록과 글·댓글 활동을 DB 기준으로 확인합니다.</p>
+          <nav class="admin-feature-links" aria-label="회원 정보 조회">
+            <a class="button button-secondary" href="/admin/members">
+              회원 정보 보기
+            </a>
+          </nav>
+        </article>
+
+        <article class="form-card admin-feature-card">
+          <div class="admin-feature-heading">
+            <div>
               <p class="eyebrow">Workers VPC · Raspberry Pi REST</p>
               <h3>통합 이미지 서비스</h3>
             </div>

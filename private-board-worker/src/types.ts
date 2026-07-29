@@ -142,6 +142,35 @@ export interface ImageServiceSettings {
   updatedAt: number | null
 }
 
+export interface AdminMemberRow {
+  id: string
+  nickname: string
+  email: string | null
+  email_hidden: number
+  role: UserRole
+  status: UserStatus
+  created_at: number
+  updated_at: number
+  post_count: number
+  comment_count: number
+  last_seen_at: number | null
+  last_activity_at: number | null
+}
+
+export interface AdminMemberActivityRow {
+  kind: 'post' | 'comment'
+  activity_id: number
+  post_id: number
+  post_author_id: string
+  board_slug: BoardSlug
+  post_title: string
+  body: string
+  status: 'published' | 'hidden'
+  visibility: PostVisibility
+  created_at: number
+  updated_at: number
+}
+
 export interface DevlogImageCacheRequestRow {
   id: number
   image_hash: string

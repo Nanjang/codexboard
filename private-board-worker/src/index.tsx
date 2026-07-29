@@ -37,6 +37,7 @@ import {
   getDevlogExportSnapshot,
   getImageServiceRecord,
   getImageServiceSettings,
+  getAdminMember,
   getMemoUrlPattern,
   getMemoUrlSettings,
   getPost,
@@ -47,6 +48,8 @@ import {
   listDevlogExportPostsPage,
   listDevlogPosts,
   listDashboardWidgets,
+  listAdminMemberActivities,
+  listAdminMembers,
   listComments,
   listMemoUrlPatterns,
   listMemos,
@@ -172,6 +175,7 @@ import type {
   TicketRow,
 } from './types'
 import { AdminPage } from './views/admin'
+import { AdminMemberActivityPage, AdminMembersPage } from './views/admin-members'
 import { AccountPage } from './views/account'
 import { BoardListPage, CommentEditPage, PostDetailPage, PostFormPage } from './views/boards'
 import {
@@ -1578,6 +1582,40 @@ app.get('/admin', async (c) => {
       imageServiceBound={imageServiceBindingConfigured(c.env)}
       imageService={imageService}
       notice={noticeFromRequest(c)}
+    />,
+  )
+})
+
+app.get('/admin/members', async (c) => {
+  const auth = requireAdminAuth(c)
+  const members = await listAdminMembers(c.env.DB, adminPageNumber(c.req.query('page')))
+  return c.html(
+    <AdminMembersPage
+      {...viewMeta(c)}
+      user={auth.user}
+      csrfToken={auth.csrfToken}
+      members={members}
+    />,
+  )
+})
+
+app.get('/admin/members/:memberId/activity', async (c) => {
+  const auth = requireAdminAuth(c)
+  const memberId = c.req.param('memberId')
+  const member = await getAdminMember(c.env.DB, memberId)
+  if (!member) throw new HTTPException(404, { message: '회원을 찾을 수 없습니다.' })
+  const activities = await listAdminMemberActivities(
+    c.env.DB,
+    memberId,
+    adminPageNumber(c.req.query('page')),
+  )
+  return c.html(
+    <AdminMemberActivityPage
+      {...viewMeta(c)}
+      user={auth.user}
+      csrfToken={auth.csrfToken}
+      member={member}
+      activities={activities}
     />,
   )
 })

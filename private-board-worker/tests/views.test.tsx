@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type {
+  AdminMemberActivityRow,
+  AdminMemberRow,
   BoardRow,
   CurrentUser,
   DashboardWidgetRow,
@@ -19,6 +21,7 @@ import type { ThemeLibrary } from '../src/lib/themes'
 import { BUILTIN_THEMES } from '../src/lib/themes'
 import { AccountPage } from '../src/views/account'
 import { AdminPage } from '../src/views/admin'
+import { AdminMemberActivityPage, AdminMembersPage } from '../src/views/admin-members'
 import { BoardListPage, PostDetailPage, PostFormPage } from '../src/views/boards'
 import { DevlogExportPage, DevlogPostPage, UserDevlogPage } from '../src/views/devlogs'
 import { DashboardPage } from '../src/views/dashboard'
@@ -968,6 +971,128 @@ describe('핵심 화면', () => {
     expect(html).toContain('aria-label="통합 이미지 캐시 통계"')
     expect(html.match(/최근 캐시 요청/g)).toHaveLength(1)
     expect(html.match(/파일별 캐시 통계/g)).toHaveLength(1)
+  })
+
+  it('관리자 설정에서 회원 정보 조회 화면으로 이동할 수 있다', async () => {
+    const html = String(
+      await AdminPage({
+        appName: 'Private Board',
+        deployInfo,
+        user: adminUser,
+        csrfToken: 'csrf-test',
+      }),
+    )
+
+    expect(html).toContain('D1 · 조회 전용')
+    expect(html).toContain('회원 정보 보기')
+    expect(html).toContain('href="/admin/members"')
+  })
+
+  it('회원 DB 정보와 각 회원의 최근 활동 링크를 표시한다', async () => {
+    const member: AdminMemberRow = {
+      id: 'member/one',
+      nickname: '첫회원',
+      email: 'first@example.com',
+      email_hidden: 1,
+      role: 'user',
+      status: 'active',
+      created_at: Date.UTC(2026, 6, 1, 1),
+      updated_at: Date.UTC(2026, 6, 20, 2),
+      post_count: 12,
+      comment_count: 34,
+      last_seen_at: Date.UTC(2026, 6, 29, 3),
+      last_activity_at: Date.UTC(2026, 6, 28, 4),
+    }
+    const html = String(
+      await AdminMembersPage({
+        appName: 'Private Board',
+        deployInfo,
+        user: adminUser,
+        csrfToken: 'csrf-test',
+        members: {
+          items: [member],
+          page: 2,
+          pageSize: 50,
+          totalItems: 51,
+          totalPages: 2,
+        },
+      }),
+    )
+
+    expect(html).toContain('D1에 저장된 계정 정보')
+    expect(html).toContain('first@example.com')
+    expect(html).toContain('프로필 비공개')
+    expect(html).toContain('>12 / 34</td>')
+    expect(html).toContain('href="/admin/members/member%2Fone/activity"')
+    expect(html).toContain('href="/admin/members?page=1"')
+  })
+
+  it('회원의 게시글과 댓글 활동을 최신 활동 페이지에 표시한다', async () => {
+    const member: AdminMemberRow = {
+      id: 'member-1',
+      nickname: '활동회원',
+      email: 'activity@example.com',
+      email_hidden: 0,
+      role: 'user',
+      status: 'active',
+      created_at: Date.UTC(2026, 5, 1),
+      updated_at: Date.UTC(2026, 6, 1),
+      post_count: 1,
+      comment_count: 1,
+      last_seen_at: null,
+      last_activity_at: Date.UTC(2026, 6, 29),
+    }
+    const activities: AdminMemberActivityRow[] = [
+      {
+        kind: 'comment',
+        activity_id: 81,
+        post_id: 7,
+        post_author_id: 'author-1',
+        board_slug: 'free',
+        post_title: '자유게시판 글',
+        body: '최근 댓글 본문',
+        status: 'published',
+        visibility: 'private',
+        created_at: Date.UTC(2026, 6, 29),
+        updated_at: Date.UTC(2026, 6, 29),
+      },
+      {
+        kind: 'post',
+        activity_id: 6,
+        post_id: 6,
+        post_author_id: member.id,
+        board_slug: 'development',
+        post_title: '비공개 개발 기록',
+        body: '개발 기록 본문',
+        status: 'published',
+        visibility: 'private',
+        created_at: Date.UTC(2026, 6, 28),
+        updated_at: Date.UTC(2026, 6, 28),
+      },
+    ]
+    const html = String(
+      await AdminMemberActivityPage({
+        appName: 'Private Board',
+        deployInfo,
+        user: adminUser,
+        csrfToken: 'csrf-test',
+        member,
+        activities: {
+          items: activities,
+          page: 1,
+          pageSize: 50,
+          totalItems: 2,
+          totalPages: 1,
+        },
+      }),
+    )
+
+    expect(html).toContain('회원 활동 히스토리')
+    expect(html).toContain('최근 댓글 본문')
+    expect(html).toContain('href="/posts/7#comment-81"')
+    expect(html).toContain('href="/devlogs/u/member-1/posts/6"')
+    expect(html).toContain('>비공개</span>')
+    expect(html).toContain('총 2건 · 1/1페이지')
   })
 
   it('최근 개발일지 이미지 요청의 캐시 결과와 페이지 이동을 표시한다', async () => {
