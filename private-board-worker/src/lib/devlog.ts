@@ -58,9 +58,18 @@ function safeImageUrl(value: string | null): string | null {
   return safeHttpsUrl(value)
 }
 
-function removeAttributes(element: Element): Map<string, string> {
+interface RewriterElementAttributes {
+  readonly attributes: Iterable<unknown>
+  removeAttribute(name: string): unknown
+}
+
+export function removeAttributes(element: RewriterElementAttributes): Map<string, string> {
   const attributes = new Map<string, string>()
-  for (const { name, value } of Array.from(element.attributes)) {
+  for (const attribute of element.attributes) {
+    if (!Array.isArray(attribute)) continue
+    const name = attribute[0]
+    const value = attribute[1]
+    if (typeof name !== 'string' || typeof value !== 'string') continue
     attributes.set(name.toLowerCase(), value)
     element.removeAttribute(name)
   }

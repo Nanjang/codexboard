@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { devlogExcerpt, plainTextAsHtml, postVisibility } from '../src/lib/devlog'
+import { devlogExcerpt, plainTextAsHtml, postVisibility, removeAttributes } from '../src/lib/devlog'
 import {
   devlogImagePublicUrl,
   ImageServiceVerificationError,
@@ -21,6 +21,27 @@ function imageEnv(fetcher?: Fetcher): Bindings {
 }
 
 describe('개발일지 본문', () => {
+  it('HTMLRewriter의 속성 튜플을 이미지 정제용 맵으로 변환한다', () => {
+    const removed: string[] = []
+    const attributes = removeAttributes({
+      attributes: [
+        ['CLASS', 'devlog-image is-wide'],
+        ['src', `/devlog-images/i/${'a'.repeat(64)}.webp`],
+        ['alt', '첫 이미지'],
+      ],
+      removeAttribute(name) {
+        removed.push(name)
+      },
+    })
+
+    expect(Object.fromEntries(attributes)).toEqual({
+      class: 'devlog-image is-wide',
+      src: `/devlog-images/i/${'a'.repeat(64)}.webp`,
+      alt: '첫 이미지',
+    })
+    expect(removed).toEqual(['CLASS', 'src', 'alt'])
+  })
+
   it('리치 본문에서 태그를 제외한 요약을 만든다', () => {
     expect(devlogExcerpt('<h2>구성</h2><p>업로드 &amp; 공개 제공</p>', 'rich')).toBe(
       '구성 업로드 & 공개 제공',
