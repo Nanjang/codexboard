@@ -338,7 +338,7 @@ button {
   letter-spacing: 0.01em;
 }
 
-.deploy-footer > span:not(.visitor-footer),
+.deploy-footer > span:not(.visitor-footer):not(.database-usage),
 .deploy-footer > time {
   opacity: 0.28;
 }

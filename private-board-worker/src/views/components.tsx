@@ -7,15 +7,16 @@ export function DeployFooter({ deployInfo }: { deployInfo: DeployInfo }) {
         오늘 <strong data-visitor-today>—</strong>
         <span aria-hidden="true"> · </span>
         누적 <strong data-visitor-total>—</strong>
-        <span class="database-usage">
-          <progress data-database-usage-bar max="100" value="0" aria-hidden="true"></progress>
-          <span data-database-usage aria-label="사용량 확인 중">—</span>
-        </span>
       </span>
       <span aria-hidden="true">·</span>
       <span>deploy {deployInfo.version}</span>
       <span aria-hidden="true">·</span>
       <time datetime={deployInfo.timestamp}>{deployInfo.displayTimestamp}</time>
+      <span aria-hidden="true">·</span>
+      <span class="database-usage">
+        <progress data-database-usage-bar max="100" value="0" aria-hidden="true"></progress>
+        <span data-database-usage aria-label="사용량 확인 중">—</span>
+      </span>
     </footer>
   )
 }

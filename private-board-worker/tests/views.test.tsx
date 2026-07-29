@@ -1060,6 +1060,7 @@ describe('핵심 화면', () => {
     expect(html).toContain('data-database-usage')
     expect(html).toContain('data-database-usage-bar')
     expect(html).not.toContain('style=')
+    expect(html.indexOf('data-database-usage')).toBeGreaterThan(html.indexOf(deployInfo.displayTimestamp))
     expect(html).toContain('오늘')
     expect(html).toContain('누적')
     expect(html).not.toContain('aria-hidden="true" class="deploy-footer"')
