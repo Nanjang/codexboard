@@ -277,7 +277,7 @@ describe('핵심 화면', () => {
       }),
     )
 
-    expect(html).toContain('테스트회원님의 대시보드')
+    expect(html).toContain('<p class="eyebrow">테스트회원님의 개인 홈</p>')
     expect(html).toContain('자유게시판 요약')
     expect(html).toContain('내 문서')
     expect(html).toContain('https://example.com/docs')

@@ -473,8 +473,7 @@ export function DashboardPage({
     >
       <section class="page-heading dashboard-heading">
         <div>
-          <p class="eyebrow">개인 홈</p>
-          <h2>{user.nickname}님의 대시보드</h2>
+          <p class="eyebrow">{user.nickname}님의 개인 홈</p>
           <p>자주 확인하는 정보를 위젯으로 구성하는 나만의 첫 화면입니다.</p>
         </div>
         <div class="dashboard-edit-panel">
