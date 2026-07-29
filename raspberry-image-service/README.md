@@ -97,16 +97,53 @@ sudo systemctl status codexboard-image-service
 curl http://127.0.0.1:8085/health
 ```
 
-## 업데이트
+## 코드 갱신 시 해야 할 일
 
-홈 디렉터리의 저장소를 갱신하고 테스트한 다음 서비스 파일만 다시 배포합니다.
+라즈베리파이에 일반 로그인 사용자로 접속한 다음, 클론된 저장소
+`/home/pi/github/codexboard`에서 갱신 스크립트를 실행합니다. 스크립트 자체를 `sudo`로 실행하면 안 됩니다.
+필요한 설치 및 systemd 명령에서만 스크립트가 `sudo`를 사용합니다.
 
 ```bash
 cd /home/pi/github/codexboard
+git status --short
 bash ./raspberry-image-service/deploy/update-service.sh
 ```
 
-스크립트는 작업 트리가 깨끗한지 확인하고 `origin/main`을 fast-forward로 갱신한 뒤 테스트, `/opt` 런타임 교체, systemd 재시작과 `/health` 확인을 순서대로 수행합니다.
+스크립트는 다음 작업을 순서대로 수행합니다.
+
+1. 저장소에 커밋되지 않은 변경이 없는지 확인
+2. `origin/main`을 가져와 fast-forward 방식으로 갱신
+3. 이미지 서비스 의존성 설치 및 테스트 실행
+4. 실행 파일을 `/opt/codexboard-image-service`에 설치
+5. `codexboard-image-service` 재시작
+6. `http://127.0.0.1:8085/health`가 정상 응답하는지 확인
+
+정상 적용 여부를 다시 확인하려면 다음 명령을 사용합니다.
+
+```bash
+curl --fail http://127.0.0.1:8085/health
+sudo systemctl --no-pager --full status codexboard-image-service
+```
+
+이미지 조회 액세스 로그는 다음과 같이 실시간으로 확인합니다.
+
+```bash
+sudo journalctl -u codexboard-image-service -f -o cat \
+  | grep --line-buffered '"event":"image_access"'
+```
+
+배포 또는 헬스체크가 실패하면 최근 서비스 로그를 확인합니다.
+
+```bash
+sudo journalctl --no-pager -u codexboard-image-service -n 100
+```
+
+저장소가 다른 경로에 있을 때만 `CODEXBOARD_REPOSITORY_DIR`을 지정합니다.
+
+```bash
+CODEXBOARD_REPOSITORY_DIR=/다른/경로/codexboard \
+  bash ./raspberry-image-service/deploy/update-service.sh
+```
 
 ## Cloudflare Tunnel과 Workers VPC
 

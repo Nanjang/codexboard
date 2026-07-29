@@ -16,16 +16,26 @@ let jpeg
 let webp
 let animatedGif
 let avif
+const accessLogs = []
 
 before(async () => {
   storageRoot = await mkdtemp(join(tmpdir(), 'codexboard-images-'))
-  server = await createImageServer({
-    storageRoot,
-    publicBaseUrl: 'https://img.example.com',
-    serviceToken: token,
-    maxUploadBytes: 1024 * 1024,
-    maxInputPixels: 40_000_000,
-  })
+  server = await createImageServer(
+    {
+      storageRoot,
+      publicBaseUrl: 'https://img.example.com',
+      serviceToken: token,
+      maxUploadBytes: 1024 * 1024,
+      maxInputPixels: 40_000_000,
+    },
+    {
+      accessLogger: {
+        log(line) {
+          accessLogs.push(JSON.parse(line))
+        },
+      },
+    },
+  )
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
   const address = server.address()
   baseUrl = `http://127.0.0.1:${address.port}`
@@ -131,6 +141,33 @@ test('preserves, stores, serves, deduplicates, and deletes a PNG image', async (
     headers: { 'If-None-Match': etag },
   })
   assert.equal(notModified.status, 304)
+
+  assert.deepEqual(
+    accessLogs.slice(-2).map(({ event, method, path, status, contentLength }) => ({
+      event,
+      method,
+      path,
+      status,
+      contentLength,
+    })),
+    [
+      {
+        event: 'image_access',
+        method: 'GET',
+        path: `/i/${first.hash}.png`,
+        status: 200,
+        contentLength: png.length,
+      },
+      {
+        event: 'image_access',
+        method: 'GET',
+        path: `/i/${first.hash}.png`,
+        status: 304,
+        contentLength: 0,
+      },
+    ],
+  )
+  assert.equal(typeof accessLogs.at(-1).durationMs, 'number')
 
   const secondResponse = await upload()
   assert.equal(secondResponse.status, 200)

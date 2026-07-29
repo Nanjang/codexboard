@@ -1,4 +1,5 @@
 import { createServer } from 'node:http'
+import { performance } from 'node:perf_hooks'
 import { hasServiceAuthorization } from './auth.js'
 import { HttpError } from './errors.js'
 import { contentTypeForExtension, ImageStore } from './image-store.js'
@@ -13,9 +14,14 @@ function commonHeaders() {
   }
 }
 
+function writeHead(response, status, headers) {
+  for (const [name, value] of Object.entries(headers)) response.setHeader(name, value)
+  response.writeHead(status)
+}
+
 function sendJson(response, status, body, extraHeaders = {}) {
   const data = Buffer.from(JSON.stringify(body))
-  response.writeHead(status, {
+  writeHead(response, status, {
     ...commonHeaders(),
     'Cache-Control': 'no-store',
     'Content-Length': String(data.length),
@@ -26,7 +32,7 @@ function sendJson(response, status, body, extraHeaders = {}) {
 }
 
 function sendEmpty(response, status, headers = {}) {
-  response.writeHead(status, { ...commonHeaders(), ...headers })
+  writeHead(response, status, { ...commonHeaders(), ...headers })
   response.end()
 }
 
@@ -64,13 +70,33 @@ function imageUrl(config, hash, extension) {
   return `${config.publicBaseUrl}/i/${hash}.${extension}`
 }
 
-export async function createImageServer(config) {
+function observeImageAccess(request, response, pathname, logger) {
+  if ((request.method !== 'GET' && request.method !== 'HEAD') || !IMAGE_PATH.test(pathname)) return
+
+  const startedAt = performance.now()
+  response.once('finish', () => {
+    const declaredLength = Number.parseInt(String(response.getHeader('Content-Length') ?? ''), 10)
+    logger.log(
+      JSON.stringify({
+        event: 'image_access',
+        method: request.method,
+        path: pathname,
+        status: response.statusCode,
+        contentLength: Number.isFinite(declaredLength) ? declaredLength : 0,
+        durationMs: Math.round((performance.now() - startedAt) * 100) / 100,
+      }),
+    )
+  })
+}
+
+export async function createImageServer(config, { accessLogger = console } = {}) {
   const store = new ImageStore(config)
   await store.initialize()
 
   const server = createServer(async (request, response) => {
     try {
       const url = new URL(request.url ?? '/', 'http://localhost')
+      observeImageAccess(request, response, url.pathname, accessLogger)
 
       if (url.pathname === '/health') {
         if (request.method !== 'GET' && request.method !== 'HEAD') {
@@ -165,7 +191,7 @@ export async function createImageServer(config) {
           sendJson(response, 404, { error: 'not_found' })
           return
         }
-        response.writeHead(200, headers)
+        writeHead(response, 200, headers)
         response.end(image.data)
         return
       }
