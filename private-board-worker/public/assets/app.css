@@ -3708,6 +3708,17 @@ button.privacy-toggle.is-on > span {
   font-size: clamp(2rem, 6vw, 3.8rem);
 }
 
+.devlog-post-export-toggle {
+  width: 30px;
+  height: 30px;
+  margin-left: 2px;
+  font-size: 0.95rem;
+}
+
+.devlog-post-export-panel {
+  margin-top: 16px;
+}
+
 .devlog-rich-body {
   padding-top: 34px;
   font-size: 1.04rem;

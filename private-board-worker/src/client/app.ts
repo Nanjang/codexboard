@@ -608,6 +608,7 @@ function setupDevlogArchiveToggle(): void {
   const panel = document.querySelector<HTMLElement>('[data-devlog-archive-panel]')
   const label = toggle?.querySelector<HTMLElement>('[data-devlog-archive-toggle-label]')
   if (!toggle || !panel) return
+  const toggleLabel = toggle.dataset.toggleLabel ?? '내보내기 메뉴'
 
   toggle.addEventListener('click', () => {
     const expanded = toggle.getAttribute('aria-expanded') !== 'true'
@@ -615,7 +616,7 @@ function setupDevlogArchiveToggle(): void {
     toggle.classList.toggle('is-active', expanded)
     panel.hidden = !expanded
     if (label) {
-      label.textContent = `개발일지 전체 보관 ${expanded ? '닫기' : '열기'}`
+      label.textContent = `${toggleLabel} ${expanded ? '닫기' : '열기'}`
     }
   })
 }

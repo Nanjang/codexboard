@@ -542,6 +542,38 @@ describe('핵심 화면', () => {
     expect(html).not.toContain('data-menu-toggle')
   })
 
+  it('관리 가능한 개발일지는 수정 정보 오른쪽 톱니바퀴에 개별 내보내기를 접는다', async () => {
+    const html = String(
+      await DevlogPostPage({
+        appName: 'Private Board',
+        deployInfo,
+        user,
+        csrfToken: 'csrf-test',
+        post: {
+          ...post,
+          board_id: 2,
+          board_slug: 'development',
+          board_name: '개발일지',
+          body: '<p>수정된 기록입니다.</p>',
+          body_format: 'rich',
+          visibility: 'private',
+          preview_image_url: null,
+          updated_at: post.created_at + 1_000,
+        },
+      }),
+    )
+
+    const updatedPosition = html.indexOf('수정됨')
+    const togglePosition = html.indexOf('class="icon-button devlog-archive-toggle devlog-post-export-toggle"')
+    expect(updatedPosition).toBeGreaterThan(-1)
+    expect(togglePosition).toBeGreaterThan(updatedPosition)
+    expect(html).toContain('aria-controls="devlog-post-export-panel"')
+    expect(html).toContain('data-toggle-label="개별 Markdown 내보내기"')
+    expect(html).toContain('id="devlog-post-export-panel"')
+    expect(html).toContain('개별 Markdown 보관')
+    expect(html).toContain(`/devlogs/u/${user.id}/posts/${post.id}/export.md`)
+  })
+
   it('본인 개발일지 목록에는 비공개 배지와 새 기록 동작을 표시한다', async () => {
     const html = String(
       await UserDevlogPage({

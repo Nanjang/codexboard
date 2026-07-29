@@ -185,6 +185,7 @@ export function UserDevlogPage({
                   aria-controls="devlog-archive-panel"
                   title="개발일지 전체 보관"
                   data-devlog-archive-toggle
+                  data-toggle-label="개발일지 전체 보관"
                 >
                   <span aria-hidden="true">⚙</span>
                   <span class="visually-hidden" data-devlog-archive-toggle-label>
@@ -373,15 +374,43 @@ export function DevlogPostPage({
             <time datetime={new Date(post.created_at).toISOString()}>{formatDateTime(post.created_at)}</time>
             {post.updated_at !== post.created_at ? <span>수정됨</span> : null}
             {post.visibility === 'private' ? <span class="visibility-badge">비공개</span> : null}
+            {canManage ? (
+              <button
+                type="button"
+                class="icon-button devlog-archive-toggle devlog-post-export-toggle"
+                aria-expanded="false"
+                aria-controls="devlog-post-export-panel"
+                title="개별 Markdown 내보내기"
+                data-devlog-archive-toggle
+                data-toggle-label="개별 Markdown 내보내기"
+              >
+                <span aria-hidden="true">⚙</span>
+                <span class="visually-hidden" data-devlog-archive-toggle-label>
+                  개별 Markdown 내보내기 열기
+                </span>
+              </button>
+            ) : null}
           </div>
           {canManage ? (
-            <a
-              class="button button-secondary button-small"
-              href={`/devlogs/u/${encodeURIComponent(post.author_id)}/posts/${post.id}/export.md`}
-              download
+            <section
+              id="devlog-post-export-panel"
+              class="devlog-archive-panel devlog-post-export-panel"
+              aria-label="개별 Markdown 내보내기"
+              data-devlog-archive-panel
+              hidden
             >
-              Markdown 내보내기
-            </a>
+              <div>
+                <strong>개별 Markdown 보관</strong>
+                <p>이 게시물을 GitHub용 Markdown 파일로 저장합니다.</p>
+              </div>
+              <a
+                class="button button-secondary button-compact"
+                href={`/devlogs/u/${encodeURIComponent(post.author_id)}/posts/${post.id}/export.md`}
+                download
+              >
+                Markdown 내보내기
+              </a>
+            </section>
           ) : null}
         </header>
         {post.body_format === 'rich' ? (
