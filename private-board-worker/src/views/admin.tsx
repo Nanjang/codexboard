@@ -8,7 +8,6 @@ export function AdminPage({
   user,
   csrfToken,
   imageStorageEnabled,
-  r2Configured,
   imageServiceBound = false,
   imageService = { configured: false, enabled: false, updatedAt: null },
   notice = null,
@@ -18,7 +17,6 @@ export function AdminPage({
   user: CurrentUser
   csrfToken: string
   imageStorageEnabled: boolean
-  r2Configured: boolean
   imageServiceBound?: boolean
   imageService?: ImageServiceSettings
   notice?: string | null
@@ -74,7 +72,7 @@ export function AdminPage({
             <div>
               <dt>공개 경로</dt>
               <dd>
-                <code>/devlog-images/i/&lt;hash&gt;.&lt;jpg|png|webp|gif|avif&gt;</code>
+                <code>/i/&lt;hash&gt;.&lt;jpg|png|webp|gif|avif&gt;</code>
               </dd>
             </div>
           </dl>
@@ -121,7 +119,7 @@ export function AdminPage({
         <article class="form-card admin-feature-card">
           <div class="admin-feature-heading">
             <div>
-              <p class="eyebrow">Cloudflare R2</p>
+              <p class="eyebrow">통합 이미지 서비스</p>
               <h3>개인 이미지 저장</h3>
             </div>
             <strong class={imageStorageEnabled ? 'feature-status is-enabled' : 'feature-status'}>
@@ -131,24 +129,41 @@ export function AdminPage({
 
           <p>
             활성화하면 모든 로그인 회원의 메뉴에 개인 이미지 저장 항목이 나타나고, 이미지 업로드 API를
-            사용할 수 있습니다. 기본값은 비활성입니다.
+            사용할 수 있습니다. 자유게시판 첨부와 개인 이미지도 개발일지와 같은 이미지 저장소를 사용합니다.
+            기본값은 비활성입니다.
           </p>
 
           <dl class="admin-feature-details">
             <div>
-              <dt>R2 설정</dt>
-              <dd>{r2Configured ? '준비됨' : '미설정 · 활성화 후 업로드 시 오류 toast 표시'}</dd>
+              <dt>이미지 서비스</dt>
+              <dd>{imageServiceReady ? '준비됨' : '미설정 · 개발일지 이미지 서비스를 먼저 활성화하세요'}</dd>
             </div>
             <div>
               <dt>공개 URL</dt>
-              <dd>기능을 꺼도 이전에 복사한 공개 캐시 URL은 계속 접근할 수 있습니다.</dd>
+              <dd>
+                <code>/i/&lt;hash&gt;.&lt;jpg|png|webp|gif|avif&gt;</code>
+                {' '}경로로 통합되며, 기능을 꺼도 이미 업로드된 파일은 삭제되지 않습니다.
+              </dd>
             </div>
           </dl>
+
+          <nav class="admin-feature-links" aria-label="개인 이미지 캐시 통계">
+            <a class="button button-secondary" href="/admin/image-cache/requests">
+              최근 캐시 요청
+            </a>
+            <a class="button button-secondary" href="/admin/image-cache/files">
+              파일별 캐시 통계
+            </a>
+          </nav>
 
           <form action="/admin/features/image-storage" method="post">
             <CsrfInput token={csrfToken} />
             <input type="hidden" name="enabled" value={imageStorageEnabled ? 'false' : 'true'} />
-            <button class={imageStorageEnabled ? 'button button-danger' : 'button'} type="submit">
+            <button
+              class={imageStorageEnabled ? 'button button-danger' : 'button'}
+              type="submit"
+              disabled={!imageStorageEnabled && !imageServiceReady}
+            >
               {imageStorageEnabled ? '이미지 기능 비활성화' : '이미지 기능 활성화'}
             </button>
           </form>

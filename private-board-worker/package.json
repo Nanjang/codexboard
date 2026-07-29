@@ -23,7 +23,6 @@
     "db:migrations:list:remote": "wrangler d1 migrations list DB --remote --config wrangler.jsonc"
   },
   "dependencies": {
-    "aws4fetch": "1.0.20",
     "fflate": "0.8.3",
     "hono": "4.12.30",
     "jose": "6.2.3",

@@ -2955,6 +2955,11 @@ button.privacy-toggle.is-on > span {
   white-space: nowrap;
 }
 
+.private-image-delete {
+  padding: 0 14px 14px;
+  text-align: right;
+}
+
 .image-copy-button {
   min-height: 34px;
   height: 34px;

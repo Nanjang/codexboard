@@ -6,6 +6,7 @@ import {
 } from './lib/image-service'
 import {
   DEVLOG_IMAGE_FILENAME_PATTERN,
+  IMAGE_PUBLIC_PREFIX,
   imageContentTypeForExtension,
   isAllowedImageExtension,
 } from './shared/images'
@@ -20,8 +21,13 @@ export class DevlogImageCache extends WorkerEntrypoint<Bindings> {
     }
 
     const url = new URL(request.url)
-    const prefix = '/devlog-images/i/'
-    if (!url.pathname.startsWith(prefix)) {
+    const legacyPrefix = '/devlog-images/i/'
+    const prefix = url.pathname.startsWith(`${IMAGE_PUBLIC_PREFIX}/`)
+      ? `${IMAGE_PUBLIC_PREFIX}/`
+      : url.pathname.startsWith(legacyPrefix)
+        ? legacyPrefix
+        : null
+    if (!prefix) {
       return new Response(null, { status: 404, headers: { 'Cache-Control': 'no-store' } })
     }
 

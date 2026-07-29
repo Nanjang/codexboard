@@ -8,12 +8,13 @@ import {
   isAllowedImageType,
   imageExtensionForContentType,
   MAX_DEVLOG_IMAGE_BYTES,
+  IMAGE_PUBLIC_PREFIX,
   type AllowedImageExtension,
   type AllowedImageType,
 } from '../shared/images'
 
 export const DEVLOG_IMAGE_MAX_BYTES = MAX_DEVLOG_IMAGE_BYTES
-export const DEVLOG_IMAGE_PUBLIC_PREFIX = '/devlog-images'
+export const DEVLOG_IMAGE_PUBLIC_PREFIX = IMAGE_PUBLIC_PREFIX
 export const DEVLOG_IMAGE_CACHE_CONTROL = 'public, max-age=31536000, immutable'
 export const DEVLOG_IMAGE_HASH_PATTERN = /^[a-f0-9]{64}$/u
 const IMAGE_SERVICE_ORIGIN = 'http://localhost:8085'
@@ -108,7 +109,7 @@ export function devlogImagePublicUrl(
 ): string {
   if (!DEVLOG_IMAGE_HASH_PATTERN.test(hash)) throw new Error('올바르지 않은 이미지 해시입니다.')
   if (!isAllowedImageExtension(extension)) throw new Error('올바르지 않은 이미지 확장자입니다.')
-  return new URL(`${DEVLOG_IMAGE_PUBLIC_PREFIX}/i/${hash}.${extension}`, requestUrl).toString()
+  return new URL(`${DEVLOG_IMAGE_PUBLIC_PREFIX}/${hash}.${extension}`, requestUrl).toString()
 }
 
 export async function imageServiceFetch(

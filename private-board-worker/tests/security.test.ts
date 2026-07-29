@@ -64,16 +64,11 @@ describe('Content Security Policy', () => {
     expect(policy).toContain("form-action 'self' https://accounts.google.com")
   })
 
-  it('HTTPS 본문 이미지와 R2 직접 업로드 연결을 허용한다', () => {
-    const policy = contentSecurityPolicy(false, {
-      apiOrigin: 'https://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com',
-      publicOrigin: 'https://images.example.com',
-    })
+  it('동일 Worker와 HTTPS 본문 이미지를 허용한다', () => {
+    const policy = contentSecurityPolicy(false)
 
     expect(policy).toContain("img-src 'self' https:")
-    expect(policy).toContain(
-      "connect-src 'self' https://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com",
-    )
+    expect(policy).toContain("connect-src 'self'")
   })
 })
 
@@ -91,12 +86,12 @@ describe('공개 경로', () => {
     expect(isPublicPath('/devlogs/u/user-1/posts/42')).toBe(true)
     expect(isPublicPath('/devlogs/u/user-1/posts/0')).toBe(false)
     expect(isPublicPath('/devlogs/u/user-1/edit')).toBe(false)
-    expect(isPublicPath(`/devlog-images/i/${imageHash}.webp`)).toBe(true)
-    expect(isPublicPath(`/devlog-images/i/${imageHash}.jpg`)).toBe(true)
-    expect(isPublicPath(`/devlog-images/i/${imageHash}.png`)).toBe(true)
-    expect(isPublicPath(`/devlog-images/i/${imageHash}.gif`)).toBe(true)
-    expect(isPublicPath(`/devlog-images/i/${imageHash}.avif`)).toBe(true)
-    expect(isPublicPath('/devlog-images/i/not-a-hash.webp')).toBe(false)
-    expect(isPublicPath(`/devlog-images/i/${imageHash}.JPEG`)).toBe(false)
+    expect(isPublicPath(`/i/${imageHash}.webp`)).toBe(true)
+    expect(isPublicPath(`/i/${imageHash}.jpg`)).toBe(true)
+    expect(isPublicPath(`/i/${imageHash}.png`)).toBe(true)
+    expect(isPublicPath(`/i/${imageHash}.gif`)).toBe(true)
+    expect(isPublicPath(`/i/${imageHash}.avif`)).toBe(true)
+    expect(isPublicPath('/i/not-a-hash.webp')).toBe(false)
+    expect(isPublicPath(`/i/${imageHash}.JPEG`)).toBe(false)
   })
 })

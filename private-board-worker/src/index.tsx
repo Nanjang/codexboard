@@ -22,13 +22,13 @@ import {
   createComment,
   createMemo,
   createMemoUrlPattern,
-  createPendingPrivateImage,
   createPost,
+  createReadyPrivateImage,
   createTicket,
   deleteComment,
   deleteMemo,
   deleteMemoUrlPattern,
-  deletePendingPrivateImage,
+  deletePrivateImageRecord,
   deletePost,
   deleteTicket,
   getBoardBySlug,
@@ -40,7 +40,6 @@ import {
   getMemoUrlPattern,
   getMemoUrlSettings,
   getPost,
-  getPrivateImage,
   getTicket,
   incrementPostViewCount,
   ensureUserDashboard,
@@ -62,9 +61,9 @@ import {
   moveTicket,
   permanentlyDeleteTicket,
   markPrivateImageCopied,
-  markPrivateImageReady,
   reorderDashboardWidgets,
   reorderTickets,
+  replacePostImageLinks,
   restoreTicket,
   removeDashboardWidget,
   saveBookmarkDashboardIcon,
@@ -117,18 +116,6 @@ import {
 } from './lib/image-service'
 import { decryptSecret, encryptSecret } from './lib/secret-box'
 import { creationRequestId } from './lib/idempotency'
-import {
-  createImageUploadUrl,
-  IMAGE_CACHE_CONTROL,
-  imageContentType,
-  imageObjectKey,
-  imagePublicUrl,
-  inspectUploadedImage,
-  isR2ImageStorageConfigured,
-  MAX_IMAGE_BYTES,
-  R2ConfigurationError,
-  removeR2Object,
-} from './lib/r2'
 import { loadRssFeed, RssFeedError } from './lib/rss'
 import {
   acknowledgeThemeOrphanNotice,
@@ -209,6 +196,7 @@ import { MemoBoardPage, MemoSettingsPage, type MemoPatternDraft } from './views/
 import { TicketFormPage, TicketsPage, TicketTrashPage } from './views/tickets'
 import {
   DEVLOG_IMAGE_FILENAME_PATTERN,
+  MAX_IMAGE_BYTES,
   imageContentTypeForExtension,
   isAllowedImageExtension,
 } from './shared/images'
@@ -472,6 +460,72 @@ async function readBoundedJson(response: Response, maxBytes: number): Promise<un
   }
 }
 
+async function uploadImageThroughService(
+  c: AppContext,
+  maxBytes: number,
+): Promise<{
+  uploaded: NonNullable<ReturnType<typeof imageServiceUploadResult>>
+  contentType: string
+  sizeBytes: number
+}> {
+  const contentType = imageUploadContentType(c.req.header('Content-Type'))
+  const bytes = await c.req.arrayBuffer()
+  if (bytes.byteLength < 1 || bytes.byteLength > maxBytes) {
+    throw new ValidationError(`이미지는 최대 ${maxBytes / (1024 * 1024)}MiB까지 업로드할 수 있습니다.`)
+  }
+
+  const { token } = await imageServiceCredentials(c.env)
+  let upstream: Response
+  try {
+    upstream = await imageServiceFetch(c.env, '/upload', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': contentType,
+      },
+      body: bytes,
+      signal: AbortSignal.timeout(30_000),
+    })
+  } catch {
+    throw new HTTPException(503, { message: '이미지 서비스에 연결할 수 없습니다.' })
+  }
+
+  if (!upstream.ok) {
+    await upstream.body?.cancel()
+    throw new HTTPException(503, { message: '이미지 서비스가 업로드를 처리하지 못했습니다.' })
+  }
+  const upstreamLength = Number(upstream.headers.get('Content-Length'))
+  if (Number.isFinite(upstreamLength) && upstreamLength > 32 * 1024) {
+    await upstream.body?.cancel()
+    throw new HTTPException(503, { message: '이미지 서비스 응답이 올바르지 않습니다.' })
+  }
+
+  const uploaded = imageServiceUploadResult(await readBoundedJson(upstream, 32 * 1024))
+  if (!uploaded) {
+    throw new HTTPException(503, { message: '이미지 서비스 응답이 올바르지 않습니다.' })
+  }
+  return { uploaded, contentType, sizeBytes: bytes.byteLength }
+}
+
+function privateImageIdsInRichBody(
+  images: Awaited<ReturnType<typeof listPrivateImages>>,
+  body: string,
+): number[] {
+  const sources = new Set(
+    Array.from(body.matchAll(/\/i\/([a-f0-9]{64})\.(jpg|png|webp|gif|avif)/gu), (match) => `${match[1]}.${match[2]}`),
+  )
+  const linkedSources = new Set<string>()
+  const imageIds: number[] = []
+  for (const image of images) {
+    if (!image.image_hash || !image.extension) continue
+    const source = `${image.image_hash}.${image.extension}`
+    if (!sources.has(source) || linkedSources.has(source)) continue
+    linkedSources.add(source)
+    imageIds.push(image.id)
+  }
+  return imageIds
+}
+
 function selectedMemoPatternId(value: FormDataEntryValue | null): number | null {
   if (value === null || value === 'auto') return null
   if (typeof value !== 'string') throw new ValidationError('메모 패턴 형식이 올바르지 않습니다.')
@@ -526,8 +580,13 @@ const devlogImageBodyLimit = bodyLimit({
   maxSize: DEVLOG_IMAGE_MAX_BYTES,
   onError: (c) => c.json({ error: '이미지는 최대 10MiB까지 업로드할 수 있습니다.' }, 413),
 })
+const personalImageBodyLimit = bodyLimit({
+  maxSize: MAX_IMAGE_BYTES,
+  onError: (c) => c.json({ error: '이미지는 최대 5MiB까지 업로드할 수 있습니다.' }, 413),
+})
 app.use('*', async (c, next) => {
   if (c.req.path === '/api/devlog/images') return devlogImageBodyLimit(c, next)
+  if (c.req.path === '/api/images') return personalImageBodyLimit(c, next)
   return standardBodyLimit(c, next)
 })
 app.use('*', securityMiddleware)
@@ -573,7 +632,10 @@ app.use('*', async (c, next) => {
 
 app.get('/assets/*', (c) => c.env.ASSETS.fetch(c.req.raw))
 app.get('/health', (c) => c.json({ ok: true }))
-app.on(['GET', 'HEAD'], '/devlog-images/i/:image', async (c) => {
+app.on(['GET', 'HEAD'], '/devlog-images/i/:image', (c) => {
+  return c.redirect(`/i/${encodeURIComponent(c.req.param('image'))}`, 308)
+})
+app.on(['GET', 'HEAD'], '/i/:image', async (c) => {
   const filename = c.req.param('image')
   const match = DEVLOG_IMAGE_FILENAME_PATTERN.exec(filename)
   if (!match) return new Response(null, { status: 404 })
@@ -606,10 +668,10 @@ app.on(['GET', 'HEAD'], '/devlog-images/i/:image', async (c) => {
         durationMs: performance.now() - startedAt,
         colo,
       }).catch((error: unknown) => {
-        console.warn('Devlog image cache access recording failed', {
+        console.warn('Unified image cache access recording failed', {
           cacheStatus,
           error: error instanceof Error ? error.message.slice(0, 200) : 'unknown',
-          path: `/devlog-images/i/${hash}.${extension}`,
+          path: `/i/${hash}.${extension}`,
         })
       }),
     )
@@ -631,9 +693,9 @@ app.on(['GET', 'HEAD'], '/devlog-images/i/:image', async (c) => {
       }),
     )
   } catch (error) {
-    console.warn('Devlog image cache entrypoint failed', {
+    console.warn('Unified image cache entrypoint failed', {
       error: error instanceof Error ? error.message.slice(0, 200) : 'unknown',
-      path: `/devlog-images/i/${hash}.${extension}`,
+      path: `/i/${hash}.${extension}`,
     })
     response = new Response(null, { status: 503 })
   }
@@ -1149,7 +1211,8 @@ app.get('/boards/:slug/new', async (c) => {
   const slug = boardSlug(c.req.param('slug'))
   const board = await getBoardBySlug(c.env.DB, slug)
   if (!board) throw new HTTPException(404, { message: '게시판을 찾을 수 없습니다.' })
-  const imageService = board.slug === 'development' ? await getImageServiceSettings(c.env.DB) : null
+  const usesImageEditor = board.slug === 'development' || board.slug === 'free'
+  const imageService = usesImageEditor ? await getImageServiceSettings(c.env.DB) : null
   return c.html(
     <PostFormPage
       {...viewMeta(c)}
@@ -1157,7 +1220,11 @@ app.get('/boards/:slug/new', async (c) => {
       csrfToken={auth.csrfToken}
       board={board}
       mode="create"
-      imageServiceEnabled={imageService?.enabled === true && imageServiceBindingConfigured(c.env)}
+      imageUploadEnabled={
+        imageService?.enabled === true &&
+        imageServiceBindingConfigured(c.env) &&
+        (board.slug === 'development' || auth.user.imageStorageEnabled === true)
+      }
     />,
   )
 })
@@ -1173,13 +1240,14 @@ app.post('/boards/:slug/posts', async (c) => {
   const rawTitle = typeof form.get('title') === 'string' ? String(form.get('title')) : ''
   const rawBody = typeof form.get('body') === 'string' ? String(form.get('body')) : ''
   const isDevlog = board.slug === 'development'
-  let safeDraftBody = isDevlog ? '<p></p>' : rawBody
+  const isRich = isDevlog || board.slug === 'free'
+  let safeDraftBody = isRich ? '<p></p>' : rawBody
   let visibility: 'public' | 'private' = 'private'
 
   try {
     const title = singleLine(form.get('title'), '제목', 120)
     if (title.length < 2) throw new ValidationError('제목은 2자 이상이어야 합니다.')
-    const body = isDevlog
+    const body = isRich
       ? await sanitizeDevlogHtml(form.get('body'))
       : multiline(form.get('body'), '내용', 20000)
     safeDraftBody = body
@@ -1190,14 +1258,18 @@ app.post('/boards/:slug/posts', async (c) => {
       auth.user.id,
       title,
       body,
-      isDevlog ? 'rich' : 'plain',
+      isRich ? 'rich' : 'plain',
       visibility,
     )
+    if (board.slug === 'free') {
+      const images = await listPrivateImages(c.env.DB, auth.user.id)
+      await replacePostImageLinks(c.env.DB, postId, auth.user.id, privateImageIdsInRichBody(images, body))
+    }
     const destination = isDevlog ? `/devlogs/u/${auth.user.id}/posts/${postId}` : `/posts/${postId}`
     return redirectWithNotice(c, destination, 'post-created')
   } catch (error) {
     if (!(error instanceof ValidationError)) throw error
-    const imageService = isDevlog ? await getImageServiceSettings(c.env.DB) : null
+    const imageService = isRich ? await getImageServiceSettings(c.env.DB) : null
     return c.html(
       <PostFormPage
         {...viewMeta(c)}
@@ -1212,10 +1284,14 @@ app.post('/boards/:slug/posts', async (c) => {
           auth.user.id,
           rawTitle,
           safeDraftBody,
-          isDevlog ? 'rich' : 'plain',
+          isRich ? 'rich' : 'plain',
           visibility,
         )}
-        imageServiceEnabled={imageService?.enabled === true && imageServiceBindingConfigured(c.env)}
+        imageUploadEnabled={
+          imageService?.enabled === true &&
+          imageServiceBindingConfigured(c.env) &&
+          (isDevlog || auth.user.imageStorageEnabled === true)
+        }
         error={error.message}
       />,
       400,
@@ -1253,7 +1329,8 @@ app.get('/posts/:id/edit', async (c) => {
   if (!canManageResource(auth.user, post.author_id)) throw new HTTPException(403, { message: '수정 권한이 없습니다.' })
   const board = await getBoardBySlug(c.env.DB, boardSlug(post.board_slug))
   if (!board) throw new HTTPException(404, { message: '게시판을 찾을 수 없습니다.' })
-  const imageService = board.slug === 'development' ? await getImageServiceSettings(c.env.DB) : null
+  const usesImageEditor = board.slug === 'development' || board.slug === 'free'
+  const imageService = usesImageEditor ? await getImageServiceSettings(c.env.DB) : null
   return c.html(
     <PostFormPage
       {...viewMeta(c)}
@@ -1262,7 +1339,11 @@ app.get('/posts/:id/edit', async (c) => {
       board={board}
       mode="edit"
       post={post}
-      imageServiceEnabled={imageService?.enabled === true && imageServiceBindingConfigured(c.env)}
+      imageUploadEnabled={
+        imageService?.enabled === true &&
+        imageServiceBindingConfigured(c.env) &&
+        (board.slug === 'development' || auth.user.imageStorageEnabled === true)
+      }
     />,
   )
 })
@@ -1314,14 +1395,15 @@ app.post('/posts/:id/update', async (c) => {
     )
 
     const isDevlog = board.slug === 'development'
-    let safeDraftBody = isDevlog ? post.body : rawBody
+    const isRich = isDevlog || board.slug === 'free'
+    let safeDraftBody = isRich ? post.body : rawBody
     let visibility = post.visibility
     try {
-      activeStep = isDevlog ? '이미지 포함 HTML 정제' : '본문 검증'
+      activeStep = isRich ? '이미지 포함 HTML 정제' : '본문 검증'
       activeStepStartedAt = Date.now()
       const title = singleLine(form.get('title'), '제목', 120)
       if (title.length < 2) throw new ValidationError('제목은 2자 이상이어야 합니다.')
-      const body = isDevlog
+      const body = isRich
         ? await sanitizeDevlogHtml(form.get('body'))
         : multiline(form.get('body'), '내용', 20000)
       safeDraftBody = body
@@ -1333,7 +1415,7 @@ app.post('/posts/:id/update', async (c) => {
       const resetPreviewImage = isDevlog
         ? validateDevlogPreviewImageReset(previewImageAction, post.preview_image_url, body)
         : false
-      completeStep(activeStep, `${body.length}자 · ${isDevlog ? 'rich HTML' : 'plain text'}`)
+      completeStep(activeStep, `${body.length}자 · ${isRich ? 'rich HTML' : 'plain text'}`)
 
       activeStep = 'D1 게시글 저장'
       activeStepStartedAt = Date.now()
@@ -1342,11 +1424,15 @@ app.post('/posts/:id/update', async (c) => {
         postId,
         title,
         body,
-        isDevlog ? 'rich' : 'plain',
+        isRich ? 'rich' : 'plain',
         visibility,
         resetPreviewImage,
       )
       if (!changed) throw new HTTPException(404, { message: '게시글을 찾을 수 없습니다.' })
+      if (board.slug === 'free') {
+        const images = await listPrivateImages(c.env.DB, auth.user.id)
+        await replacePostImageLinks(c.env.DB, postId, auth.user.id, privateImageIdsInRichBody(images, body))
+      }
       completeStep(activeStep, '변경사항 반영')
 
       activeStep = '이동 응답 생성'
@@ -1357,7 +1443,7 @@ app.post('/posts/:id/update', async (c) => {
       return response
     } catch (error) {
       if (!(error instanceof ValidationError)) throw error
-      const imageService = isDevlog ? await getImageServiceSettings(c.env.DB) : null
+      const imageService = isRich ? await getImageServiceSettings(c.env.DB) : null
       return c.html(
         <PostFormPage
           {...viewMeta(c)}
@@ -1369,10 +1455,14 @@ app.post('/posts/:id/update', async (c) => {
             ...post,
             title: rawTitle,
             body: safeDraftBody,
-            body_format: isDevlog ? 'rich' : 'plain',
+            body_format: isRich ? 'rich' : 'plain',
             visibility,
           }}
-          imageServiceEnabled={imageService?.enabled === true && imageServiceBindingConfigured(c.env)}
+          imageUploadEnabled={
+            imageService?.enabled === true &&
+            imageServiceBindingConfigured(c.env) &&
+            (isDevlog || auth.user.imageStorageEnabled === true)
+          }
           error={error.message}
         />,
         400,
@@ -1486,7 +1576,6 @@ app.get('/admin', async (c) => {
       user={auth.user}
       csrfToken={auth.csrfToken}
       imageStorageEnabled={auth.user.imageStorageEnabled === true}
-      r2Configured={isR2ImageStorageConfigured(c.env)}
       imageServiceBound={imageServiceBindingConfigured(c.env)}
       imageService={imageService}
       notice={noticeFromRequest(c)}
@@ -1591,46 +1680,7 @@ app.post('/api/devlog/images', async (c) => {
   requireActiveAuth(c)
   await enforceWriteRateLimit(c, 'devlog-image-upload')
   assertCsrf(c, c.req.header('X-CSRF-Token'))
-
-  const contentType = imageUploadContentType(c.req.header('Content-Type'))
-  const contentLength = Number(c.req.header('Content-Length'))
-  if (
-    c.req.header('Content-Length') &&
-    (!Number.isSafeInteger(contentLength) || contentLength < 1 || contentLength > DEVLOG_IMAGE_MAX_BYTES)
-  ) {
-    throw new ValidationError('이미지는 최대 10MiB까지 업로드할 수 있습니다.')
-  }
-
-  const { token } = await imageServiceCredentials(c.env)
-  let upstream: Response
-  try {
-    upstream = await imageServiceFetch(c.env, '/upload', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': contentType,
-      },
-      body: c.req.raw.body,
-      signal: AbortSignal.timeout(30_000),
-    })
-  } catch {
-    throw new HTTPException(503, { message: '이미지 서비스에 연결할 수 없습니다.' })
-  }
-
-  if (!upstream.ok) {
-    await upstream.body?.cancel()
-    throw new HTTPException(503, { message: '이미지 서비스가 업로드를 처리하지 못했습니다.' })
-  }
-  const upstreamLength = Number(upstream.headers.get('Content-Length'))
-  if (Number.isFinite(upstreamLength) && upstreamLength > 32 * 1024) {
-    await upstream.body?.cancel()
-    throw new HTTPException(503, { message: '이미지 서비스 응답이 올바르지 않습니다.' })
-  }
-
-  const uploaded = imageServiceUploadResult(await readBoundedJson(upstream, 32 * 1024))
-  if (!uploaded) {
-    throw new HTTPException(503, { message: '이미지 서비스 응답이 올바르지 않습니다.' })
-  }
+  const { uploaded } = await uploadImageThroughService(c, DEVLOG_IMAGE_MAX_BYTES)
 
   return c.json({
     url: devlogImagePublicUrl(c.req.url, uploaded.hash, uploaded.extension),
@@ -1646,110 +1696,45 @@ app.get('/images', async (c) => {
       {...viewMeta(c)}
       user={auth.user}
       csrfToken={auth.csrfToken}
-      images={images.map((image) => ({ image, cacheUrl: imagePublicUrl(c.env, image.object_key) }))}
+      images={images.map((image) => ({
+        image,
+        cacheUrl:
+          image.image_hash && image.extension
+            ? devlogImagePublicUrl(c.req.url, image.image_hash, image.extension)
+            : null,
+      }))}
     />,
   )
 })
 
-app.post('/api/images/upload-url', async (c) => {
+app.post('/api/images', async (c) => {
   const auth = requireImageStorageAuth(c)
   await enforceWriteRateLimit(c, 'image-upload')
   assertCsrf(c, c.req.header('X-CSRF-Token'))
-
-  const payload = (await c.req.json().catch(() => null)) as Record<string, unknown> | null
-  if (!payload || typeof payload !== 'object') throw new ValidationError('이미지 업로드 정보가 올바르지 않습니다.')
-
-  const originalName = singleLine(typeof payload.fileName === 'string' ? payload.fileName : null, '파일 이름', 180)
-  const contentType = imageContentType(payload.contentType)
-  if (!contentType) throw new ValidationError('JPEG, PNG, WebP, GIF, AVIF 이미지만 업로드할 수 있습니다.')
-  const sizeBytes = payload.sizeBytes
-  if (typeof sizeBytes !== 'number' || !Number.isSafeInteger(sizeBytes) || sizeBytes < 1) {
-    throw new ValidationError('이미지 파일 크기가 올바르지 않습니다.')
-  }
-  if (sizeBytes > MAX_IMAGE_BYTES) throw new ValidationError('이미지는 최대 5MiB까지 업로드할 수 있습니다.')
-
-  const objectKey = imageObjectKey(contentType)
-  const cacheUrl = imagePublicUrl(c.env, objectKey)
-  if (!cacheUrl) {
-    throw new HTTPException(503, { message: 'R2 업로드 설정이 필요합니다. 관리자에게 문의하세요.' })
-  }
-
-  try {
-    const uploadUrl = await createImageUploadUrl(c.env, objectKey, contentType)
-    const imageId = await createPendingPrivateImage(
-      c.env.DB,
-      auth.user.id,
-      objectKey,
-      originalName,
-      contentType,
-      sizeBytes,
-    )
-    return c.json({
-      imageId,
-      uploadUrl,
-      cacheUrl,
-      headers: {
-        'Cache-Control': IMAGE_CACHE_CONTROL,
-        'Content-Type': contentType,
-      },
-    })
-  } catch (error) {
-    if (error instanceof R2ConfigurationError) {
-      throw new HTTPException(503, { message: error.message })
+  let originalName = 'image'
+  const encodedName = c.req.header('X-File-Name')
+  if (encodedName) {
+    try {
+      originalName = singleLine(decodeURIComponent(encodedName), '파일 이름', 180)
+    } catch {
+      throw new ValidationError('파일 이름이 올바르지 않습니다.')
     }
-    throw error
   }
-})
-
-app.post('/api/images/:id/complete', async (c) => {
-  const auth = requireImageStorageAuth(c)
-  await enforceWriteRateLimit(c, 'image-upload')
-  assertCsrf(c, c.req.header('X-CSRF-Token'))
-  const imageId = positiveInteger(c.req.param('id'), '이미지 ID')
-  const image = await getPrivateImage(c.env.DB, auth.user.id, imageId)
-  if (!image || image.status !== 'pending') {
-    throw new HTTPException(404, { message: '확인할 이미지 업로드를 찾을 수 없습니다.' })
-  }
-
-  try {
-    const uploaded = await inspectUploadedImage(c.env, image.object_key)
-    const valid =
-      uploaded !== null &&
-      uploaded.sizeBytes === image.size_bytes &&
-      uploaded.sizeBytes <= MAX_IMAGE_BYTES &&
-      uploaded.contentType === image.content_type
-
-    if (!valid) {
-      await removeR2Object(c.env, image.object_key)
-      await deletePendingPrivateImage(c.env.DB, auth.user.id, imageId)
-      throw new ValidationError('업로드된 이미지의 형식 또는 크기를 확인할 수 없습니다.')
-    }
-
-    const completed = await markPrivateImageReady(c.env.DB, auth.user.id, imageId)
-    if (!completed) throw new HTTPException(409, { message: '이미지 업로드 상태가 이미 변경되었습니다.' })
-    return c.json({ ok: true, cacheUrl: imagePublicUrl(c.env, image.object_key) })
-  } catch (error) {
-    if (error instanceof R2ConfigurationError) {
-      throw new HTTPException(503, { message: error.message })
-    }
-    throw error
-  }
-})
-
-app.delete('/api/images/:id/pending', async (c) => {
-  const auth = requireImageStorageAuth(c)
-  assertCsrf(c, c.req.header('X-CSRF-Token'))
-  const imageId = positiveInteger(c.req.param('id'), '이미지 ID')
-  const image = await getPrivateImage(c.env.DB, auth.user.id, imageId)
-  if (!image || image.status !== 'pending') return c.json({ ok: true })
-
-  try {
-    await removeR2Object(c.env, image.object_key)
-  } catch (error) {
-    if (!(error instanceof R2ConfigurationError)) throw error
-  }
-  await deletePendingPrivateImage(c.env.DB, auth.user.id, imageId)
-  return c.json({ ok: true })
+  const { uploaded, contentType, sizeBytes } = await uploadImageThroughService(c, MAX_IMAGE_BYTES)
+  const imageId = await createReadyPrivateImage(
+    c.env.DB,
+    auth.user.id,
+    uploaded.hash,
+    uploaded.extension,
+    originalName,
+    contentType,
+    sizeBytes,
+  )
+  return c.json({
+    imageId,
+    url: devlogImagePublicUrl(c.req.url, uploaded.hash, uploaded.extension),
+    ...uploaded,
+  })
 })
 
 app.post('/api/images/:id/copied', async (c) => {
@@ -1760,6 +1745,17 @@ app.post('/api/images/:id/copied', async (c) => {
   const copiedAt = await markPrivateImageCopied(c.env.DB, auth.user.id, imageId)
   if (copiedAt === null) throw new HTTPException(404, { message: '이미지를 찾을 수 없습니다.' })
   return c.json({ ok: true, copiedAt })
+})
+
+app.post('/images/:id/delete', async (c) => {
+  const auth = requireImageStorageAuth(c)
+  await enforceWriteRateLimit(c, 'image-delete')
+  await readForm(c)
+  const imageId = positiveInteger(c.req.param('id'), '이미지 ID')
+  if (!(await deletePrivateImageRecord(c.env.DB, auth.user.id, imageId))) {
+    throw new HTTPException(404, { message: '이미지를 찾을 수 없습니다.' })
+  }
+  return redirectWithNotice(c, '/images', 'private-image-deleted')
 })
 
 app.get('/memos', async (c) => {

@@ -13,7 +13,7 @@ import {
 import type { Bindings } from '../src/types'
 
 const IMAGE_HASH = 'a1b4093f8da2e457974b57ab9f069cbc2282d25de2126bf51b7d1c93e4bb508f'
-const IMAGE_PATH = `/devlog-images/i/${IMAGE_HASH}.png`
+const IMAGE_PATH = `/i/${IMAGE_HASH}.png`
 
 class TestD1PreparedStatement implements D1PreparedStatement {
   values: unknown[] = []

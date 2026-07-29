@@ -29,7 +29,7 @@ describe('개발일지 본문', () => {
     let attributesModified = false
     const sourceAttributes = [
       ['CLASS', 'devlog-image is-wide'],
-      ['src', `/devlog-images/i/${'a'.repeat(64)}.webp`],
+      ['src', `/i/${'a'.repeat(64)}.webp`],
       ['alt', '첫 이미지'],
     ]
     function* liveAttributes(): Generator<string[]> {
@@ -51,7 +51,7 @@ describe('개발일지 본문', () => {
 
     expect(Object.fromEntries(attributes)).toEqual({
       class: 'devlog-image is-wide',
-      src: `/devlog-images/i/${'a'.repeat(64)}.webp`,
+      src: `/i/${'a'.repeat(64)}.webp`,
       alt: '첫 이미지',
     })
     expect(removed).toEqual(['CLASS', 'src', 'alt'])
@@ -117,10 +117,10 @@ describe('개발일지 이미지 서비스', () => {
   it('같은 Worker origin의 해시 이미지 URL을 만든다', () => {
     const hash = 'a'.repeat(64)
     expect(devlogImagePublicUrl('https://board.example.com/api/devlog/images', hash, 'png')).toBe(
-      `https://board.example.com/devlog-images/i/${hash}.png`,
+      `https://board.example.com/i/${hash}.png`,
     )
     expect(devlogImagePublicUrl('https://board.example.com', hash, 'webp')).toBe(
-      `https://board.example.com/devlog-images/i/${hash}.webp`,
+      `https://board.example.com/i/${hash}.webp`,
     )
     expect(() => devlogImagePublicUrl('https://board.example.com', 'invalid', 'jpg')).toThrow(
       '해시',
@@ -233,10 +233,10 @@ describe('개발일지 이미지 서비스', () => {
     const hash = 'b'.repeat(64)
     expect(
       normalizedDevlogImageSource(
-        `http://127.0.0.1:8787/devlog-images/i/${hash}.gif`,
+        `http://127.0.0.1:8787/i/${hash}.gif`,
         'http://127.0.0.1:8787/boards/development/new',
       ),
-    ).toBe(`/devlog-images/i/${hash}.gif`)
+    ).toBe(`/i/${hash}.gif`)
     expect(
       normalizedDevlogImageSource(
         'https://images.example.com/object.webp',

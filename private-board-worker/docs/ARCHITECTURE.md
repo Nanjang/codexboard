@@ -118,21 +118,20 @@ WHERE id = ? AND owner_id = ?;
 ## 개인 이미지 흐름
 
 ```text
-브라우저 ── 업로드 메타데이터 ──> Worker ── presigned PUT URL
-브라우저 ── 이미지 본문 ───────> R2 S3 API
-브라우저 <─ 공개 캐시 URL ───── R2 Custom Domain + Cloudflare Cache
+브라우저 ── 이미지 본문 ───────> Worker ── Workers VPC 이미지 서비스
+브라우저 <─ /i/ 공개 URL ────── Worker Cache
 ```
 
-Worker는 세션 소유자를 기준으로 D1의 `private_images` 행을 만들고, 5분짜리 presigned URL을 반환합니다. 브라우저 업로드가 끝나면 Worker가 R2 `HEAD` 요청으로 MIME과 크기를 다시 확인한 뒤 `ready` 상태로 바꿉니다. 이미지 목록·완료·취소·복사 이력 쿼리는 모두 `owner_id`를 현재 세션 ID와 함께 조건으로 사용합니다.
+Worker는 MIME과 크기를 검증하고 VPC 이미지 서비스에 원본을 전달한 뒤 세션 소유자를 기준으로 D1의 `private_images` 행을 만듭니다. 같은 해시 원본을 여러 사용자가 올려도 보관함 행은 사용자별로 독립적입니다.
 
-객체 키는 사용자 ID를 직접 노출하지 않는 무작위 불변 키입니다. 목록은 본인 전용이지만 Custom Domain URL은 공개 읽기 경로이며, 복사 이력 아이콘은 권한 전환이 아니라 공유 여부를 알려 주는 기록입니다.
+공개 URL은 사용자 ID를 노출하지 않는 콘텐츠 해시 기반 불변 `/i/` 경로입니다. 목록은 본인 전용이지만 URL은 공개 읽기 경로이며, 복사 이력 아이콘은 권한 전환이 아니라 공유 여부를 알려 주는 기록입니다.
 
-`feature_settings.private_images`는 마이그레이션에서 `0`으로 생성됩니다. 인증 요청마다 현재 값을 읽어 비활성 상태에서는 메뉴를 숨기고 `/images`와 모든 `/api/images/*` 요청을 거절합니다. 관리자만 CSRF 검증을 거쳐 `/admin`에서 이 값을 변경할 수 있습니다. 기능 비활성화는 새 조회·업로드 경로를 닫는 동작이며 이미 공유된 공개 R2 URL을 폐기하지는 않습니다.
+`feature_settings.private_images`는 마이그레이션에서 `0`으로 생성됩니다. 인증 요청마다 현재 값을 읽어 비활성 상태에서는 메뉴를 숨기고 `/images`와 이미지 업로드 요청을 거절합니다. 관리자만 CSRF 검증을 거쳐 `/admin`에서 이 값을 변경할 수 있습니다. 기능 비활성화는 새 조회·업로드 경로를 닫는 동작이며 이미 공유된 `/i/` URL을 폐기하지는 않습니다.
 
 ## 보안 헤더
 
 - `Content-Security-Policy`
-- R2 미설정 시 `img-src 'none'`, 설정 시 정확한 R2 공개 origin만 허용
+- 이미지는 동일 Worker의 `/i/` 경로와 안전한 HTTPS 출처만 허용
 - `frame-ancestors 'none'`
 - `X-Content-Type-Options: nosniff`
 - `Referrer-Policy`

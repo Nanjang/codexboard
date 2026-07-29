@@ -10,6 +10,7 @@ export type PostVisibility = 'public' | 'private'
 export type DashboardWidgetType = 'free-board' | 'bookmark' | 'rss'
 export type BookmarkIconColor = 'green' | 'blue' | 'purple' | 'orange' | 'rose'
 export type PrivateImageStatus = 'pending' | 'ready'
+export type ImageExtension = 'jpg' | 'png' | 'webp' | 'gif' | 'avif'
 export type DevlogImageCacheStatus = 'HIT' | 'MISS'
 
 export interface RateLimiterBinding {
@@ -38,11 +39,6 @@ export interface Bindings {
   TURNSTILE_SITE_KEY?: string
   TURNSTILE_SECRET_KEY?: string
   CONTACT_EMAIL?: string
-  R2_ACCOUNT_ID?: string
-  R2_BUCKET_NAME?: string
-  R2_PUBLIC_BASE_URL?: string
-  R2_ACCESS_KEY_ID?: string
-  R2_SECRET_ACCESS_KEY?: string
 }
 
 export interface DeployInfo {
@@ -271,7 +267,9 @@ export interface MemoUrlPatternRow {
 export interface PrivateImageRow {
   id: number
   owner_id: string
-  object_key: string
+  object_key: string | null
+  image_hash: string | null
+  extension: ImageExtension | null
   original_name: string
   content_type: string
   size_bytes: number
@@ -279,4 +277,13 @@ export interface PrivateImageRow {
   copied_at: number | null
   created_at: number
   updated_at: number
+}
+
+export interface PostImageLinkRow {
+  post_id: number
+  private_image_id: number
+  image_hash: string
+  extension: ImageExtension
+  owner_id: string
+  created_at: number
 }

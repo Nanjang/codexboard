@@ -222,9 +222,11 @@ interface DevlogImageUpload {
   height: number | null
 }
 
-function setupDevlogEditor(): void {
-  const form = document.querySelector<HTMLFormElement>('[data-devlog-editor-form]')
-  const editor = form?.querySelector<HTMLElement>('[data-devlog-editor]')
+function setupRichEditor(): void {
+  const form = document.querySelector<HTMLFormElement>(
+    '[data-rich-editor-form], [data-devlog-editor-form]',
+  )
+  const editor = form?.querySelector<HTMLElement>('[data-rich-editor], [data-devlog-editor]')
   const value = form?.querySelector<HTMLTextAreaElement>('[data-devlog-editor-value]')
   const status = form?.querySelector<HTMLElement>('[data-editor-status]')
   const count = form?.querySelector<HTMLElement>('[data-editor-count]')
@@ -233,6 +235,7 @@ function setupDevlogEditor(): void {
   const previewImageReset = form?.querySelector<HTMLButtonElement>('[data-preview-image-reset]')
   if (!form || !editor || !value) return
 
+  const imageUploadUrl = form.dataset.imageUploadUrl || '/api/devlog/images'
   let savedRange: Range | null = null
   let imageUploadInProgress = false
   const imageUploadEnabled = imageInput?.disabled === false
@@ -291,7 +294,10 @@ function setupDevlogEditor(): void {
       showToast('이미지 업로드가 끝난 뒤 다시 시도해 주세요.', 'error')
       return
     }
-    const validationError = devlogImageValidationError(file, source)
+    const validationError =
+      source === 'clipboard' || imageUploadUrl === '/api/devlog/images'
+        ? devlogImageValidationError(file, source)
+        : localImageValidationError(file)
     if (validationError) {
       showToast(validationError, 'error')
       return
@@ -303,11 +309,12 @@ function setupDevlogEditor(): void {
     imageInput.disabled = true
     editor.setAttribute('aria-busy', 'true')
     try {
-      const response = await fetch('/api/devlog/images', {
+      const response = await fetch(imageUploadUrl, {
         method: 'POST',
         headers: {
           'Content-Type': file.type,
           'X-CSRF-Token': csrfToken(),
+          'X-File-Name': encodeURIComponent(file.name),
         },
         body: file,
       })
@@ -442,13 +449,6 @@ function setupNotices(): void {
 
 function csrfToken(): string {
   return document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content ?? ''
-}
-
-interface ImageUploadTicket {
-  imageId: number
-  uploadUrl: string
-  cacheUrl: string
-  headers: Record<string, string>
 }
 
 async function jsonError(response: Response, fallback: string): Promise<Error> {
@@ -754,39 +754,6 @@ function setupBookmarkIconLookup(): void {
   })
 }
 
-function uploadImageFile(
-  ticket: ImageUploadTicket,
-  file: File,
-  onProgress: (percent: number) => void,
-): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const request = new XMLHttpRequest()
-    request.open('PUT', ticket.uploadUrl)
-    for (const [name, value] of Object.entries(ticket.headers)) request.setRequestHeader(name, value)
-    request.upload.addEventListener('progress', (event) => {
-      if (event.lengthComputable) onProgress(Math.round((event.loaded / event.total) * 100))
-    })
-    request.addEventListener('load', () => {
-      if (request.status >= 200 && request.status < 300) resolve()
-      else reject(new Error(`R2 업로드에 실패했습니다. (${request.status})`))
-    })
-    request.addEventListener('error', () => reject(new Error('R2 업로드 연결에 실패했습니다. CORS 설정을 확인하세요.')))
-    request.addEventListener('abort', () => reject(new Error('이미지 업로드가 취소되었습니다.')))
-    request.send(file)
-  })
-}
-
-async function cancelPendingImage(imageId: number): Promise<void> {
-  await fetch(`/api/images/${encodeURIComponent(imageId)}/pending`, {
-    method: 'DELETE',
-    credentials: 'same-origin',
-    headers: {
-      Accept: 'application/json',
-      'X-CSRF-Token': csrfToken(),
-    },
-  }).catch(() => null)
-}
-
 function setupImageUpload(): void {
   const uploader = document.querySelector<HTMLElement>('[data-image-uploader]')
   const input = uploader?.querySelector<HTMLInputElement>('[data-image-file]')
@@ -807,54 +774,29 @@ function setupImageUpload(): void {
     }
 
     void (async () => {
-      let imageId: number | null = null
       input.disabled = true
       progress.hidden = false
       progressBar.value = 0
-      progressLabel.textContent = '업로드 주소를 준비하는 중…'
+      progressLabel.textContent = '이미지를 저장하는 중…'
 
       try {
-        const ticketResponse = await fetch('/api/images/upload-url', {
+        const response = await fetch('/api/images', {
           method: 'POST',
           credentials: 'same-origin',
           headers: {
-            'Content-Type': 'application/json',
+            'Content-Type': file.type,
             Accept: 'application/json',
             'X-CSRF-Token': csrfToken(),
+            'X-File-Name': encodeURIComponent(file.name),
           },
-          body: JSON.stringify({
-            fileName: file.name,
-            contentType: file.type,
-            sizeBytes: file.size,
-          }),
+          body: file,
         })
-        if (!ticketResponse.ok) throw await jsonError(ticketResponse, '이미지 업로드를 준비하지 못했습니다.')
+        if (!response.ok) throw await jsonError(response, '이미지를 업로드하지 못했습니다.')
 
-        const ticket = (await ticketResponse.json()) as ImageUploadTicket
-        imageId = ticket.imageId
-        progressLabel.textContent = 'R2에 직접 업로드하는 중…'
-        await uploadImageFile(ticket, file, (percent) => {
-          progressBar.value = percent
-          progressLabel.textContent = `R2에 직접 업로드하는 중… ${percent}%`
-        })
-
-        progressLabel.textContent = '업로드 결과를 확인하는 중…'
-        const completeResponse = await fetch(`/api/images/${encodeURIComponent(ticket.imageId)}/complete`, {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: {
-            Accept: 'application/json',
-            'X-CSRF-Token': csrfToken(),
-          },
-        })
-        if (!completeResponse.ok) throw await jsonError(completeResponse, '이미지 업로드를 완료하지 못했습니다.')
-
-        imageId = null
         progressBar.value = 100
         showToast('이미지를 저장했습니다.')
         window.setTimeout(() => window.location.reload(), 450)
       } catch (error) {
-        if (imageId !== null) await cancelPendingImage(imageId)
         showToast(error instanceof Error ? error.message : '이미지를 업로드하지 못했습니다.', 'error')
       } finally {
         input.disabled = false
@@ -1144,7 +1086,7 @@ function initialize(): void {
   setupDialogs()
   setupTicketEditing()
   setupConfirmations()
-  setupDevlogEditor()
+  setupRichEditor()
   setupDevlogArchiveToggle()
   setupDevlogExport()
   setupDoubleSubmitPrevention()

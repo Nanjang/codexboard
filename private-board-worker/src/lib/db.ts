@@ -8,6 +8,7 @@ import type {
   DevlogExportPostRow,
   DevlogPostListRow,
   ImageServiceSettings,
+  ImageExtension,
   MemoRow,
   MemoUrlPatternRow,
   MemoUrlSettings,
@@ -16,6 +17,7 @@ import type {
   PostBodyFormat,
   PostListRow,
   PostVisibility,
+  PostImageLinkRow,
   TicketLane,
   TicketRow,
   TrashedTicketRow,
@@ -1256,6 +1258,8 @@ export async function listPrivateImages(db: D1Database, ownerId: string): Promis
         id,
         owner_id,
         object_key,
+        image_hash,
+        extension,
         original_name,
         content_type,
         size_bytes,
@@ -1278,20 +1282,15 @@ export async function listPrivateImages(db: D1Database, ownerId: string): Promis
   return result.results
 }
 
-export async function createPendingPrivateImage(
+export async function createReadyPrivateImage(
   db: D1Database,
   ownerId: string,
-  objectKey: string,
+  imageHash: string,
+  extension: ImageExtension,
   originalName: string,
   contentType: string,
   sizeBytes: number,
 ): Promise<number> {
-  const staleBefore = Date.now() - 24 * 60 * 60 * 1000
-  await db
-    .prepare("DELETE FROM private_images WHERE owner_id = ?1 AND status = 'pending' AND created_at < ?2")
-    .bind(ownerId, staleBefore)
-    .run()
-
   const count = await db
     .prepare("SELECT COUNT(*) AS count FROM private_images WHERE owner_id = ?1 AND status = 'ready'")
     .bind(ownerId)
@@ -1307,6 +1306,8 @@ export async function createPendingPrivateImage(
       INSERT INTO private_images (
         owner_id,
         object_key,
+        image_hash,
+        extension,
         original_name,
         content_type,
         size_bytes,
@@ -1315,10 +1316,10 @@ export async function createPendingPrivateImage(
         created_at,
         updated_at
       )
-      VALUES (?1, ?2, ?3, ?4, ?5, 'pending', NULL, ?6, ?6)
+      VALUES (?1, NULL, ?2, ?3, ?4, ?5, ?6, 'ready', NULL, ?7, ?7)
       `,
     )
-    .bind(ownerId, objectKey, originalName, contentType, sizeBytes, now)
+    .bind(ownerId, imageHash, extension, originalName, contentType, sizeBytes, now)
     .run()
 
   const imageId = result.meta.last_row_id
@@ -1338,6 +1339,8 @@ export async function getPrivateImage(
         id,
         owner_id,
         object_key,
+        image_hash,
+        extension,
         original_name,
         content_type,
         size_bytes,
@@ -1354,16 +1357,119 @@ export async function getPrivateImage(
     .first<PrivateImageRow>()
 }
 
-export async function markPrivateImageReady(db: D1Database, ownerId: string, imageId: number): Promise<boolean> {
+export async function findPrivateImageByPublicId(
+  db: D1Database,
+  imageHash: string,
+  extension: ImageExtension,
+): Promise<PrivateImageRow | null> {
+  return db
+    .prepare(
+      `
+      SELECT
+        id,
+        owner_id,
+        object_key,
+        image_hash,
+        extension,
+        original_name,
+        content_type,
+        size_bytes,
+        status,
+        copied_at,
+        created_at,
+        updated_at
+      FROM private_images
+      WHERE image_hash = ?1 AND extension = ?2 AND status = 'ready'
+      ORDER BY id ASC
+      LIMIT 1
+      `,
+    )
+    .bind(imageHash, extension)
+    .first<PrivateImageRow>()
+}
+
+export async function replacePostImageLinks(
+  db: D1Database,
+  postId: number,
+  ownerId: string,
+  privateImageIds: number[],
+): Promise<number> {
+  const imageIds = Array.from(
+    new Set(privateImageIds.filter((imageId) => Number.isSafeInteger(imageId) && imageId > 0)),
+  )
+
+  if (imageIds.length > 0) {
+    const placeholders = imageIds.map((_, index) => `?${index + 2}`).join(', ')
+    const owned = await db
+      .prepare(
+        `SELECT COUNT(*) AS count
+         FROM private_images
+         WHERE owner_id = ?1
+           AND status = 'ready'
+           AND image_hash IS NOT NULL
+           AND extension IS NOT NULL
+           AND id IN (${placeholders})`,
+      )
+      .bind(ownerId, ...imageIds)
+      .first<{ count: number }>()
+    if ((owned?.count ?? 0) !== imageIds.length) {
+      throw new Error('게시글에 연결할 수 없는 이미지가 포함되어 있습니다.')
+    }
+  }
+
+  const now = Date.now()
+  await db.batch([
+    db.prepare('DELETE FROM post_image_links WHERE post_id = ?1').bind(postId),
+    ...imageIds.map((imageId) =>
+      db
+        .prepare(
+          `INSERT INTO post_image_links (post_id, private_image_id, created_at)
+           SELECT ?1, id, ?4
+           FROM private_images
+           WHERE id = ?2 AND owner_id = ?3 AND status = 'ready'`,
+        )
+        .bind(postId, imageId, ownerId, now),
+    ),
+  ])
+  return imageIds.length
+}
+
+export async function listPostImageLinks(
+  db: D1Database,
+  postId: number,
+): Promise<PostImageLinkRow[]> {
   const result = await db
     .prepare(
       `
-      UPDATE private_images
-      SET status = 'ready', updated_at = ?1
-      WHERE id = ?2 AND owner_id = ?3 AND status = 'pending'
+      SELECT
+        l.post_id,
+        l.private_image_id,
+        i.image_hash,
+        i.extension,
+        i.owner_id,
+        l.created_at
+      FROM post_image_links l
+      JOIN private_images i ON i.id = l.private_image_id
+      WHERE l.post_id = ?1
+        AND i.status = 'ready'
+        AND i.image_hash IS NOT NULL
+        AND i.extension IS NOT NULL
+      ORDER BY l.created_at ASC, l.private_image_id ASC
       `,
     )
-    .bind(Date.now(), imageId, ownerId)
+    .bind(postId)
+    .all<PostImageLinkRow>()
+  return result.results
+}
+
+export async function deletePrivateImageRecord(
+  db: D1Database,
+  ownerId: string,
+  imageId: number,
+): Promise<boolean> {
+  const result = await db
+    .prepare('DELETE FROM private_images WHERE id = ?1 AND owner_id = ?2')
+    .bind(imageId, ownerId)
     .run()
   return result.meta.changes > 0
 }
@@ -1382,14 +1488,6 @@ export async function markPrivateImageCopied(db: D1Database, ownerId: string, im
     .run()
   const image = await getPrivateImage(db, ownerId, imageId)
   return image?.status === 'ready' ? image.copied_at : null
-}
-
-export async function deletePendingPrivateImage(db: D1Database, ownerId: string, imageId: number): Promise<boolean> {
-  const result = await db
-    .prepare("DELETE FROM private_images WHERE id = ?1 AND owner_id = ?2 AND status = 'pending'")
-    .bind(imageId, ownerId)
-    .run()
-  return result.meta.changes > 0
 }
 
 export async function getMemoUrlSettings(db: D1Database, userId: string): Promise<MemoUrlSettings> {

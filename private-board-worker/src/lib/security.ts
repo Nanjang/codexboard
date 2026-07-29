@@ -2,7 +2,6 @@ import { HTTPException } from 'hono/http-exception'
 import type { AppContext, AuthContext } from '../types'
 import { sha256Hex, safeEqual } from './crypto'
 import { getBaseUrl, secureCookies, turnstileEnabled, validateRuntimeConfig } from './env'
-import { r2ImageOrigins } from './r2'
 import { isDevlogImagePath } from '../shared/images'
 
 const UNSAFE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
@@ -136,18 +135,15 @@ export async function enforceWriteRateLimit(c: AppContext, bucket: string): Prom
 
 export function contentSecurityPolicy(
   hasTurnstile: boolean,
-  imageOrigins: { apiOrigin: string; publicOrigin: string } | null = null,
 ): string {
-  const imageSource = imageOrigins ? `img-src 'self' https: ${imageOrigins.publicOrigin}` : "img-src 'self' https:"
   const connectSources = ["'self'"]
   if (hasTurnstile) connectSources.push('https://challenges.cloudflare.com')
-  if (imageOrigins) connectSources.push(imageOrigins.apiOrigin)
 
   return [
     "default-src 'self'",
     hasTurnstile ? "script-src 'self' https://challenges.cloudflare.com" : "script-src 'self'",
     "style-src 'self'",
-    imageSource,
+    "img-src 'self' https:",
     "font-src 'self'",
     `connect-src ${connectSources.join(' ')}`,
     hasTurnstile ? 'frame-src https://challenges.cloudflare.com' : "frame-src 'none'",
@@ -166,7 +162,7 @@ export async function securityMiddleware(c: AppContext, next: () => Promise<void
 
   const isAsset = c.req.path.startsWith('/assets/')
   const isDevlogImage = isPublicDevlogImagePath(c.req.path)
-  const policy = contentSecurityPolicy(turnstileEnabled(c.env), r2ImageOrigins(c.env))
+  const policy = contentSecurityPolicy(turnstileEnabled(c.env))
 
   c.header('Content-Security-Policy', policy)
   c.header('Referrer-Policy', 'strict-origin-when-cross-origin')

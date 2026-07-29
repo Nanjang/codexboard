@@ -7,7 +7,7 @@ CodexBoard 개발일지 이미지를 라즈베리파이의 외장 SSD에 저장�
 ## 동작
 
 - 내부 주소: `http://127.0.0.1:8085`
-- 외부 주소: `https://<게시판-Worker>/devlog-images/i/{sha256}.{확장자}`
+- 외부 주소: `https://<게시판-Worker>/i/{sha256}.{확장자}`
 - Worker 내부 조회: `GET /i/{sha256}.{확장자}`
 - Worker 내부 업로드: `POST /upload`
 - 관리용 내부 삭제: `DELETE /i/{sha256}.{확장자}`
@@ -192,7 +192,7 @@ curl \
 {
   "hash": "abcdef...",
   "extension": "png",
-  "url": "https://private-board-worker.example.workers.dev/devlog-images/i/abcdef....png",
+  "url": "https://private-board-worker.example.workers.dev/i/abcdef....png",
   "contentType": "image/png",
   "sizeBytes": 123456,
   "width": 1920,
@@ -205,7 +205,7 @@ curl \
 
 ```bash
 curl --output image.png \
-  https://private-board-worker.example.workers.dev/devlog-images/i/<sha256>.png
+  https://private-board-worker.example.workers.dev/i/<sha256>.png
 ```
 
 조회 응답에는 다음 캐시 정책이 적용됩니다.
@@ -242,7 +242,7 @@ curl \
 
 브라우저가 게시판의 업로드 API로 원본 바이트를 보내면 Worker가 로그인과 CSRF를 확인한 다음 Workers VPC로 이미지 서비스에 전달합니다. 게시판 관리자 설정의 **개발일지 이미지 서비스**에는 `IMAGE_SERVICE_TOKEN`만 입력합니다. Worker가 VPC를 통해 `/health`를 확인한 뒤 기능을 활성화합니다.
 
-이미지 본문에는 `https://<게시판-Worker>/devlog-images/i/<sha256>.<확장자>`가 저장됩니다. 이미지 조회도 같은 Worker가 VPC로 전달하므로 사용자에게 라즈베리파이 주소나 별도 Tunnel 주소가 노출되지 않습니다.
+이미지 본문에는 `https://<게시판-Worker>/i/<sha256>.<확장자>`가 저장됩니다. 이미지 조회도 같은 Worker가 VPC로 전달하므로 사용자에게 라즈베리파이 주소나 별도 Tunnel 주소가 노출되지 않습니다.
 
 ## 테스트
 

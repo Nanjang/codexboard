@@ -32,6 +32,7 @@ const IMAGE_CONTENT_TYPE_BY_EXTENSION: Record<AllowedImageExtension, AllowedImag
 
 export const DEVLOG_IMAGE_FILENAME_PATTERN =
   /^([a-f0-9]{64})\.(jpg|png|webp|gif|avif)$/u
+export const IMAGE_PUBLIC_PREFIX = '/i'
 
 export function isAllowedImageType(value: unknown): value is AllowedImageType {
   return typeof value === 'string' && (ALLOWED_IMAGE_TYPES as readonly string[]).includes(value)
@@ -53,8 +54,8 @@ export function imageContentTypeForExtension(value: unknown): AllowedImageType |
 }
 
 export function isDevlogImagePath(path: string): boolean {
-  const prefix = '/devlog-images/i/'
-  return path.startsWith(prefix) && DEVLOG_IMAGE_FILENAME_PATTERN.test(path.slice(prefix.length))
+  const prefixes = [`${IMAGE_PUBLIC_PREFIX}/`, '/devlog-images/i/']
+  return prefixes.some((prefix) => path.startsWith(prefix) && DEVLOG_IMAGE_FILENAME_PATTERN.test(path.slice(prefix.length)))
 }
 
 export function localImageValidationError(file: { size: number; type: string }): string | null {

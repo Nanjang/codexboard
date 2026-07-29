@@ -19,7 +19,7 @@ import type { ThemeLibrary } from '../src/lib/themes'
 import { BUILTIN_THEMES } from '../src/lib/themes'
 import { AccountPage } from '../src/views/account'
 import { AdminPage } from '../src/views/admin'
-import { BoardListPage, PostFormPage } from '../src/views/boards'
+import { BoardListPage, PostDetailPage, PostFormPage } from '../src/views/boards'
 import { DevlogExportPage, DevlogPostPage, UserDevlogPage } from '../src/views/devlogs'
 import { DashboardPage } from '../src/views/dashboard'
 import { AppErrorPage, PublicErrorPage } from '../src/views/errors'
@@ -219,6 +219,8 @@ const privateImages: PrivateImageRow[] = [
     id: 10,
     owner_id: user.id,
     object_key: 'private-images/one.png',
+    image_hash: 'a'.repeat(64),
+    extension: 'png',
     original_name: '첫 이미지.png',
     content_type: 'image/png',
     size_bytes: 1024,
@@ -231,6 +233,8 @@ const privateImages: PrivateImageRow[] = [
     id: 11,
     owner_id: user.id,
     object_key: 'private-images/two.webp',
+    image_hash: 'b'.repeat(64),
+    extension: 'webp',
     original_name: '공유한 이미지.webp',
     content_type: 'image/webp',
     size_bytes: 2048,
@@ -457,11 +461,12 @@ describe('핵심 화면', () => {
         csrfToken: 'csrf-test',
         board: developmentBoard,
         mode: 'create',
-        imageServiceEnabled: true,
+        imageUploadEnabled: true,
       }),
     )
 
     expect(html).toContain('data-devlog-editor-form')
+    expect(html).toContain('data-image-upload-url="/api/devlog/images"')
     expect(html).toContain('contenteditable')
     expect(html).toContain('role="radiogroup" aria-labelledby="visibility-label"')
     expect(html).toContain('공개 여부')
@@ -507,7 +512,7 @@ describe('핵심 화면', () => {
         board: developmentBoard,
         mode: 'edit',
         post: editPost,
-        imageServiceEnabled: true,
+        imageUploadEnabled: true,
       }),
     )
 
@@ -516,6 +521,50 @@ describe('핵심 화면', () => {
     expect(html).toContain('name="previewImageAction" value="reset-current"')
     expect(html).toContain('hidden')
     expect(html).toContain('미리보기 이미지 재설정')
+  })
+
+  it('자유게시판도 이미지 붙여넣기를 지원하는 리치 편집기를 표시한다', async () => {
+    const html = String(
+      await PostFormPage({
+        appName: 'Private Board',
+        deployInfo,
+        user,
+        csrfToken: 'csrf-test',
+        board,
+        mode: 'create',
+        imageUploadEnabled: true,
+      }),
+    )
+
+    expect(html).toContain('data-rich-editor-form')
+    expect(html).toContain('data-image-upload-url="/api/images"')
+    expect(html).toContain('data-rich-editor')
+    expect(html).toContain('data-editor-image')
+    expect(html).toContain('클립보드 이미지는 바로 붙여넣을 수 있습니다.')
+    expect(html).not.toContain('name="visibility"')
+  })
+
+  it('자유게시판의 정제된 리치 본문을 HTML로 렌더링한다', async () => {
+    const richPost: PostDetailRow = {
+      ...post,
+      body: `<p>원하는 위치입니다.</p><figure class="devlog-image"><img src="/i/${'a'.repeat(64)}.png"></figure>`,
+      body_format: 'rich',
+      visibility: 'public',
+      preview_image_url: null,
+    }
+    const html = String(
+      await PostDetailPage({
+        appName: 'Private Board',
+        deployInfo,
+        user,
+        csrfToken: 'csrf-test',
+        post: richPost,
+        comments: [],
+      }),
+    )
+
+    expect(html).toContain('<p>원하는 위치입니다.</p>')
+    expect(html).toContain(`src="/i/${'a'.repeat(64)}.png"`)
   })
 
   it('공개 개발일지는 로그인 없이 리치 본문을 렌더링한다', async () => {
@@ -862,6 +911,9 @@ describe('핵심 화면', () => {
     expect(html).toContain('>복사</button>')
     expect(html).toContain('복사 이력 있음')
     expect(html).toContain('data-image-id="11"')
+    expect(html).toContain('action="/images/11/delete"')
+    expect(html).toContain('보관함에서 삭제')
+    expect(html).toContain('원본 이미지는 삭제되지 않습니다')
   })
 
   it('관리자 설정에서 기본 비활성 이미지 기능을 수동 활성화할 수 있다', async () => {
@@ -872,7 +924,7 @@ describe('핵심 화면', () => {
         user: adminUser,
         csrfToken: 'csrf-test',
         imageStorageEnabled: false,
-        r2Configured: false,
+        imageServiceBound: false,
       }),
     )
 
@@ -881,7 +933,7 @@ describe('핵심 화면', () => {
     expect(html).toContain('>비활성</strong>')
     expect(html).toContain('name="enabled" value="true"')
     expect(html).toContain('이미지 기능 활성화')
-    expect(html).toContain('미설정 · 활성화 후 업로드 시 오류 toast 표시')
+    expect(html).toContain('미설정 · 개발일지 이미지 서비스를 먼저 활성화하세요')
     expect(html).toContain('VPC 미연결')
     expect(html).toContain('IMAGE_VAULT 바인딩 필요')
     expect(html).toContain('href="/admin/image-cache/requests"')
@@ -897,8 +949,8 @@ describe('핵심 화면', () => {
         user: { ...adminUser, imageStorageEnabled: true },
         csrfToken: 'csrf-test',
         imageStorageEnabled: true,
-        r2Configured: true,
         imageServiceBound: true,
+        imageService: { configured: true, enabled: true, updatedAt: Date.now() },
       }),
     )
 
@@ -907,6 +959,9 @@ describe('핵심 화면', () => {
     expect(html).toContain('name="enabled" value="false"')
     expect(html).toContain('이미지 기능 비활성화')
     expect(html).toContain('>준비됨</dd>')
+    expect(html).toContain('aria-label="개인 이미지 캐시 통계"')
+    expect(html.match(/최근 캐시 요청/g)).toHaveLength(2)
+    expect(html.match(/파일별 캐시 통계/g)).toHaveLength(2)
   })
 
   it('최근 개발일지 이미지 요청의 캐시 결과와 페이지 이동을 표시한다', async () => {

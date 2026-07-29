@@ -27,7 +27,7 @@ interface CachePaginationProps {
 }
 
 function imagePath(imageHash: string, extension: string): string {
-  return `/devlog-images/i/${imageHash}.${extension}`
+  return `/i/${imageHash}.${extension}`
 }
 
 function CacheStatusBadge({ status }: { status: DevlogImageCacheStatus }) {
@@ -96,7 +96,7 @@ export function DevlogImageCacheRequestsPage({
     <AppLayout
       appName={appName}
       deployInfo={deployInfo}
-      documentTitle="개발일지 이미지 캐시 요청"
+      documentTitle="통합 이미지 캐시 요청"
       topbarTitle="이미지 캐시 요청"
       user={user}
       csrfToken={csrfToken}
@@ -106,10 +106,10 @@ export function DevlogImageCacheRequestsPage({
     >
       <section class="page-heading">
         <div>
-          <p class="eyebrow">관리자 · 개발일지 이미지</p>
+          <p class="eyebrow">관리자 · 통합 이미지</p>
           <h2>최근 캐시 요청</h2>
           <p>
-            <code>/devlog-images/i/</code> 경로의 최근 요청 최대 1,000건과 Worker 캐시 결과를 확인합니다.
+            <code>/i/</code> 통합 경로의 최근 요청 최대 1,000건과 Worker 캐시 결과를 확인합니다.
             Cloudflare 상태가 <code>HIT</code>인 요청만 HIT로, 그 외 상태는 MISS로 집계합니다.
           </p>
         </div>
@@ -120,7 +120,7 @@ export function DevlogImageCacheRequestsPage({
       {requests.items.length === 0 ? (
         <EmptyState
           title="기록된 이미지 요청이 없습니다"
-          description="개발일지 이미지를 요청하면 캐시 결과가 여기에 표시됩니다."
+          description="/i/ 이미지를 요청하면 캐시 결과가 여기에 표시됩니다."
         />
       ) : (
         <section class="cache-table-card" aria-label="최근 이미지 캐시 요청 목록">
@@ -196,7 +196,7 @@ export function DevlogImageCacheFilesPage({
     <AppLayout
       appName={appName}
       deployInfo={deployInfo}
-      documentTitle="개발일지 이미지 파일별 캐시 통계"
+      documentTitle="통합 이미지 파일별 캐시 통계"
       topbarTitle="파일별 캐시 통계"
       user={user}
       csrfToken={csrfToken}
@@ -206,10 +206,10 @@ export function DevlogImageCacheFilesPage({
     >
       <section class="page-heading">
         <div>
-          <p class="eyebrow">관리자 · 개발일지 이미지</p>
+          <p class="eyebrow">관리자 · 통합 이미지</p>
           <h2>파일별 캐시 통계</h2>
           <p>
-            <code>/devlog-images/i/</code> 경로의 파일별 HIT/MISS 누적 결과를 확인합니다.
+            <code>/i/</code> 통합 경로의 파일별 HIT/MISS 누적 결과를 확인합니다.
             MISS에는 만료, 재검증, 우회처럼 fresh cache HIT가 아닌 상태가 포함됩니다.
           </p>
         </div>
@@ -220,7 +220,7 @@ export function DevlogImageCacheFilesPage({
       {files.items.length === 0 ? (
         <EmptyState
           title="집계된 이미지 파일이 없습니다"
-          description="개발일지 이미지 요청이 기록되면 파일별 통계가 생성됩니다."
+          description="/i/ 이미지 요청이 기록되면 파일별 통계가 생성됩니다."
         />
       ) : (
         <section class="cache-table-card" aria-label="파일별 이미지 캐시 통계 목록">

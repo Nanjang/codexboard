@@ -52,14 +52,6 @@ const patterns = [
     name: 'Session secret assignment',
     regex: /SESSION_SECRET\s*=\s*["'](?!GENERATE_|YOUR_|REPLACE_|<)[^"']{24,}["']/g,
   },
-  {
-    name: 'R2 secret access key assignment',
-    regex: /R2_SECRET_ACCESS_KEY\s*=\s*["'](?!YOUR_|REPLACE_|<)[^"']{20,}["']/g,
-  },
-  {
-    name: 'R2 access key ID assignment',
-    regex: /R2_ACCESS_KEY_ID\s*=\s*["'](?!YOUR_|REPLACE_|<)[^"']{16,}["']/g,
-  },
 ]
 
 function shouldScan(relativePath) {

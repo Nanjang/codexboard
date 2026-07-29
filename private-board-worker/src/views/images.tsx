@@ -1,5 +1,5 @@
 import type { CurrentUser, DeployInfo, PrivateImageRow } from '../types'
-import { EmptyState } from './components'
+import { CsrfInput, EmptyState } from './components'
 import { formatDateTime } from './format'
 import { AppLayout } from './layout'
 
@@ -106,6 +106,17 @@ export function PrivateImagesPage({
                   ✓
                 </span>
               </div>
+              <form
+                action={`/images/${image.id}/delete`}
+                method="post"
+                class="private-image-delete"
+                data-confirm="보관함 기록만 삭제할까요? 업로드된 원본 이미지는 삭제되지 않습니다."
+              >
+                <CsrfInput token={csrfToken} />
+                <button type="submit" class="text-button text-danger">
+                  보관함에서 삭제
+                </button>
+              </form>
             </article>
           ))}
         </section>

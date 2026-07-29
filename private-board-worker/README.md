@@ -7,8 +7,7 @@ Google 로그인을 통과한 사용자에게 공용 게시판, 사용자별 개
 - 사용자별 공개·비공개 포스트와 본문 이미지 배치를 지원하는 개발일지
 - 회원 본인만 볼 수 있는 3열 작업 티켓 보드: `할 일`, `진행 중`, `완료`
 - 내장·개인 제작·공유 코드 원본 연동을 지원하는 사용자별 색상 테마
-- 관리자가 수동 활성화하면 R2에 직접 업로드하고 Custom Domain 캐시 URL로 조회하는 개인 이미지 저장소
-- Workers VPC로 라즈베리파이 이미지 서비스를 호출하고 동일 Worker 주소로 이미지를 제공하는 개발일지 이미지 저장소
+- 관리자가 수동 활성화하면 Workers VPC 이미지 서비스에 저장하고 `/i/` 캐시 URL로 조회하는 통합 이미지 저장소
 - 현재 화면에 맞춰 제목과 주요 동작이 바뀌는 고정 탑바
 - 탑바 오른쪽의 메뉴 아이콘 하나에 전체 이동 메뉴 수납
 - 게시글·댓글은 일반 텍스트만 지원하고 외부 폰트는 사용하지 않음
@@ -24,7 +23,7 @@ Google 로그인을 통과한 사용자에게 공용 게시판, 사용자별 개
 | 런타임 | Cloudflare Workers Static Assets |
 | 서버 | TypeScript, Hono, Hono JSX |
 | 데이터 | Cloudflare D1 |
-| 이미지 저장 | 개인 이미지: Cloudflare R2 / 개발일지: Workers VPC로 연결한 자체 서비스 |
+| 이미지 저장 | Workers VPC로 연결한 자체 이미지 서비스 |
 | 로그인 | Google OAuth 2.0 / OpenID Connect |
 | 토큰 검증 | `jose` |
 | 작업 카드 정렬 | SortableJS |
@@ -36,10 +35,9 @@ Google 로그인을 통과한 사용자에게 공용 게시판, 사용자별 개
 1. [설치 및 로컬 실행](docs/INSTALLATION.md)
 2. [Google OAuth 서비스 등록](docs/GOOGLE_OAUTH_SETUP.md)
 3. [Cloudflare 등록 및 운영 배포](docs/CLOUDFLARE_DEPLOYMENT.md)
-4. [R2 개인 이미지 저장소 설정](docs/R2_IMAGE_STORAGE_SETUP.md)
-5. [라즈베리파이 개발일지 이미지 서비스](../raspberry-image-service/README.md)
-6. [GitHub와 비밀정보 관리](docs/SECRETS_AND_GITHUB.md)
-7. [사용 방법](docs/USER_GUIDE.md)
+4. [라즈베리파이 이미지 서비스](../raspberry-image-service/README.md)
+5. [GitHub와 비밀정보 관리](docs/SECRETS_AND_GITHUB.md)
+6. [사용 방법](docs/USER_GUIDE.md)
 8. [운영 및 데이터 관리](docs/OPERATIONS.md)
 9. [구조와 접근 제어](docs/ARCHITECTURE.md)
 

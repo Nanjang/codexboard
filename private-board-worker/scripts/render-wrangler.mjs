@@ -12,16 +12,11 @@ const values = {
   __D1_DATABASE_NAME__: process.env.D1_DATABASE_NAME ?? 'private-board-db',
   __AUTH_RATE_LIMIT_NAMESPACE__: process.env.AUTH_RATE_LIMIT_NAMESPACE ?? '41001',
   __WRITE_RATE_LIMIT_NAMESPACE__: process.env.WRITE_RATE_LIMIT_NAMESPACE ?? '41002',
-  __R2_ACCOUNT_ID__: process.env.R2_ACCOUNT_ID ?? '',
-  __R2_BUCKET_NAME__: process.env.R2_BUCKET_NAME ?? '',
-  __R2_PUBLIC_BASE_URL__: process.env.R2_PUBLIC_BASE_URL ?? '',
 }
 
 const uuidPattern = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i
 const namePattern = /^[a-z0-9][a-z0-9-]{0,62}$/
-const bucketNamePattern = /^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/
 const namespacePattern = /^[1-9][0-9]*$/
-const accountIdPattern = /^[0-9a-f]{32}$/i
 
 if (!uuidPattern.test(values.__D1_DATABASE_ID__)) {
   console.error('D1_DATABASE_ID가 없거나 UUID 형식이 아닙니다.')
@@ -57,37 +52,6 @@ if (!namespacePattern.test(values.__WRITE_RATE_LIMIT_NAMESPACE__)) {
 if (values.__AUTH_RATE_LIMIT_NAMESPACE__ === values.__WRITE_RATE_LIMIT_NAMESPACE__) {
   console.error('두 Rate Limiting namespace_id는 서로 달라야 합니다.')
   process.exit(1)
-}
-
-if (values.__R2_ACCOUNT_ID__ && !accountIdPattern.test(values.__R2_ACCOUNT_ID__)) {
-  console.error('R2_ACCOUNT_ID는 32자리 Cloudflare 계정 ID여야 합니다.')
-  process.exit(1)
-}
-
-if (values.__R2_BUCKET_NAME__ && !bucketNamePattern.test(values.__R2_BUCKET_NAME__)) {
-  console.error('R2_BUCKET_NAME은 소문자, 숫자, 하이픈을 사용한 3~63자 이름이어야 합니다.')
-  process.exit(1)
-}
-
-if (values.__R2_PUBLIC_BASE_URL__) {
-  let publicUrl
-  try {
-    publicUrl = new URL(values.__R2_PUBLIC_BASE_URL__)
-  } catch {
-    console.error('R2_PUBLIC_BASE_URL은 올바른 HTTPS URL이어야 합니다.')
-    process.exit(1)
-  }
-  if (
-    publicUrl.protocol !== 'https:' ||
-    publicUrl.username ||
-    publicUrl.password ||
-    publicUrl.pathname !== '/' ||
-    publicUrl.search ||
-    publicUrl.hash
-  ) {
-    console.error('R2_PUBLIC_BASE_URL은 경로, 인증정보, 쿼리, 해시가 없는 HTTPS origin이어야 합니다.')
-    process.exit(1)
-  }
 }
 
 let template = await readFile(templatePath, 'utf8')

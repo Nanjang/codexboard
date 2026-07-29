@@ -112,16 +112,21 @@ export function PostFormPage({
   mode,
   post,
   error,
+  imageUploadEnabled,
   imageServiceEnabled = false,
 }: CommonPageProps & {
   board: BoardRow
   mode: 'create' | 'edit'
   post?: PostDetailRow
   error?: string | null
+  imageUploadEnabled?: boolean
+  /** @deprecated Use imageUploadEnabled. */
   imageServiceEnabled?: boolean
 }) {
   const isEdit = mode === 'edit'
   const isDevlog = board.slug === 'development'
+  const usesRichEditor = isDevlog || board.slug === 'free'
+  const canUploadImages = imageUploadEnabled ?? imageServiceEnabled
   const action = isEdit && post ? `/posts/${post.id}/update` : `/boards/${board.slug}/posts`
   const backHref =
     isEdit && post
@@ -152,7 +157,13 @@ export function PostFormPage({
           action={action}
           method="post"
           class="stack-form"
-          {...(isDevlog ? { 'data-devlog-editor-form': '' } : {})}
+          {...(usesRichEditor
+            ? {
+                'data-rich-editor-form': '',
+                'data-devlog-editor-form': '',
+                'data-image-upload-url': isDevlog ? '/api/devlog/images' : '/api/images',
+              }
+            : {})}
         >
           <CsrfInput token={csrfToken} />
           <label>
@@ -169,35 +180,37 @@ export function PostFormPage({
               autocomplete="off"
             />
           </label>
-          {isDevlog ? (
+          {usesRichEditor ? (
             <>
-              <div
-                class="visibility-fieldset"
-                role="radiogroup"
-                aria-labelledby="visibility-label"
-              >
-                <span class="visibility-label" id="visibility-label">
-                  공개 여부
-                </span>
-                <label class="visibility-option">
-                  <input
-                    type="radio"
-                    name="visibility"
-                    value="public"
-                    checked={post?.visibility === 'public'}
-                  />
-                  <span>공개</span>
-                </label>
-                <label class="visibility-option">
-                  <input
-                    type="radio"
-                    name="visibility"
-                    value="private"
-                    checked={post?.visibility !== 'public'}
-                  />
-                  <span>비공개</span>
-                </label>
-              </div>
+              {isDevlog ? (
+                <div
+                  class="visibility-fieldset"
+                  role="radiogroup"
+                  aria-labelledby="visibility-label"
+                >
+                  <span class="visibility-label" id="visibility-label">
+                    공개 여부
+                  </span>
+                  <label class="visibility-option">
+                    <input
+                      type="radio"
+                      name="visibility"
+                      value="public"
+                      checked={post?.visibility === 'public'}
+                    />
+                    <span>공개</span>
+                  </label>
+                  <label class="visibility-option">
+                    <input
+                      type="radio"
+                      name="visibility"
+                      value="private"
+                      checked={post?.visibility !== 'public'}
+                    />
+                    <span>비공개</span>
+                  </label>
+                </div>
+              ) : null}
 
               <div class="devlog-editor-field">
                 <div class="editor-toolbar" role="toolbar" aria-label="본문 서식">
@@ -224,8 +237,8 @@ export function PostFormPage({
                   <button
                     type="button"
                     data-editor-image
-                    title={imageServiceEnabled ? '이미지 삽입' : '관리자가 이미지 서비스를 먼저 활성화해야 합니다'}
-                    disabled={!imageServiceEnabled}
+                    title={canUploadImages ? '이미지 삽입' : '관리자가 이미지 저장을 먼저 활성화해야 합니다'}
+                    disabled={!canUploadImages}
                   >
                     이미지
                   </button>
@@ -234,7 +247,7 @@ export function PostFormPage({
                     type="file"
                     accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
                     data-editor-image-input
-                    disabled={!imageServiceEnabled}
+                    disabled={!canUploadImages}
                   />
                 </div>
                 <div
@@ -242,6 +255,7 @@ export function PostFormPage({
                   contenteditable={true}
                   role="textbox"
                   aria-multiline="true"
+                  data-rich-editor
                   data-devlog-editor
                   dangerouslySetInnerHTML={{ __html: initialEditorHtml }}
                 ></div>
@@ -250,9 +264,9 @@ export function PostFormPage({
                 </textarea>
                 <div class="editor-status-row">
                   <span data-editor-status aria-live="polite">
-                    {imageServiceEnabled
+                    {canUploadImages
                       ? '이미지는 현재 커서 위치에 삽입됩니다. 2MiB 미만 클립보드 이미지는 바로 붙여넣을 수 있습니다.'
-                      : '이미지 서비스가 비활성화되어 있습니다.'}
+                      : '이미지 저장 기능이 비활성화되어 있습니다.'}
                   </span>
                   <span data-editor-count>{initialEditorHtml.length.toLocaleString()} / 20,000</span>
                 </div>
@@ -337,7 +351,14 @@ export function PostDetailPage({
             {post.updated_at !== post.created_at ? <span>수정됨</span> : null}
           </div>
         </header>
-        <div class="post-body">{post.body}</div>
+        {post.body_format === 'rich' ? (
+          <div
+            class="post-body devlog-rich-body"
+            dangerouslySetInnerHTML={{ __html: post.body }}
+          />
+        ) : (
+          <div class="post-body">{post.body}</div>
+        )}
 
         {canManagePost ? (
           <footer class="resource-actions">

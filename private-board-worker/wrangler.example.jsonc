@@ -28,10 +28,7 @@
 
   "vars": {
     "APP_NAME": "Private Board",
-    "REGISTRATION_MODE": "open",
-    "R2_ACCOUNT_ID": "__R2_ACCOUNT_ID__",
-    "R2_BUCKET_NAME": "__R2_BUCKET_NAME__",
-    "R2_PUBLIC_BASE_URL": "__R2_PUBLIC_BASE_URL__"
+    "REGISTRATION_MODE": "open"
   },
 
   "secrets": {

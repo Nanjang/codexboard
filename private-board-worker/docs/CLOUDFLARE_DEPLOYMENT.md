@@ -2,7 +2,7 @@
 
 이 문서는 D1 생성, 운영 Secret 등록, 최초 배포, Custom Domain, Workers VPC 이미지 서비스, GitHub Actions 연결 순서까지 다룹니다.
 
-개인 이미지 저장 기능을 사용할 때 필요한 R2 버킷·CORS·Custom Domain·자격증명 설정은 [R2 개인 이미지 저장소 설정](R2_IMAGE_STORAGE_SETUP.md)을 함께 진행하세요. R2 Secret이 없어도 Worker는 배포되지만 이미지 업로드만 설정 오류 toast로 거절됩니다.
+개인 이미지와 게시판 본문 이미지는 모두 Workers VPC 이미지 서비스를 사용합니다. `IMAGE_VAULT` 바인딩과 관리자 설정의 업로드 토큰이 없으면 Worker는 배포되지만 이미지 업로드만 설정 오류 toast로 거절됩니다.
 
 ## 1. 운영 주소 결정
 
@@ -221,7 +221,7 @@ IMAGE_VAULT_VPC_SERVICE_ID=<VPC-Service-UUID>
 
 ```text
 업로드:     POST https://<게시판-Worker>/api/devlog/images
-이미지 조회: GET https://<게시판-Worker>/devlog-images/i/<sha256>.webp
+이미지 조회: GET https://<게시판-Worker>/i/<sha256>.webp
 내부 전달:  IMAGE_VAULT binding → http://localhost:8085
 ```
 
@@ -248,14 +248,12 @@ WORKER_NAME
 D1_DATABASE_NAME
 AUTH_RATE_LIMIT_NAMESPACE
 WRITE_RATE_LIMIT_NAMESPACE
-R2_BUCKET_NAME
-R2_PUBLIC_BASE_URL
 IMAGE_VAULT_VPC_SERVICE_ID
 ```
 
 `IMAGE_VAULT_VPC_SERVICE_ID`는 자체 이미지 서비스를 사용할 때만 설정합니다. 값이 없으면 `IMAGE_VAULT` 바인딩 없이 기존 Worker가 정상 배포됩니다.
 
-Google Client ID/Secret, `SESSION_SECRET`, Turnstile Secret, 허용 이메일 목록, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `IMAGE_SERVICE_TOKEN`은 GitHub에 넣지 않습니다. 기존 Cloudflare Worker Secrets 또는 관리자 설정의 암호화된 D1 값으로 유지하며 GitHub Actions는 저장소 코드와 비밀이 아닌 바인딩 설정만 배포합니다.
+Google Client ID/Secret, `SESSION_SECRET`, Turnstile Secret, 허용 이메일 목록, `IMAGE_SERVICE_TOKEN`은 GitHub에 넣지 않습니다. 기존 Cloudflare Worker Secrets 또는 관리자 설정의 암호화된 D1 값으로 유지하며 GitHub Actions는 저장소 코드와 비밀이 아닌 바인딩 설정만 배포합니다.
 
 Cloudflare API Token에는 대상 계정의 Worker 배포와 D1 마이그레이션에 필요한 최소 권한만 부여하고 만료·회전 정책을 적용하세요. GitHub의 `production` Environment에 승인 규칙을 설정하면 운영 배포를 추가로 보호할 수 있습니다.
 
@@ -268,8 +266,7 @@ Cloudflare API Token에는 대상 계정의 Worker 배포와 D1 마이그레이�
 - [ ] 운영 D1 마이그레이션 전 백업·변경 내용 검토
 - [ ] 비로그인 보호 경로 점검
 - [ ] 서로 다른 두 계정으로 개인 티켓 격리 점검
-- [ ] R2를 사용한다면 개인 이미지 격리, 직접 업로드, 공개 캐시 URL 점검
-- [ ] 자체 이미지 서비스를 사용한다면 VPC Service ID, `IMAGE_VAULT` 바인딩, Worker 경유 이미지 조회 점검
+- [ ] VPC Service ID, `IMAGE_VAULT` 바인딩, 사용자별 개인 이미지 DB 격리와 Worker 경유 `/i/` 이미지 조회 점검
 - [ ] `.env.production`, `.dev.vars`, `wrangler.jsonc`가 Git에서 제외되는지 확인
 - [ ] GitHub Actions용 Cloudflare Token 최소 권한 확인
 
