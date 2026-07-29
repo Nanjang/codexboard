@@ -255,6 +255,15 @@ export function DevlogPostPage({
             {post.updated_at !== post.created_at ? <span>수정됨</span> : null}
             {post.visibility === 'private' ? <span class="visibility-badge">비공개</span> : null}
           </div>
+          {canManage ? (
+            <a
+              class="button button-secondary button-small"
+              href={`/devlogs/u/${encodeURIComponent(post.author_id)}/posts/${post.id}/export.md`}
+              download
+            >
+              Markdown 내보내기
+            </a>
+          ) : null}
         </header>
         {post.body_format === 'rich' ? (
           <div class="devlog-rich-body" dangerouslySetInnerHTML={{ __html: post.body }} />

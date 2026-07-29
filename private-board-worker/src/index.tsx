@@ -87,6 +87,7 @@ import { normalizeBookmarkIconColor } from './lib/bookmark-icon-palette'
 import { getAppName, getDeployInfo, turnstileEnabled } from './lib/env'
 import { acceptsJson, noticeFromRequest, redirectWithNotice } from './lib/http'
 import { postVisibility, sanitizeDevlogHtml } from './lib/devlog'
+import { devlogMarkdownDocument, devlogMarkdownFilename } from './lib/devlog-markdown'
 import {
   DEVLOG_IMAGE_CACHE_CONTROL,
   DEVLOG_IMAGE_HASH_PATTERN,
@@ -983,6 +984,25 @@ app.get('/devlogs/u/:authorId/posts/:postId', async (c) => {
     />,
   )
 })
+app.get('/devlogs/u/:authorId/posts/:postId/export.md', async (c) => {
+  const auth = requireActiveAuth(c)
+  const postId = positiveInteger(c.req.param('postId'), '게시글 ID')
+  const post = await getPost(c.env.DB, postId)
+  if (!post || post.board_slug !== 'development' || post.author_id !== c.req.param('authorId')) {
+    throw new HTTPException(404, { message: '개발일지를 찾을 수 없습니다.' })
+  }
+  if (!canManageResource(auth.user, post.author_id)) {
+    throw new HTTPException(403, { message: '내보내기 권한이 없습니다.' })
+  }
+
+  return new Response(devlogMarkdownDocument(post), {
+    headers: {
+      'Content-Disposition': `attachment; filename="${devlogMarkdownFilename(post)}"`,
+      'Content-Type': 'text/markdown; charset=utf-8',
+    },
+  })
+})
+
 
 app.get('/boards/development', (c) => c.redirect('/devlogs', 302))
 
