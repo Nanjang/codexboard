@@ -3635,13 +3635,8 @@ button.privacy-toggle.is-on > span {
   padding: 0;
 }
 
-.visibility-label,
-.field-label {
+.visibility-label {
   font-weight: 700;
-}
-
-.field-label {
-  margin-bottom: 8px;
 }
 
 .visibility-option {

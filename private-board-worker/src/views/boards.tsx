@@ -155,10 +155,11 @@ export function PostFormPage({
         >
           <CsrfInput token={csrfToken} />
           <label>
-            <span>제목</span>
+            {isDevlog ? null : <span>제목</span>}
             <input
               type="text"
               name="title"
+              aria-label={isDevlog ? '제목' : undefined}
               value={post?.title ?? ''}
               minlength={2}
               maxlength={120}
@@ -198,7 +199,6 @@ export function PostFormPage({
               </div>
 
               <div class="devlog-editor-field">
-                <span class="field-label">내용</span>
                 <div class="editor-toolbar" role="toolbar" aria-label="본문 서식">
                   <button type="button" data-editor-format="p" title="본문">본문</button>
                   <button type="button" data-editor-format="h2" title="큰 제목">제목 2</button>
