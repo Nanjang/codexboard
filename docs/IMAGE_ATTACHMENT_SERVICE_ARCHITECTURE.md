@@ -1,6 +1,6 @@
 # 이미지 첨부 서비스 아키텍처
 
-CodexBoard 개발일지에 첨부한 이미지는 Cloudflare Worker를 공개 진입점으로 사용하고, Workers VPC와 Cloudflare Tunnel을 통해 Raspberry Pi의 외장 SSD에 저장합니다. 파일명은 원본 바이트의 SHA-256 해시이므로 동일 URL의 내용은 바뀌지 않습니다.
+CodexBoard의 자유게시판·개발일지 첨부 이미지와 개인 이미지 저장소는 하나의 통합 이미지 경로를 사용합니다. Cloudflare Worker를 공개 진입점으로 사용하고, Workers VPC와 Cloudflare Tunnel을 통해 Raspberry Pi의 외장 SSD에 저장합니다. 파일명은 원본 바이트의 SHA-256 해시이므로 동일 URL의 내용은 바뀌지 않습니다.
 
 ## 전체 구성
 
@@ -13,7 +13,7 @@ flowchart LR
         gateway["기본 Worker 진입점<br/>Hono 라우터 · 캐시 비활성"]
         cachedEntry["DevlogImageCache<br/>named Worker 진입점"]
         edgeCache[("Workers Edge Cache<br/>1년 · immutable")]
-        d1[("D1<br/>설정 · 최근 요청 · 파일별 통계")]
+        d1[("D1<br/>설정 · 이미지 메타데이터 · 캐시 통계")]
         vpc["Workers VPC Service<br/>IMAGE_VAULT 바인딩"]
     end
 
@@ -25,8 +25,8 @@ flowchart LR
         journal["systemd journal<br/>image_access 로그"]
     end
 
-    browser -->|"업로드 POST /api/devlog/images"| gateway
-    browser -->|"조회 GET 또는 HEAD<br/>/devlog-images/i/hash.ext"| gateway
+    browser -->|"업로드 POST<br/>/api/devlog/images 또는 /api/images"| gateway
+    browser -->|"조회 GET 또는 HEAD<br/>/i/hash.ext"| gateway
     gateway -->|"ctx.exports.fetch"| edgeCache
     edgeCache -->|"MISS일 때 실행"| cachedEntry
     edgeCache -->|"HIT 응답"| gateway
@@ -54,7 +54,7 @@ sequenceDiagram
     participant P as Raspberry Pi 서비스
     participant S as 외장 SSD
 
-    B->>W: POST /api/devlog/images + 이미지 바이트
+    B->>W: POST /api/devlog/images 또는 /api/images + 이미지 바이트
     W->>W: 로그인 · CSRF · 요청 제한 · MIME · 크기 검증
     W->>D: 암호화된 이미지 서비스 토큰 조회
     W->>V: POST /upload + Bearer token
@@ -63,7 +63,7 @@ sequenceDiagram
     P->>P: 원본 바이트 SHA-256 계산
     P->>S: hash 기반 경로에 저장 또는 중복 제거
     P-->>W: hash · 확장자 · MIME · 크기
-    W-->>B: 공개 immutable 이미지 URL
+    W-->>B: 공개 immutable /i/hash.ext URL
 ```
 
 업로드 API는 인증된 사용자만 호출할 수 있습니다. 브라우저는 Raspberry Pi의 주소나 서비스 토큰을 알지 못하며, Worker가 D1에 암호화해 둔 토큰을 복호화하여 VPC 내부 요청에만 사용합니다.
@@ -81,7 +81,7 @@ sequenceDiagram
     participant P as Raspberry Pi 서비스
     participant D as D1 통계
 
-    B->>G: GET 또는 HEAD /devlog-images/i/hash.ext
+    B->>G: GET 또는 HEAD /i/hash.ext
     G->>G: 경로 검증 · query 제거 · cache key 정규화
     G->>C: named entrypoint fetch
     alt 캐시 HIT
@@ -100,6 +100,7 @@ sequenceDiagram
 
 - 기본 Worker 진입점은 캐시하지 않으므로 모든 이미지 요청에서 라우팅과 통계 기록이 실행됩니다.
 - `DevlogImageCache` named 진입점만 캐시합니다. HIT이면 Raspberry Pi와 VPC를 호출하지 않습니다.
+- 기존 `/devlog-images/i/<hash>.<ext>` 주소는 `/i/<hash>.<ext>`로 308 리다이렉트됩니다.
 - 캐시 키에서 query string을 제거하므로 같은 해시 파일은 하나의 캐시 항목을 공유합니다.
 - 응답은 `Cache-Control: public, max-age=31536000, immutable`과 해시 기반 `ETag`를 사용합니다.
 - `cross_version_cache`가 활성화되어 Worker를 다시 배포해도 유효한 이미지 캐시를 재사용합니다.
@@ -112,7 +113,7 @@ sequenceDiagram
 
 | 화면 또는 로그 | 내용 |
 |---|---|
-| `/admin/image-cache/requests` | 최근 이미지 요청 최대 1,000건의 시간, GET/HEAD, HIT/MISS, 응답 상태, 처리 시간, Colo |
+| `/admin/image-cache/requests` | 최근 통합 이미지 요청 최대 1,000건의 시간, GET/HEAD, HIT/MISS, 응답 상태, 처리 시간, Colo |
 | `/admin/image-cache/files` | 파일별 누적 요청, HIT, MISS, 히트율, 최근 결과 |
 | 응답 `X-Devlog-Image-Cache` | 바깥 Worker가 기록한 `HIT` 또는 `MISS` |
 | 응답 `Cf-Cache-Status` | Cloudflare가 반환한 원본 캐시 상태 |
