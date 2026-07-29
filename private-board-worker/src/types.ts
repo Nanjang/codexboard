@@ -5,6 +5,8 @@ export type UserStatus = 'active' | 'blocked'
 export type RegistrationMode = 'open' | 'allowlist' | 'domain'
 export type TicketLane = 'todo' | 'doing' | 'done'
 export type BoardSlug = 'free' | 'development' | 'news' | 'inquiry'
+export type PostBodyFormat = 'plain' | 'rich'
+export type PostVisibility = 'public' | 'private'
 export type DashboardWidgetType = 'free-board' | 'bookmark' | 'rss'
 export type BookmarkIconColor = 'green' | 'blue' | 'purple' | 'orange' | 'rose'
 export type PrivateImageStatus = 'pending' | 'ready'
@@ -102,6 +104,35 @@ export interface PostListRow {
 
 export interface PostDetailRow extends PostListRow {
   body: string
+  body_format: PostBodyFormat
+  visibility: PostVisibility
+}
+
+export interface DevlogPostListRow extends PostListRow {
+  body: string
+  body_format: PostBodyFormat
+  visibility: PostVisibility
+}
+
+export interface DevlogAuthorRow {
+  id: string
+  nickname: string
+  role: UserRole
+  public_post_count: number
+  latest_post_at: number
+}
+
+export interface DevlogAuthor {
+  id: string
+  nickname: string
+  role: UserRole
+}
+
+export interface ImageServiceSettings {
+  configured: boolean
+  enabled: boolean
+  baseUrl: string | null
+  updatedAt: number | null
 }
 
 export interface DashboardWidgetRow {

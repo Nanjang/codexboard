@@ -127,8 +127,8 @@ export function AppLayout({
               <a href="/boards/free" aria-current={activeNav === 'free' ? 'page' : undefined}>
                 자유게시판
               </a>
-              <a href="/boards/development" aria-current={activeNav === 'development' ? 'page' : undefined}>
-                개발
+              <a href="/devlogs" aria-current={activeNav === 'development' ? 'page' : undefined}>
+                개발일지
               </a>
               <a href="/boards/news" aria-current={activeNav === 'news' ? 'page' : undefined}>
                 뉴스

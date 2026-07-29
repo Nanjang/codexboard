@@ -16,6 +16,9 @@ export function isPublicPath(path: string): boolean {
     path === '/health' ||
     path === '/auth/google/start' ||
     path === '/auth/google/callback' ||
+    path === '/devlogs' ||
+    path === '/boards/development' ||
+    /^\/devlogs\/u\/[^/]+(?:\/posts\/[1-9][0-9]*)?$/u.test(path) ||
     path.startsWith('/assets/')
   )
 }
@@ -81,7 +84,7 @@ export function contentSecurityPolicy(
   hasTurnstile: boolean,
   imageOrigins: { apiOrigin: string; publicOrigin: string } | null = null,
 ): string {
-  const imageSource = imageOrigins ? `img-src ${imageOrigins.publicOrigin}` : "img-src 'none'"
+  const imageSource = imageOrigins ? `img-src 'self' https: ${imageOrigins.publicOrigin}` : "img-src 'self' https:"
   const connectSources = ["'self'"]
   if (hasTurnstile) connectSources.push('https://challenges.cloudflare.com')
   if (imageOrigins) connectSources.push(imageOrigins.apiOrigin)

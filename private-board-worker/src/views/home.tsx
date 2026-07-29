@@ -42,7 +42,15 @@ export function GuestHomePage({ appName, deployInfo, previews }: GuestHomePagePr
               ) : (
                 <div class="guest-preview-list">
                   {preview.posts.map((post) => (
-                    <a class="guest-preview-row" href={`/posts/${post.id}`} key={post.id}>
+                    <a
+                      class="guest-preview-row"
+                      href={
+                        preview.slug === 'development'
+                          ? `/devlogs/u/${encodeURIComponent(post.author_id)}/posts/${post.id}`
+                          : `/posts/${post.id}`
+                      }
+                      key={post.id}
+                    >
                       <strong>{post.title}</strong>
                       <span class="guest-preview-meta">
                         <span>
@@ -61,7 +69,7 @@ export function GuestHomePage({ appName, deployInfo, previews }: GuestHomePagePr
           ))}
         </div>
 
-        <p class="guest-home-note">게시글 상세 확인과 작성, 댓글 참여는 로그인 후 이용할 수 있습니다.</p>
+        <p class="guest-home-note">공개 개발일지는 바로 읽을 수 있으며, 다른 게시판 참여는 로그인 후 가능합니다.</p>
       </main>
     </PublicLayout>
   )

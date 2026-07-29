@@ -8,6 +8,7 @@ import type {
   PostListRow,
 } from '../types'
 import { canManageResource } from '../lib/db'
+import { plainTextAsHtml } from '../lib/devlog'
 import { AuthorName, CsrfInput, EmptyState } from './components'
 import { formatDateTime } from './format'
 import { AppLayout } from './layout'
@@ -110,16 +111,28 @@ export function PostFormPage({
   mode,
   post,
   error,
+  imageServiceEnabled = false,
 }: CommonPageProps & {
   board: BoardRow
   mode: 'create' | 'edit'
   post?: PostDetailRow
   error?: string | null
+  imageServiceEnabled?: boolean
 }) {
   const isEdit = mode === 'edit'
+  const isDevlog = board.slug === 'development'
   const action = isEdit && post ? `/posts/${post.id}/update` : `/boards/${board.slug}/posts`
-  const backHref = isEdit && post ? `/posts/${post.id}` : `/boards/${board.slug}`
-  const heading = isEdit ? '글 수정' : board.slug === 'inquiry' ? '문의 작성' : '새 글'
+  const backHref =
+    isEdit && post
+      ? isDevlog
+        ? `/devlogs/u/${post.author_id}/posts/${post.id}`
+        : `/posts/${post.id}`
+      : isDevlog
+        ? '/devlogs'
+        : `/boards/${board.slug}`
+  const heading = isEdit ? '글 수정' : board.slug === 'inquiry' ? '문의 작성' : isDevlog ? '개발일지 작성' : '새 글'
+  const initialEditorHtml =
+    post?.body_format === 'rich' ? post.body : plainTextAsHtml(post?.body ?? '')
 
   return (
     <AppLayout
@@ -134,7 +147,12 @@ export function PostFormPage({
     >
       <section class="form-card">
         {error ? <div class="notice notice-error">{error}</div> : null}
-        <form action={action} method="post" class="stack-form">
+        <form
+          action={action}
+          method="post"
+          class="stack-form"
+          {...(isDevlog ? { 'data-devlog-editor-form': '' } : {})}
+        >
           <CsrfInput token={csrfToken} />
           <label>
             <span>제목</span>
@@ -149,13 +167,107 @@ export function PostFormPage({
               autocomplete="off"
             />
           </label>
-          <label>
-            <span>내용</span>
-            <textarea name="body" rows={14} maxlength={20000} required>
-              {post?.body ?? ''}
-            </textarea>
-          </label>
-          <p class="form-hint">일반 텍스트만 저장합니다. 이미지, HTML, 첨부파일은 지원하지 않습니다.</p>
+          {isDevlog ? (
+            <>
+              <fieldset class="visibility-fieldset">
+                <legend>공개 범위</legend>
+                <label class="visibility-option">
+                  <input
+                    type="radio"
+                    name="visibility"
+                    value="public"
+                    checked={post?.visibility === 'public'}
+                  />
+                  <span>
+                    <strong>공개</strong>
+                    <small>로그인하지 않은 방문자도 읽을 수 있습니다.</small>
+                  </span>
+                </label>
+                <label class="visibility-option">
+                  <input
+                    type="radio"
+                    name="visibility"
+                    value="private"
+                    checked={post?.visibility !== 'public'}
+                  />
+                  <span>
+                    <strong>비공개</strong>
+                    <small>작성자와 관리자만 읽을 수 있습니다.</small>
+                  </span>
+                </label>
+              </fieldset>
+
+              <div class="devlog-editor-field">
+                <span class="field-label">내용</span>
+                <div class="editor-toolbar" role="toolbar" aria-label="본문 서식">
+                  <button type="button" data-editor-format="p" title="본문">본문</button>
+                  <button type="button" data-editor-format="h2" title="큰 제목">제목 2</button>
+                  <button type="button" data-editor-format="h3" title="작은 제목">제목 3</button>
+                  <span class="toolbar-divider" aria-hidden="true"></span>
+                  <button type="button" data-editor-command="bold" title="굵게">
+                    <strong>B</strong>
+                  </button>
+                  <button type="button" data-editor-command="italic" title="기울임">
+                    <em>I</em>
+                  </button>
+                  <button type="button" data-editor-command="insertUnorderedList" title="글머리 기호">
+                    • 목록
+                  </button>
+                  <button type="button" data-editor-command="insertOrderedList" title="번호 목록">
+                    1. 목록
+                  </button>
+                  <button type="button" data-editor-link title="링크 삽입">
+                    링크
+                  </button>
+                  <span class="toolbar-divider" aria-hidden="true"></span>
+                  <button
+                    type="button"
+                    data-editor-image
+                    title={imageServiceEnabled ? '이미지 삽입' : '관리자가 이미지 서비스를 먼저 활성화해야 합니다'}
+                    disabled={!imageServiceEnabled}
+                  >
+                    이미지
+                  </button>
+                  <input
+                    class="visually-hidden"
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    data-editor-image-input
+                    disabled={!imageServiceEnabled}
+                  />
+                </div>
+                <div
+                  class="devlog-editor"
+                  contenteditable={true}
+                  role="textbox"
+                  aria-multiline="true"
+                  data-devlog-editor
+                  dangerouslySetInnerHTML={{ __html: initialEditorHtml }}
+                ></div>
+                <textarea class="visually-hidden" name="body" data-devlog-editor-value required>
+                  {initialEditorHtml}
+                </textarea>
+                <div class="editor-status-row">
+                  <span data-editor-status aria-live="polite">
+                    {imageServiceEnabled
+                      ? '이미지는 현재 커서 위치에 삽입됩니다.'
+                      : '이미지 서비스가 비활성화되어 있습니다.'}
+                  </span>
+                  <span data-editor-count>{initialEditorHtml.length.toLocaleString()} / 20,000</span>
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <label>
+                <span>내용</span>
+                <textarea name="body" rows={14} maxlength={20000} required>
+                  {post?.body ?? ''}
+                </textarea>
+              </label>
+              <p class="form-hint">일반 텍스트만 저장합니다. 이미지, HTML, 첨부파일은 지원하지 않습니다.</p>
+            </>
+          )}
           <div class="form-actions">
             <a class="button button-secondary" href={backHref}>
               취소

@@ -2201,6 +2201,7 @@ button.privacy-toggle.is-on > span {
 
 .public-main {
   display: grid;
+  width: 100%;
   min-width: 0;
   place-items: center;
 }
@@ -2972,6 +2973,7 @@ button.privacy-toggle.is-on > span {
 
 .admin-feature-grid {
   display: grid;
+  gap: 18px;
   max-width: 760px;
 }
 
@@ -3312,5 +3314,424 @@ button.privacy-toggle.is-on > span {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
+  }
+}
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+.public-devlog-shell,
+.devlog-directory,
+.devlog-blog {
+  width: min(100%, 1080px);
+  margin: 0 auto;
+}
+
+.public-devlog-shell {
+  min-height: calc(100vh - 24px);
+  place-self: start center;
+}
+
+.public-devlog-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 4px 36px;
+}
+
+.public-devlog-brand {
+  text-decoration: none;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.devlog-hero {
+  padding: 48px 0 52px;
+  border-bottom: 1px solid var(--border);
+}
+
+.devlog-hero h1,
+.devlog-blog-header h1,
+.devlog-entry-header h1 {
+  margin: 4px 0 10px;
+  letter-spacing: -0.045em;
+  line-height: 1.12;
+}
+
+.devlog-hero h1 {
+  font-size: clamp(2.5rem, 7vw, 5.4rem);
+}
+
+.devlog-hero > p:last-child,
+.devlog-blog-header p,
+.devlog-entry-meta {
+  color: var(--text-muted);
+}
+
+.devlog-author-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+  padding: 28px 0;
+}
+
+.devlog-author-card {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 14px;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  text-decoration: none;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  transition: border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+}
+
+.devlog-author-card:hover {
+  border-color: var(--primary);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+.devlog-author-avatar,
+.devlog-blog-avatar {
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #fff;
+  background: linear-gradient(145deg, var(--primary), #7138c7);
+  font-weight: 800;
+}
+
+.devlog-author-avatar {
+  width: 48px;
+  height: 48px;
+}
+
+.devlog-author-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.devlog-author-copy small,
+.devlog-author-copy time {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.devlog-blog-header {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 38px 0 32px;
+  border-bottom: 1px solid var(--border);
+}
+
+.devlog-blog-avatar {
+  flex: 0 0 auto;
+  width: 78px;
+  height: 78px;
+  font-size: 2rem;
+}
+
+.devlog-post-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  padding: 28px 0;
+}
+
+.devlog-post-card {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.devlog-post-card > a {
+  display: flex;
+  min-height: 250px;
+  flex-direction: column;
+  padding: 26px;
+  text-decoration: none;
+}
+
+.devlog-post-card h2 {
+  margin: 18px 0 10px;
+  font-size: 1.45rem;
+  line-height: 1.25;
+}
+
+.devlog-post-card p {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.devlog-post-card-meta,
+.devlog-entry-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+}
+
+.devlog-read-more {
+  margin-top: auto;
+  padding-top: 22px;
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.visibility-badge {
+  display: inline-flex;
+  padding: 3px 8px;
+  border-radius: 999px;
+  color: #744210;
+  background: #fff4d7;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.devlog-entry {
+  width: min(100%, 820px);
+  margin: 20px auto 72px;
+  padding: clamp(24px, 5vw, 58px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.devlog-entry-header {
+  padding-bottom: 30px;
+  border-bottom: 1px solid var(--border);
+}
+
+.devlog-entry-author {
+  color: var(--primary);
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.devlog-entry-header h1 {
+  max-width: 720px;
+  margin-top: 14px;
+  font-size: clamp(2rem, 6vw, 3.8rem);
+}
+
+.devlog-rich-body {
+  padding-top: 34px;
+  font-size: 1.04rem;
+  line-height: 1.85;
+  overflow-wrap: anywhere;
+}
+
+.devlog-rich-body h2,
+.devlog-rich-body h3 {
+  margin: 2.2em 0 0.65em;
+  line-height: 1.3;
+}
+
+.devlog-rich-body blockquote {
+  margin: 1.5em 0;
+  padding: 2px 0 2px 18px;
+  border-left: 4px solid var(--primary);
+  color: var(--text-muted);
+}
+
+.devlog-rich-body pre,
+.devlog-rich-body code {
+  border-radius: 6px;
+  background: var(--surface-muted);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+.devlog-rich-body pre {
+  padding: 18px;
+  overflow-x: auto;
+}
+
+.devlog-plain-body {
+  white-space: pre-wrap;
+}
+
+.devlog-image {
+  margin: 2em 0;
+}
+
+.devlog-image img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
+}
+
+.devlog-image figcaption {
+  margin-top: 9px;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  text-align: center;
+}
+
+.visibility-fieldset {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.visibility-fieldset legend,
+.field-label {
+  margin-bottom: 8px;
+  font-weight: 700;
+}
+
+.visibility-option {
+  display: flex !important;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.visibility-option input {
+  margin-top: 5px;
+}
+
+.visibility-option span {
+  display: grid;
+}
+
+.visibility-option small {
+  color: var(--text-muted);
+}
+
+.devlog-editor-field {
+  display: grid;
+}
+
+.editor-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 8px;
+  border: 1px solid var(--border-strong);
+  border-bottom: 0;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  background: var(--surface-muted);
+}
+
+.editor-toolbar button {
+  min-height: 34px;
+  padding: 5px 9px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.editor-toolbar button:hover:not(:disabled) {
+  border-color: var(--border);
+  background: var(--surface);
+}
+
+.editor-toolbar button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.toolbar-divider {
+  width: 1px;
+  margin: 3px;
+  background: var(--border);
+}
+
+.devlog-editor {
+  min-height: 420px;
+  padding: 22px;
+  border: 1px solid var(--border-strong);
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  background: var(--surface);
+  line-height: 1.8;
+  outline: 0;
+  overflow-wrap: anywhere;
+}
+
+.devlog-editor:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 15%, transparent);
+}
+
+.devlog-editor .devlog-image {
+  position: relative;
+}
+
+.devlog-editor figcaption {
+  outline: 0;
+}
+
+.devlog-editor figcaption:empty::before {
+  color: var(--text-muted);
+  content: "이미지 설명을 입력하세요";
+}
+
+.editor-status-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding-top: 8px;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+@media (max-width: 680px) {
+  .public-devlog-topbar {
+    padding-bottom: 18px;
+  }
+
+  .devlog-hero {
+    padding: 30px 0;
+  }
+
+  .devlog-post-grid,
+  .visibility-fieldset {
+    grid-template-columns: 1fr;
+  }
+
+  .devlog-blog-header {
+    align-items: flex-start;
+  }
+
+  .devlog-blog-avatar {
+    width: 58px;
+    height: 58px;
+    font-size: 1.35rem;
+  }
+
+  .devlog-entry {
+    margin-top: 0;
+    border-right: 0;
+    border-left: 0;
+    border-radius: 0;
+  }
+
+  .editor-status-row {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }

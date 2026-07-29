@@ -33,6 +33,9 @@ import {
   deleteTicket,
   getBoardBySlug,
   getComment,
+  getDevlogAuthor,
+  getImageServiceRecord,
+  getImageServiceSettings,
   getMemoUrlPattern,
   getMemoUrlSettings,
   getPost,
@@ -41,6 +44,8 @@ import {
   incrementPostViewCount,
   ensureUserDashboard,
   isImageStorageEnabled,
+  listDevlogAuthors,
+  listDevlogPosts,
   listDashboardWidgets,
   listComments,
   listMemoUrlPatterns,
@@ -61,6 +66,8 @@ import {
   restoreTicket,
   removeDashboardWidget,
   saveBookmarkDashboardIcon,
+  saveImageServiceSettings,
+  setImageServiceEnabled,
   setImageStorageEnabled,
   updateComment,
   updateBookmarkDashboardWidget,
@@ -79,6 +86,15 @@ import {
 import { normalizeBookmarkIconColor } from './lib/bookmark-icon-palette'
 import { getAppName, getDeployInfo, turnstileEnabled } from './lib/env'
 import { acceptsJson, noticeFromRequest, redirectWithNotice } from './lib/http'
+import { postVisibility, sanitizeDevlogHtml } from './lib/devlog'
+import {
+  DEVLOG_IMAGE_MAX_BYTES,
+  imageServiceCredentials,
+  imageUploadContentType,
+  normalizeImageServiceBaseUrl,
+  verifyImageService,
+} from './lib/image-service'
+import { decryptSecret, encryptSecret } from './lib/secret-box'
 import { creationRequestId } from './lib/idempotency'
 import {
   createImageUploadUrl,
@@ -149,6 +165,7 @@ import type {
 import { AdminPage } from './views/admin'
 import { AccountPage } from './views/account'
 import { BoardListPage, CommentEditPage, PostDetailPage, PostFormPage } from './views/boards'
+import { DevlogDirectoryPage, DevlogPostPage, UserDevlogPage } from './views/devlogs'
 import { DashboardPage } from './views/dashboard'
 import { AppErrorPage, BlockedPage, PublicErrorPage } from './views/errors'
 import { GuestHomePage } from './views/home'
@@ -292,23 +309,38 @@ function draftPost(
   boardId: number,
   boardName: string,
   boardSlugValue: BoardSlug,
+  authorId: string,
   title: string,
   body: string,
+  bodyFormat: 'plain' | 'rich' = 'plain',
+  visibility: 'public' | 'private' = 'private',
 ): PostDetailRow {
   return {
     id: 0,
     board_id: boardId,
     board_slug: boardSlugValue,
     board_name: boardName,
-    author_id: '',
+    author_id: authorId,
     author_nickname: '',
     author_role: 'user',
     title,
     body,
+    body_format: bodyFormat,
+    visibility,
     comment_count: 0,
     view_count: 0,
     created_at: 0,
     updated_at: 0,
+  }
+}
+
+function assertPostReadable(user: AuthContext['user'], post: PostDetailRow): void {
+  if (
+    post.board_slug === 'development' &&
+    post.visibility !== 'public' &&
+    !canManageResource(user, post.author_id)
+  ) {
+    throw new HTTPException(404, { message: '게시글을 찾을 수 없습니다.' })
   }
 }
 
@@ -329,6 +361,30 @@ function draftTicket(ownerId: string, title: string, note: string, lane: TicketL
 
 function rawFormString(value: FormDataEntryValue | null): string {
   return typeof value === 'string' ? value : ''
+}
+
+async function readBoundedJson(response: Response, maxBytes: number): Promise<unknown> {
+  if (!response.body) return null
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let size = 0
+  let text = ''
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    size += value.byteLength
+    if (size > maxBytes) {
+      await reader.cancel()
+      return null
+    }
+    text += decoder.decode(value, { stream: true })
+  }
+  text += decoder.decode()
+  try {
+    return JSON.parse(text)
+  } catch {
+    return null
+  }
 }
 
 function selectedMemoPatternId(value: FormDataEntryValue | null): number | null {
@@ -368,22 +424,27 @@ function memoPatternErrorMessage(error: unknown): string | null {
   return null
 }
 
-app.use(
-  '*',
-  bodyLimit({
-    maxSize: MAX_REQUEST_BYTES,
-    onError: (c) =>
-      c.html(
-        <PublicErrorPage
-          {...viewMeta(c)}
-          title="요청 내용이 너무 큽니다"
-          message="한 번에 전송할 수 있는 내용의 크기를 초과했습니다."
-          status={413}
-        />,
-        413,
-      ),
-  }),
-)
+const standardBodyLimit = bodyLimit({
+  maxSize: MAX_REQUEST_BYTES,
+  onError: (c) =>
+    c.html(
+      <PublicErrorPage
+        {...viewMeta(c)}
+        title="요청 내용이 너무 큽니다"
+        message="한 번에 전송할 수 있는 내용의 크기를 초과했습니다."
+        status={413}
+      />,
+      413,
+    ),
+})
+const devlogImageBodyLimit = bodyLimit({
+  maxSize: DEVLOG_IMAGE_MAX_BYTES,
+  onError: (c) => c.json({ error: '이미지는 최대 10MiB까지 업로드할 수 있습니다.' }, 413),
+})
+app.use('*', async (c, next) => {
+  if (c.req.path === '/api/devlog/images') return devlogImageBodyLimit(c, next)
+  return standardBodyLimit(c, next)
+})
 app.use('*', securityMiddleware)
 
 app.use('*', async (c, next) => {
@@ -545,7 +606,7 @@ app.get('/', async (c) => {
         {...viewMeta(c)}
         previews={[
           { slug: 'free', name: '자유게시판', posts: freePosts },
-          { slug: 'development', name: '개발', posts: developmentPosts },
+          { slug: 'development', name: '개발일지', posts: developmentPosts },
           { slug: 'news', name: '뉴스', posts: newsPosts },
         ]}
       />,
@@ -778,6 +839,63 @@ app.put('/api/dashboard/widgets/order', async (c) => {
   return c.json({ ok: true })
 })
 
+app.get('/devlogs', async (c) => {
+  const auth = c.get('auth')
+  const authors = await listDevlogAuthors(c.env.DB)
+  return c.html(
+    <DevlogDirectoryPage
+      {...viewMeta(c)}
+      user={auth?.user}
+      csrfToken={auth?.csrfToken}
+      authors={authors}
+    />,
+  )
+})
+
+app.get('/devlogs/u/:authorId', async (c) => {
+  const auth = c.get('auth')
+  const authorId = c.req.param('authorId')
+  const author = await getDevlogAuthor(c.env.DB, authorId)
+  if (!author) throw new HTTPException(404, { message: '개발일지 사용자를 찾을 수 없습니다.' })
+  const beforeRaw = c.req.query('before')
+  const before = beforeRaw ? positiveInteger(beforeRaw, '페이지 기준 ID') : null
+  const includePrivate = auth ? canManageResource(auth.user, author.id) : false
+  const { posts, hasMore } = await listDevlogPosts(c.env.DB, author.id, includePrivate, before)
+  return c.html(
+    <UserDevlogPage
+      {...viewMeta(c)}
+      user={auth?.user}
+      csrfToken={auth?.csrfToken}
+      author={author}
+      posts={posts}
+      hasMore={hasMore}
+    />,
+  )
+})
+
+app.get('/devlogs/u/:authorId/posts/:postId', async (c) => {
+  const auth = c.get('auth')
+  const postId = positiveInteger(c.req.param('postId'), '게시글 ID')
+  const post = await getPost(c.env.DB, postId)
+  if (!post || post.board_slug !== 'development' || post.author_id !== c.req.param('authorId')) {
+    throw new HTTPException(404, { message: '개발일지를 찾을 수 없습니다.' })
+  }
+  if (post.visibility !== 'public' && (!auth || !canManageResource(auth.user, post.author_id))) {
+    throw new HTTPException(404, { message: '개발일지를 찾을 수 없습니다.' })
+  }
+  await incrementPostViewCount(c.env.DB, postId)
+  return c.html(
+    <DevlogPostPage
+      {...viewMeta(c)}
+      user={auth?.user}
+      csrfToken={auth?.csrfToken}
+      post={post}
+    />,
+  )
+})
+
+app.get('/boards/development', (c) => c.redirect('/devlogs', 302))
+
 app.get('/boards/:slug', async (c) => {
   const auth = requireActiveAuth(c)
   const slug = boardSlug(c.req.param('slug'))
@@ -805,8 +923,16 @@ app.get('/boards/:slug/new', async (c) => {
   const slug = boardSlug(c.req.param('slug'))
   const board = await getBoardBySlug(c.env.DB, slug)
   if (!board) throw new HTTPException(404, { message: '게시판을 찾을 수 없습니다.' })
+  const imageService = board.slug === 'development' ? await getImageServiceSettings(c.env.DB) : null
   return c.html(
-    <PostFormPage {...viewMeta(c)} user={auth.user} csrfToken={auth.csrfToken} board={board} mode="create" />,
+    <PostFormPage
+      {...viewMeta(c)}
+      user={auth.user}
+      csrfToken={auth.csrfToken}
+      board={board}
+      mode="create"
+      imageServiceEnabled={imageService?.enabled === true}
+    />,
   )
 })
 
@@ -820,15 +946,32 @@ app.post('/boards/:slug/posts', async (c) => {
   const form = await readForm(c)
   const rawTitle = typeof form.get('title') === 'string' ? String(form.get('title')) : ''
   const rawBody = typeof form.get('body') === 'string' ? String(form.get('body')) : ''
+  const isDevlog = board.slug === 'development'
+  let safeDraftBody = isDevlog ? '<p></p>' : rawBody
+  let visibility: 'public' | 'private' = 'private'
 
   try {
     const title = singleLine(form.get('title'), '제목', 120)
     if (title.length < 2) throw new ValidationError('제목은 2자 이상이어야 합니다.')
-    const body = multiline(form.get('body'), '내용', 20000)
-    const postId = await createPost(c.env.DB, board.id, auth.user.id, title, body)
-    return redirectWithNotice(c, `/posts/${postId}`, 'post-created')
+    const body = isDevlog
+      ? await sanitizeDevlogHtml(form.get('body'))
+      : multiline(form.get('body'), '내용', 20000)
+    safeDraftBody = body
+    visibility = isDevlog ? postVisibility(form.get('visibility')) : 'private'
+    const postId = await createPost(
+      c.env.DB,
+      board.id,
+      auth.user.id,
+      title,
+      body,
+      isDevlog ? 'rich' : 'plain',
+      visibility,
+    )
+    const destination = isDevlog ? `/devlogs/u/${auth.user.id}/posts/${postId}` : `/posts/${postId}`
+    return redirectWithNotice(c, destination, 'post-created')
   } catch (error) {
     if (!(error instanceof ValidationError)) throw error
+    const imageService = isDevlog ? await getImageServiceSettings(c.env.DB) : null
     return c.html(
       <PostFormPage
         {...viewMeta(c)}
@@ -836,7 +979,17 @@ app.post('/boards/:slug/posts', async (c) => {
         csrfToken={auth.csrfToken}
         board={board}
         mode="create"
-        post={draftPost(board.id, board.name, board.slug, rawTitle, rawBody)}
+        post={draftPost(
+          board.id,
+          board.name,
+          board.slug,
+          auth.user.id,
+          rawTitle,
+          safeDraftBody,
+          isDevlog ? 'rich' : 'plain',
+          visibility,
+        )}
+        imageServiceEnabled={imageService?.enabled === true}
         error={error.message}
       />,
       400,
@@ -847,9 +1000,12 @@ app.post('/boards/:slug/posts', async (c) => {
 app.get('/posts/:id', async (c) => {
   const auth = requireActiveAuth(c)
   const postId = positiveInteger(c.req.param('id'), '게시글 ID')
-  await incrementPostViewCount(c.env.DB, postId)
   const post = await getPost(c.env.DB, postId)
   if (!post) throw new HTTPException(404, { message: '게시글을 찾을 수 없습니다.' })
+  if (post.board_slug === 'development') {
+    return c.redirect(`/devlogs/u/${post.author_id}/posts/${post.id}`, 302)
+  }
+  await incrementPostViewCount(c.env.DB, postId)
   const comments = await listComments(c.env.DB, postId)
   return c.html(
     <PostDetailPage
@@ -871,6 +1027,7 @@ app.get('/posts/:id/edit', async (c) => {
   if (!canManageResource(auth.user, post.author_id)) throw new HTTPException(403, { message: '수정 권한이 없습니다.' })
   const board = await getBoardBySlug(c.env.DB, boardSlug(post.board_slug))
   if (!board) throw new HTTPException(404, { message: '게시판을 찾을 수 없습니다.' })
+  const imageService = board.slug === 'development' ? await getImageServiceSettings(c.env.DB) : null
   return c.html(
     <PostFormPage
       {...viewMeta(c)}
@@ -879,6 +1036,7 @@ app.get('/posts/:id/edit', async (c) => {
       board={board}
       mode="edit"
       post={post}
+      imageServiceEnabled={imageService?.enabled === true}
     />,
   )
 })
@@ -896,15 +1054,24 @@ app.post('/posts/:id/update', async (c) => {
   const form = await readForm(c)
   const rawTitle = typeof form.get('title') === 'string' ? String(form.get('title')) : ''
   const rawBody = typeof form.get('body') === 'string' ? String(form.get('body')) : ''
+  const isDevlog = board.slug === 'development'
+  let safeDraftBody = isDevlog ? post.body : rawBody
+  let visibility = post.visibility
   try {
     const title = singleLine(form.get('title'), '제목', 120)
     if (title.length < 2) throw new ValidationError('제목은 2자 이상이어야 합니다.')
-    const body = multiline(form.get('body'), '내용', 20000)
-    const changed = await updatePost(c.env.DB, postId, title, body)
+    const body = isDevlog
+      ? await sanitizeDevlogHtml(form.get('body'))
+      : multiline(form.get('body'), '내용', 20000)
+    safeDraftBody = body
+    visibility = isDevlog ? postVisibility(form.get('visibility')) : 'private'
+    const changed = await updatePost(c.env.DB, postId, title, body, isDevlog ? 'rich' : 'plain', visibility)
     if (!changed) throw new HTTPException(404, { message: '게시글을 찾을 수 없습니다.' })
-    return redirectWithNotice(c, `/posts/${postId}`, 'post-updated')
+    const destination = isDevlog ? `/devlogs/u/${post.author_id}/posts/${postId}` : `/posts/${postId}`
+    return redirectWithNotice(c, destination, 'post-updated')
   } catch (error) {
     if (!(error instanceof ValidationError)) throw error
+    const imageService = isDevlog ? await getImageServiceSettings(c.env.DB) : null
     return c.html(
       <PostFormPage
         {...viewMeta(c)}
@@ -912,7 +1079,14 @@ app.post('/posts/:id/update', async (c) => {
         csrfToken={auth.csrfToken}
         board={board}
         mode="edit"
-        post={{ ...post, title: rawTitle, body: rawBody }}
+        post={{
+          ...post,
+          title: rawTitle,
+          body: safeDraftBody,
+          body_format: isDevlog ? 'rich' : 'plain',
+          visibility,
+        }}
+        imageServiceEnabled={imageService?.enabled === true}
         error={error.message}
       />,
       400,
@@ -929,7 +1103,8 @@ app.post('/posts/:id/delete', async (c) => {
   if (!canManageResource(auth.user, post.author_id)) throw new HTTPException(403, { message: '삭제 권한이 없습니다.' })
   await readForm(c)
   await deletePost(c.env.DB, postId)
-  return redirectWithNotice(c, `/boards/${post.board_slug}`, 'post-deleted')
+  const destination = post.board_slug === 'development' ? `/devlogs/u/${post.author_id}` : `/boards/${post.board_slug}`
+  return redirectWithNotice(c, destination, 'post-deleted')
 })
 
 app.post('/posts/:id/comments', async (c) => {
@@ -938,6 +1113,7 @@ app.post('/posts/:id/comments', async (c) => {
   const postId = positiveInteger(c.req.param('id'), '게시글 ID')
   const post = await getPost(c.env.DB, postId)
   if (!post) throw new HTTPException(404, { message: '게시글을 찾을 수 없습니다.' })
+  assertPostReadable(auth.user, post)
   const form = await readForm(c)
   const body = multiline(form.get('body'), '댓글', 4000)
   await createComment(c.env.DB, postId, auth.user.id, body)
@@ -952,6 +1128,7 @@ app.get('/comments/:id/edit', async (c) => {
   if (!canManageResource(auth.user, comment.author_id)) throw new HTTPException(403, { message: '수정 권한이 없습니다.' })
   const post = await getPost(c.env.DB, comment.post_id)
   if (!post) throw new HTTPException(404, { message: '게시글을 찾을 수 없습니다.' })
+  assertPostReadable(auth.user, post)
   return c.html(
     <CommentEditPage
       {...viewMeta(c)}
@@ -972,6 +1149,7 @@ app.post('/comments/:id/update', async (c) => {
   if (!canManageResource(auth.user, comment.author_id)) throw new HTTPException(403, { message: '수정 권한이 없습니다.' })
   const post = await getPost(c.env.DB, comment.post_id)
   if (!post) throw new HTTPException(404, { message: '게시글을 찾을 수 없습니다.' })
+  assertPostReadable(auth.user, post)
   const form = await readForm(c)
 
   try {
@@ -1007,8 +1185,9 @@ app.post('/comments/:id/delete', async (c) => {
   return redirectWithNotice(c, `/posts/${comment.post_id}`, 'comment-deleted')
 })
 
-app.get('/admin', (c) => {
+app.get('/admin', async (c) => {
   const auth = requireAdminAuth(c)
+  const imageService = await getImageServiceSettings(c.env.DB)
   return c.html(
     <AdminPage
       {...viewMeta(c)}
@@ -1016,9 +1195,49 @@ app.get('/admin', (c) => {
       csrfToken={auth.csrfToken}
       imageStorageEnabled={auth.user.imageStorageEnabled === true}
       r2Configured={isR2ImageStorageConfigured(c.env)}
+      imageService={imageService}
       notice={noticeFromRequest(c)}
     />,
   )
+})
+
+app.post('/admin/image-service', async (c) => {
+  const auth = requireAdminAuth(c)
+  await enforceWriteRateLimit(c, 'admin-image-service')
+  const form = await readForm(c)
+  const baseUrl = normalizeImageServiceBaseUrl(form.get('baseUrl'))
+  const rawToken = typeof form.get('token') === 'string' ? String(form.get('token')).trim() : ''
+  const existing = await getImageServiceRecord(c.env.DB)
+
+  let tokenCiphertext = existing?.token_ciphertext ?? ''
+  if (rawToken) {
+    if (new TextEncoder().encode(rawToken).byteLength < 32) {
+      throw new ValidationError('업로드 토큰은 32자 이상 입력해 주세요.')
+    }
+    tokenCiphertext = await encryptSecret(rawToken, c.env.SESSION_SECRET)
+  } else if (!existing) {
+    throw new ValidationError('업로드 토큰을 입력해 주세요.')
+  } else {
+    await decryptSecret(tokenCiphertext, c.env.SESSION_SECRET)
+  }
+
+  await verifyImageService(baseUrl)
+  await saveImageServiceSettings(c.env.DB, baseUrl, tokenCiphertext, auth.user.id)
+  return redirectWithNotice(c, '/admin', 'image-service-saved')
+})
+
+app.post('/admin/image-service/toggle', async (c) => {
+  const auth = requireAdminAuth(c)
+  await enforceWriteRateLimit(c, 'admin-image-service')
+  const form = await readForm(c)
+  const rawEnabled = form.get('enabled')
+  if (rawEnabled !== 'true' && rawEnabled !== 'false') {
+    throw new ValidationError('기능 활성화 값이 올바르지 않습니다.')
+  }
+  const enabled = rawEnabled === 'true'
+  const changed = await setImageServiceEnabled(c.env.DB, enabled, auth.user.id)
+  if (!changed) throw new ValidationError('이미지 서비스를 먼저 등록해 주세요.')
+  return redirectWithNotice(c, '/admin', enabled ? 'image-service-enabled' : 'image-service-disabled')
 })
 
 app.post('/admin/features/image-storage', async (c) => {
@@ -1032,6 +1251,74 @@ app.post('/admin/features/image-storage', async (c) => {
   const enabled = rawEnabled === 'true'
   await setImageStorageEnabled(c.env.DB, enabled, auth.user.id)
   return redirectWithNotice(c, '/admin', enabled ? 'image-storage-enabled' : 'image-storage-disabled')
+})
+
+app.post('/api/devlog/images', async (c) => {
+  requireActiveAuth(c)
+  await enforceWriteRateLimit(c, 'devlog-image-upload')
+  assertCsrf(c, c.req.header('X-CSRF-Token'))
+
+  const contentType = imageUploadContentType(c.req.header('Content-Type'))
+  const contentLength = Number(c.req.header('Content-Length'))
+  if (
+    c.req.header('Content-Length') &&
+    (!Number.isSafeInteger(contentLength) || contentLength < 1 || contentLength > DEVLOG_IMAGE_MAX_BYTES)
+  ) {
+    throw new ValidationError('이미지는 최대 10MiB까지 업로드할 수 있습니다.')
+  }
+
+  const { baseUrl, token } = await imageServiceCredentials(c.env)
+  let upstream: Response
+  try {
+    upstream = await fetch(`${baseUrl}/upload`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': contentType,
+      },
+      body: c.req.raw.body,
+      redirect: 'error',
+      signal: AbortSignal.timeout(30_000),
+    })
+  } catch {
+    throw new HTTPException(503, { message: '이미지 서비스에 연결할 수 없습니다.' })
+  }
+
+  if (!upstream.ok) {
+    await upstream.body?.cancel()
+    throw new HTTPException(503, { message: '이미지 서비스가 업로드를 처리하지 못했습니다.' })
+  }
+  const upstreamLength = Number(upstream.headers.get('Content-Length'))
+  if (Number.isFinite(upstreamLength) && upstreamLength > 32 * 1024) {
+    await upstream.body?.cancel()
+    throw new HTTPException(503, { message: '이미지 서비스 응답이 올바르지 않습니다.' })
+  }
+
+  const payload = (await readBoundedJson(upstream, 32 * 1024)) as Record<string, unknown> | null
+  if (
+    !payload ||
+    typeof payload.url !== 'string' ||
+    typeof payload.hash !== 'string' ||
+    !/^[a-f0-9]{64}$/u.test(payload.hash)
+  ) {
+    throw new HTTPException(503, { message: '이미지 서비스 응답이 올바르지 않습니다.' })
+  }
+  let imageUrl: URL
+  try {
+    imageUrl = new URL(payload.url)
+  } catch {
+    throw new HTTPException(503, { message: '이미지 서비스가 잘못된 URL을 반환했습니다.' })
+  }
+  if (imageUrl.protocol !== 'https:' || imageUrl.origin !== new URL(baseUrl).origin) {
+    throw new HTTPException(503, { message: '이미지 서비스가 허용되지 않은 URL을 반환했습니다.' })
+  }
+
+  return c.json({
+    url: imageUrl.toString(),
+    hash: payload.hash,
+    width: typeof payload.width === 'number' ? payload.width : null,
+    height: typeof payload.height === 'number' ? payload.height : null,
+  })
 })
 
 app.get('/images', async (c) => {

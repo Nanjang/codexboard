@@ -203,6 +203,156 @@ function setupDoubleSubmitPrevention(): void {
   })
 }
 
+interface DevlogImageUpload {
+  url: string
+  hash: string
+  width: number | null
+  height: number | null
+}
+
+function setupDevlogEditor(): void {
+  const form = document.querySelector<HTMLFormElement>('[data-devlog-editor-form]')
+  const editor = form?.querySelector<HTMLElement>('[data-devlog-editor]')
+  const value = form?.querySelector<HTMLTextAreaElement>('[data-devlog-editor-value]')
+  const status = form?.querySelector<HTMLElement>('[data-editor-status]')
+  const count = form?.querySelector<HTMLElement>('[data-editor-count]')
+  const imageButton = form?.querySelector<HTMLButtonElement>('[data-editor-image]')
+  const imageInput = form?.querySelector<HTMLInputElement>('[data-editor-image-input]')
+  if (!form || !editor || !value) return
+
+  let savedRange: Range | null = null
+  const sync = (): void => {
+    value.value = editor.innerHTML
+    if (count) count.textContent = `${value.value.length.toLocaleString()} / 20,000`
+  }
+  const rememberRange = (): void => {
+    const selection = window.getSelection()
+    if (selection?.rangeCount && editor.contains(selection.anchorNode)) {
+      savedRange = selection.getRangeAt(0).cloneRange()
+    }
+  }
+  const focusSavedRange = (): void => {
+    editor.focus()
+    if (!savedRange) return
+    const selection = window.getSelection()
+    selection?.removeAllRanges()
+    selection?.addRange(savedRange)
+  }
+  const runCommand = (command: string, commandValue?: string): void => {
+    focusSavedRange()
+    document.execCommand(command, false, commandValue)
+    rememberRange()
+    sync()
+  }
+
+  editor.addEventListener('input', sync)
+  editor.addEventListener('keyup', rememberRange)
+  editor.addEventListener('mouseup', rememberRange)
+  editor.addEventListener('focus', rememberRange)
+
+  form.querySelectorAll<HTMLButtonElement>('[data-editor-command]').forEach((button) => {
+    button.addEventListener('mousedown', (event) => event.preventDefault())
+    button.addEventListener('click', () => runCommand(button.dataset.editorCommand ?? ''))
+  })
+  form.querySelectorAll<HTMLButtonElement>('[data-editor-format]').forEach((button) => {
+    button.addEventListener('mousedown', (event) => event.preventDefault())
+    button.addEventListener('click', () => runCommand('formatBlock', button.dataset.editorFormat ?? 'p'))
+  })
+  form.querySelector<HTMLButtonElement>('[data-editor-link]')?.addEventListener('click', () => {
+    const href = window.prompt('연결할 HTTPS 주소를 입력하세요.')
+    if (!href) return
+    try {
+      const url = new URL(href)
+      if (url.protocol !== 'https:') throw new Error('HTTPS required')
+      runCommand('createLink', url.toString())
+    } catch {
+      showToast('HTTPS 링크만 삽입할 수 있습니다.', 'error')
+    }
+  })
+
+  imageButton?.addEventListener('mousedown', () => rememberRange())
+  imageButton?.addEventListener('click', () => imageInput?.click())
+  imageInput?.addEventListener('change', async () => {
+    const file = imageInput.files?.[0]
+    imageInput.value = ''
+    if (!file) return
+    if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'].includes(file.type)) {
+      showToast('JPEG, PNG, WebP, GIF, AVIF 이미지만 업로드할 수 있습니다.', 'error')
+      return
+    }
+    if (file.size < 1 || file.size > 10 * 1024 * 1024) {
+      showToast('이미지는 최대 10MiB까지 업로드할 수 있습니다.', 'error')
+      return
+    }
+
+    if (status) status.textContent = '이미지를 업로드하고 있습니다…'
+    if (imageButton) imageButton.disabled = true
+    try {
+      const response = await fetch('/api/devlog/images', {
+        method: 'POST',
+        headers: {
+          'Content-Type': file.type,
+          'X-CSRF-Token': csrfToken(),
+        },
+        body: file,
+      })
+      if (!response.ok) throw await jsonError(response, '이미지를 업로드하지 못했습니다.')
+      const uploaded = (await response.json()) as DevlogImageUpload
+      const url = new URL(uploaded.url)
+      if (url.protocol !== 'https:') throw new Error('이미지 URL이 올바르지 않습니다.')
+
+      const figure = document.createElement('figure')
+      figure.className = 'devlog-image'
+      const image = document.createElement('img')
+      image.src = url.toString()
+      image.alt = file.name.replace(/\.[^.]+$/u, '').slice(0, 300)
+      image.loading = 'lazy'
+      image.decoding = 'async'
+      const caption = document.createElement('figcaption')
+      figure.appendChild(image)
+      figure.appendChild(caption)
+
+      focusSavedRange()
+      const selection = window.getSelection()
+      const range = selection?.rangeCount ? selection.getRangeAt(0) : null
+      if (range && editor.contains(range.commonAncestorContainer)) {
+        range.deleteContents()
+        range.insertNode(figure)
+        range.setStartAfter(figure)
+        range.collapse(true)
+        selection?.removeAllRanges()
+        selection?.addRange(range)
+      } else {
+        editor.appendChild(figure)
+      }
+      const paragraph = document.createElement('p')
+      paragraph.appendChild(document.createElement('br'))
+      figure.parentNode?.insertBefore(paragraph, figure.nextSibling)
+      savedRange = document.createRange()
+      savedRange.setStart(paragraph, 0)
+      savedRange.collapse(true)
+      focusSavedRange()
+      sync()
+      if (status) status.textContent = '이미지를 커서 위치에 삽입했습니다.'
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '이미지를 업로드하지 못했습니다.', 'error')
+      if (status) status.textContent = '이미지 업로드에 실패했습니다.'
+    } finally {
+      if (imageButton) imageButton.disabled = false
+    }
+  })
+
+  form.addEventListener('submit', (event) => {
+    sync()
+    if (value.value.length > 20_000) {
+      event.preventDefault()
+      showToast('본문은 HTML 포함 20,000자 이하여야 합니다.', 'error')
+      editor.focus()
+    }
+  })
+  sync()
+}
+
 function setupNotices(): void {
   document.querySelectorAll<HTMLElement>('[data-dismissible]').forEach((notice) => {
     notice.querySelector<HTMLElement>('[data-dismiss]')?.addEventListener('click', () => notice.remove())
@@ -666,6 +816,7 @@ function initialize(): void {
   setupDialogs()
   setupTicketEditing()
   setupConfirmations()
+  setupDevlogEditor()
   setupDoubleSubmitPrevention()
   setupNotices()
   setupBookmarkIconLookup()

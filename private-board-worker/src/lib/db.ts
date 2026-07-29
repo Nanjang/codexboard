@@ -3,12 +3,18 @@ import type {
   CommentRow,
   CurrentUser,
   DashboardWidgetRow,
+  DevlogAuthor,
+  DevlogAuthorRow,
+  DevlogPostListRow,
+  ImageServiceSettings,
   MemoRow,
   MemoUrlPatternRow,
   MemoUrlSettings,
   PrivateImageRow,
   PostDetailRow,
+  PostBodyFormat,
   PostListRow,
+  PostVisibility,
   TicketLane,
   TicketRow,
   TrashedTicketRow,
@@ -22,7 +28,75 @@ export const MAX_MEMOS_PER_USER = 1000
 export const MAX_MEMO_PATTERNS_PER_USER = 50
 export const MAX_RSS_WIDGETS_PER_USER = 10
 export const MAX_PRIVATE_IMAGES_PER_USER = 5000
+export const DEVLOG_POSTS_PER_PAGE = 12
 const PRIVATE_IMAGES_FEATURE_KEY = 'private_images'
+
+export interface ImageServiceRecord {
+  base_url: string
+  token_ciphertext: string
+  enabled: number
+  updated_at: number
+}
+
+export async function getImageServiceRecord(db: D1Database): Promise<ImageServiceRecord | null> {
+  return db
+    .prepare(
+      `SELECT base_url, token_ciphertext, enabled, updated_at
+       FROM image_service_settings
+       WHERE singleton_id = 1
+       LIMIT 1`,
+    )
+    .first<ImageServiceRecord>()
+}
+
+export async function getImageServiceSettings(db: D1Database): Promise<ImageServiceSettings> {
+  const record = await getImageServiceRecord(db)
+  return {
+    configured: record !== null,
+    enabled: record?.enabled === 1,
+    baseUrl: record?.base_url ?? null,
+    updatedAt: record?.updated_at ?? null,
+  }
+}
+
+export async function saveImageServiceSettings(
+  db: D1Database,
+  baseUrl: string,
+  tokenCiphertext: string,
+  updatedBy: string,
+): Promise<void> {
+  const now = Date.now()
+  await db
+    .prepare(
+      `INSERT INTO image_service_settings (
+         singleton_id, base_url, token_ciphertext, enabled, updated_by, updated_at
+       ) VALUES (1, ?1, ?2, 1, ?3, ?4)
+       ON CONFLICT(singleton_id) DO UPDATE SET
+         base_url = excluded.base_url,
+         token_ciphertext = excluded.token_ciphertext,
+         enabled = 1,
+         updated_by = excluded.updated_by,
+         updated_at = excluded.updated_at`,
+    )
+    .bind(baseUrl, tokenCiphertext, updatedBy, now)
+    .run()
+}
+
+export async function setImageServiceEnabled(
+  db: D1Database,
+  enabled: boolean,
+  updatedBy: string,
+): Promise<boolean> {
+  const result = await db
+    .prepare(
+      `UPDATE image_service_settings
+       SET enabled = ?1, updated_by = ?2, updated_at = ?3
+       WHERE singleton_id = 1`,
+    )
+    .bind(enabled ? 1 : 0, updatedBy, Date.now())
+    .run()
+  return result.meta.changes > 0
+}
 
 export async function isImageStorageEnabled(db: D1Database): Promise<boolean> {
   const setting = await db
@@ -139,6 +213,7 @@ export async function listRecentPostsByBoardSlug(
       JOIN users u ON u.id = p.author_id
       WHERE b.slug = ?1
         AND p.status = 'published'
+        AND (?1 != 'development' OR p.visibility = 'public')
       ORDER BY p.id DESC
       LIMIT ?2
       `,
@@ -146,6 +221,89 @@ export async function listRecentPostsByBoardSlug(
     .bind(boardSlug, safeLimit)
     .all<PostListRow>()
   return result.results
+}
+
+export async function listDevlogAuthors(db: D1Database): Promise<DevlogAuthorRow[]> {
+  const result = await db
+    .prepare(
+      `
+      SELECT
+        u.id,
+        u.nickname,
+        u.role,
+        COUNT(p.id) AS public_post_count,
+        MAX(p.created_at) AS latest_post_at
+      FROM users u
+      JOIN posts p ON p.author_id = u.id
+      JOIN boards b ON b.id = p.board_id
+      WHERE b.slug = 'development'
+        AND p.status = 'published'
+        AND p.visibility = 'public'
+        AND u.status = 'active'
+      GROUP BY u.id, u.nickname, u.role
+      ORDER BY latest_post_at DESC, u.nickname COLLATE NOCASE
+      LIMIT 100
+      `,
+    )
+    .all<DevlogAuthorRow>()
+  return result.results
+}
+
+export async function getDevlogAuthor(db: D1Database, authorId: string): Promise<DevlogAuthor | null> {
+  return db
+    .prepare(
+      `SELECT id, nickname, role
+       FROM users
+       WHERE id = ?1 AND status = 'active'
+       LIMIT 1`,
+    )
+    .bind(authorId)
+    .first<DevlogAuthor>()
+}
+
+export async function listDevlogPosts(
+  db: D1Database,
+  authorId: string,
+  includePrivate: boolean,
+  beforeId: number | null,
+): Promise<{ posts: DevlogPostListRow[]; hasMore: boolean }> {
+  const baseSql = `
+    SELECT
+      p.id,
+      p.board_id,
+      b.slug AS board_slug,
+      b.name AS board_name,
+      p.author_id,
+      u.nickname AS author_nickname,
+      u.role AS author_role,
+      p.title,
+      p.body,
+      p.body_format,
+      p.visibility,
+      p.comment_count,
+      p.view_count,
+      p.created_at,
+      p.updated_at
+    FROM posts p
+    JOIN boards b ON b.id = p.board_id
+    JOIN users u ON u.id = p.author_id
+    WHERE b.slug = 'development'
+      AND p.author_id = ?1
+      AND p.status = 'published'
+      AND (?2 = 1 OR p.visibility = 'public')
+  `
+  const statement = beforeId
+    ? db
+        .prepare(`${baseSql} AND p.id < ?3 ORDER BY p.id DESC LIMIT ?4`)
+        .bind(authorId, includePrivate ? 1 : 0, beforeId, DEVLOG_POSTS_PER_PAGE + 1)
+    : db
+        .prepare(`${baseSql} ORDER BY p.id DESC LIMIT ?3`)
+        .bind(authorId, includePrivate ? 1 : 0, DEVLOG_POSTS_PER_PAGE + 1)
+  const result = await statement.all<DevlogPostListRow>()
+  return {
+    posts: result.results.slice(0, DEVLOG_POSTS_PER_PAGE),
+    hasMore: result.results.length > DEVLOG_POSTS_PER_PAGE,
+  }
 }
 
 export async function ensureUserDashboard(db: D1Database, userId: string): Promise<void> {
@@ -428,6 +586,8 @@ export async function getPost(db: D1Database, postId: number): Promise<PostDetai
         u.role AS author_role,
         p.title,
         p.body,
+        p.body_format,
+        p.visibility,
         p.comment_count,
         p.view_count,
         p.created_at,
@@ -491,16 +651,21 @@ export async function createPost(
   authorId: string,
   title: string,
   body: string,
+  bodyFormat: PostBodyFormat = 'plain',
+  visibility: PostVisibility = 'private',
 ): Promise<number> {
   const now = Date.now()
   const result = await db
     .prepare(
       `
-      INSERT INTO posts (board_id, author_id, title, body, status, comment_count, created_at, updated_at)
-      VALUES (?1, ?2, ?3, ?4, 'published', 0, ?5, ?5)
+      INSERT INTO posts (
+        board_id, author_id, title, body, body_format, visibility,
+        status, comment_count, created_at, updated_at
+      )
+      VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'published', 0, ?7, ?7)
       `,
     )
-    .bind(boardId, authorId, title, body, now)
+    .bind(boardId, authorId, title, body, bodyFormat, visibility, now)
     .run()
 
   const postId = result.meta.last_row_id
@@ -513,16 +678,18 @@ export async function updatePost(
   postId: number,
   title: string,
   body: string,
+  bodyFormat: PostBodyFormat = 'plain',
+  visibility: PostVisibility = 'private',
 ): Promise<boolean> {
   const result = await db
     .prepare(
       `
       UPDATE posts
-      SET title = ?1, body = ?2, updated_at = ?3
-      WHERE id = ?4 AND status = 'published'
+      SET title = ?1, body = ?2, body_format = ?3, visibility = ?4, updated_at = ?5
+      WHERE id = ?6 AND status = 'published'
       `,
     )
-    .bind(title, body, Date.now(), postId)
+    .bind(title, body, bodyFormat, visibility, Date.now(), postId)
     .run()
   return result.meta.changes > 0
 }

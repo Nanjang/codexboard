@@ -35,6 +35,9 @@ const NOTICE_MESSAGES: Record<string, string> = {
   'bookmark-icon-unavailable': '북마크 정보는 저장했지만 사이트 아이콘을 가져오지 못했습니다.',
   'image-storage-enabled': '개인 이미지 저장 기능을 활성화했습니다.',
   'image-storage-disabled': '개인 이미지 저장 기능을 비활성화했습니다.',
+  'image-service-saved': '개발일지 이미지 서비스를 확인하고 활성화했습니다.',
+  'image-service-enabled': '개발일지 이미지 서비스를 활성화했습니다.',
+  'image-service-disabled': '개발일지 이미지 서비스를 비활성화했습니다.',
   'logged-out': '로그아웃했습니다.',
 }
 

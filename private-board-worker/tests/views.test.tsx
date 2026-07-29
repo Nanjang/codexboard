@@ -8,6 +8,7 @@ import type {
   MemoUrlPatternRow,
   MemoUrlSettings,
   PostListRow,
+  PostDetailRow,
   PrivateImageRow,
   TicketRow,
   TrashedTicketRow,
@@ -16,7 +17,8 @@ import type { ThemeLibrary } from '../src/lib/themes'
 import { BUILTIN_THEMES } from '../src/lib/themes'
 import { AccountPage } from '../src/views/account'
 import { AdminPage } from '../src/views/admin'
-import { BoardListPage } from '../src/views/boards'
+import { BoardListPage, PostFormPage } from '../src/views/boards'
+import { DevlogPostPage, UserDevlogPage } from '../src/views/devlogs'
 import { DashboardPage } from '../src/views/dashboard'
 import { PublicErrorPage } from '../src/views/errors'
 import { GuestHomePage } from '../src/views/home'
@@ -411,7 +413,88 @@ describe('핵심 화면', () => {
     expect(html).not.toContain('게시판 보기')
     expect(html).toContain('href="/posts/1"')
     expect(html).not.toContain('@')
-    expect(html).toContain('게시글 상세 확인과 작성, 댓글 참여는 로그인 후 이용할 수 있습니다.')
+    expect(html).toContain('공개 개발일지는 바로 읽을 수 있으며, 다른 게시판 참여는 로그인 후 가능합니다.')
+  })
+
+  it('개발일지 편집기에 공개 범위와 커서 위치 이미지 도구를 표시한다', async () => {
+    const developmentBoard: BoardRow = {
+      ...board,
+      id: 2,
+      slug: 'development',
+      name: '개발일지',
+    }
+    const html = String(
+      await PostFormPage({
+        appName: 'Private Board',
+        deployInfo,
+        user,
+        csrfToken: 'csrf-test',
+        board: developmentBoard,
+        mode: 'create',
+        imageServiceEnabled: true,
+      }),
+    )
+
+    expect(html).toContain('data-devlog-editor-form')
+    expect(html).toContain('contenteditable')
+    expect(html).toContain('name="visibility" value="public"')
+    expect(html).toContain('name="visibility" value="private" checked')
+    expect(html).toContain('data-editor-image')
+    expect(html).toContain('이미지는 현재 커서 위치에 삽입됩니다.')
+  })
+
+  it('공개 개발일지는 로그인 없이 리치 본문을 렌더링한다', async () => {
+    const devlogPost: PostDetailRow = {
+      ...post,
+      board_id: 2,
+      board_slug: 'development',
+      board_name: '개발일지',
+      body: '<h2>오늘 만든 것</h2><p>배포 자동화를 개선했습니다.</p>',
+      body_format: 'rich',
+      visibility: 'public',
+    }
+    const html = String(
+      await DevlogPostPage({
+        appName: 'Private Board',
+        deployInfo,
+        user: null,
+        csrfToken: undefined,
+        post: devlogPost,
+      }),
+    )
+
+    expect(html).toContain('public-devlog-topbar')
+    expect(html).toContain('<h2>오늘 만든 것</h2>')
+    expect(html).toContain('href="/login"')
+    expect(html).not.toContain('data-menu-toggle')
+  })
+
+  it('본인 개발일지 목록에는 비공개 배지와 새 기록 동작을 표시한다', async () => {
+    const html = String(
+      await UserDevlogPage({
+        appName: 'Private Board',
+        deployInfo,
+        user,
+        csrfToken: 'csrf-test',
+        author: { id: user.id, nickname: user.nickname, role: user.role },
+        posts: [
+          {
+            ...post,
+            board_id: 2,
+            board_slug: 'development',
+            board_name: '개발일지',
+            body: '<p>초안입니다.</p>',
+            body_format: 'rich',
+            visibility: 'private',
+          },
+        ],
+        hasMore: false,
+      }),
+    )
+
+    expect(html).toContain('href="/boards/development/new"')
+    expect(html).toContain('visibility-badge">비공개')
+    expect(html).toContain(`/devlogs/u/${user.id}/posts/${post.id}`)
   })
 
   it('인증 화면은 문맥형 탑바와 오른쪽 단일 메뉴 토글을 포함한다', async () => {
