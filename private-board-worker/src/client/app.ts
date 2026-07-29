@@ -222,14 +222,34 @@ function setupDevlogEditor(): void {
   const count = form?.querySelector<HTMLElement>('[data-editor-count]')
   const imageButton = form?.querySelector<HTMLButtonElement>('[data-editor-image]')
   const imageInput = form?.querySelector<HTMLInputElement>('[data-editor-image-input]')
+  const previewImageReset = form?.querySelector<HTMLButtonElement>('[data-preview-image-reset]')
   if (!form || !editor || !value) return
 
   let savedRange: Range | null = null
   let imageUploadInProgress = false
   const imageUploadEnabled = imageInput?.disabled === false
+  const fixedPreviewImage = previewImageReset
+    ? normalizedDevlogImageSource(
+        previewImageReset.dataset.fixedPreviewImage ?? '',
+        window.location.href,
+      )
+    : null
+  const updatePreviewImageResetVisibility = (): void => {
+    if (!previewImageReset) return
+    const firstImageSource = editor.querySelector<HTMLImageElement>('img[src]')?.getAttribute('src')
+    const currentFirstImage = firstImageSource
+      ? normalizedDevlogImageSource(firstImageSource, window.location.href)
+      : null
+    previewImageReset.hidden = !(
+      fixedPreviewImage
+      && currentFirstImage
+      && fixedPreviewImage !== currentFirstImage
+    )
+  }
   const sync = (): void => {
     value.value = editor.innerHTML
     if (count) count.textContent = `${value.value.length.toLocaleString()} / 20,000`
+    updatePreviewImageResetVisibility()
   }
   const rememberRange = (): void => {
     const selection = window.getSelection()
@@ -337,6 +357,12 @@ function setupDevlogEditor(): void {
   editor.addEventListener('keyup', rememberRange)
   editor.addEventListener('mouseup', rememberRange)
   editor.addEventListener('focus', rememberRange)
+  new MutationObserver(updatePreviewImageResetVisibility).observe(editor, {
+    attributes: true,
+    attributeFilter: ['src'],
+    childList: true,
+    subtree: true,
+  })
   editor.addEventListener('paste', (event) => {
     const imageItem = Array.from(event.clipboardData?.items ?? []).find(
       (item) => item.kind === 'file' && item.type.toLowerCase().startsWith('image/'),

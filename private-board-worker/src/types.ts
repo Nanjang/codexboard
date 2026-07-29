@@ -107,12 +107,14 @@ export interface PostDetailRow extends PostListRow {
   body: string
   body_format: PostBodyFormat
   visibility: PostVisibility
+  preview_image_url: string | null
 }
 
 export interface DevlogPostListRow extends PostListRow {
   body: string
   body_format: PostBodyFormat
   visibility: PostVisibility
+  preview_image_url: string | null
 }
 
 export interface DevlogAuthorRow {

@@ -19,6 +19,7 @@ import type {
   TicketRow,
   TrashedTicketRow,
 } from '../types'
+import { firstDevlogImageSource } from './devlog-preview'
 
 export const POSTS_PER_PAGE = 20
 export const DASHBOARD_POSTS_LIMIT = 5
@@ -278,6 +279,7 @@ export async function listDevlogPosts(
       p.body,
       p.body_format,
       p.visibility,
+      p.preview_image_url,
       p.comment_count,
       p.view_count,
       p.created_at,
@@ -586,6 +588,7 @@ export async function getPost(db: D1Database, postId: number): Promise<PostDetai
         p.body,
         p.body_format,
         p.visibility,
+        p.preview_image_url,
         p.comment_count,
         p.view_count,
         p.created_at,
@@ -653,17 +656,18 @@ export async function createPost(
   visibility: PostVisibility = 'private',
 ): Promise<number> {
   const now = Date.now()
+  const previewImageUrl = bodyFormat === 'rich' ? firstDevlogImageSource(body) : null
   const result = await db
     .prepare(
       `
       INSERT INTO posts (
         board_id, author_id, title, body, body_format, visibility,
-        status, comment_count, created_at, updated_at
+        preview_image_url, status, comment_count, created_at, updated_at
       )
-      VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'published', 0, ?7, ?7)
+      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'published', 0, ?8, ?8)
       `,
     )
-    .bind(boardId, authorId, title, body, bodyFormat, visibility, now)
+    .bind(boardId, authorId, title, body, bodyFormat, visibility, previewImageUrl, now)
     .run()
 
   const postId = result.meta.last_row_id
@@ -678,16 +682,30 @@ export async function updatePost(
   body: string,
   bodyFormat: PostBodyFormat = 'plain',
   visibility: PostVisibility = 'private',
+  resetPreviewImage = false,
 ): Promise<boolean> {
+  const firstImageUrl = bodyFormat === 'rich' ? firstDevlogImageSource(body) : null
   const result = await db
     .prepare(
       `
       UPDATE posts
-      SET title = ?1, body = ?2, body_format = ?3, visibility = ?4, updated_at = ?5
-      WHERE id = ?6 AND status = 'published'
+      SET title = ?1,
+          body = ?2,
+          body_format = ?3,
+          visibility = ?4,
+          preview_image_url = CASE
+            WHEN ?5 = 1
+              AND preview_image_url IS NOT NULL
+              AND ?6 IS NOT NULL
+              AND preview_image_url <> ?6
+              THEN ?6
+            ELSE COALESCE(preview_image_url, ?6)
+          END,
+          updated_at = ?7
+      WHERE id = ?8 AND status = 'published'
       `,
     )
-    .bind(title, body, bodyFormat, visibility, Date.now(), postId)
+    .bind(title, body, bodyFormat, visibility, resetPreviewImage ? 1 : 0, firstImageUrl, Date.now(), postId)
     .run()
   return result.meta.changes > 0
 }

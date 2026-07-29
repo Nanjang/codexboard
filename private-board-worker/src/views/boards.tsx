@@ -9,6 +9,7 @@ import type {
 } from '../types'
 import { canManageResource } from '../lib/db'
 import { plainTextAsHtml } from '../lib/devlog'
+import { DEVLOG_PREVIEW_IMAGE_RESET_VALUE } from '../lib/devlog-preview'
 import { AuthorName, CsrfInput, EmptyState } from './components'
 import { formatDateTime } from './format'
 import { AppLayout } from './layout'
@@ -272,6 +273,19 @@ export function PostFormPage({
             <a class="button button-secondary" href={backHref}>
               취소
             </a>
+            {isDevlog && isEdit && post?.preview_image_url ? (
+              <button
+                class="button button-secondary"
+                type="submit"
+                name="previewImageAction"
+                value={DEVLOG_PREVIEW_IMAGE_RESET_VALUE}
+                data-preview-image-reset
+                data-fixed-preview-image={post.preview_image_url}
+                hidden
+              >
+                미리보기 이미지 재설정
+              </button>
+            ) : null}
             <button class="button" type="submit">
               {isEdit ? '수정 저장' : '등록'}
             </button>

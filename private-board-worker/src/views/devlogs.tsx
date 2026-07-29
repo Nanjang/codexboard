@@ -9,6 +9,7 @@ import type {
 import type { Child } from 'hono/jsx'
 import { canManageResource } from '../lib/db'
 import { devlogExcerpt } from '../lib/devlog'
+import { firstDevlogImageSource } from '../lib/devlog-preview'
 import { AuthorName, EmptyState } from './components'
 import { formatDateTime } from './format'
 import { AppLayout, PublicLayout } from './layout'
@@ -185,19 +186,28 @@ export function UserDevlogPage({
           />
         ) : (
           <div class="devlog-post-grid">
-            {posts.map((post) => (
-              <article class="devlog-post-card" key={post.id}>
-                <a href={`/devlogs/u/${encodeURIComponent(author.id)}/posts/${post.id}`}>
-                  <div class="devlog-post-card-meta">
-                    <time datetime={new Date(post.created_at).toISOString()}>{formatDateTime(post.created_at)}</time>
-                    {post.visibility === 'private' ? <span class="visibility-badge">비공개</span> : null}
-                  </div>
-                  <h2>{post.title}</h2>
-                  <p>{devlogExcerpt(post.body, post.body_format) || '이미지 중심의 기록입니다.'}</p>
-                  <span class="devlog-read-more">기록 읽기 →</span>
-                </a>
-              </article>
-            ))}
+            {posts.map((post) => {
+              const previewImageUrl =
+                post.preview_image_url ?? firstDevlogImageSource(post.body)
+              return (
+                <article class="devlog-post-card" key={post.id}>
+                  <a href={`/devlogs/u/${encodeURIComponent(author.id)}/posts/${post.id}`}>
+                    <div class="devlog-post-card-meta">
+                      <time datetime={new Date(post.created_at).toISOString()}>{formatDateTime(post.created_at)}</time>
+                      {post.visibility === 'private' ? <span class="visibility-badge">비공개</span> : null}
+                    </div>
+                    {previewImageUrl ? (
+                      <div class="devlog-post-card-preview">
+                        <img src={previewImageUrl} alt="" loading="lazy" decoding="async" />
+                      </div>
+                    ) : null}
+                    <h2>{post.title}</h2>
+                    <p>{devlogExcerpt(post.body, post.body_format) || '이미지 중심의 기록입니다.'}</p>
+                    <span class="devlog-read-more">기록 읽기 →</span>
+                  </a>
+                </article>
+              )
+            })}
           </div>
         )}
 

@@ -88,6 +88,7 @@ import { getAppName, getDeployInfo, turnstileEnabled } from './lib/env'
 import { acceptsJson, noticeFromRequest, redirectWithNotice } from './lib/http'
 import { postVisibility, sanitizeDevlogHtml } from './lib/devlog'
 import { devlogMarkdownDocument, devlogMarkdownFilename } from './lib/devlog-markdown'
+import { validateDevlogPreviewImageReset } from './lib/devlog-preview'
 import { RequestProcessError, type RequestProcessDiagnostic } from './lib/request-diagnostics'
 import {
   DEVLOG_IMAGE_CACHE_CONTROL,
@@ -385,6 +386,7 @@ function draftPost(
     body,
     body_format: bodyFormat,
     visibility,
+    preview_image_url: null,
     comment_count: 0,
     view_count: 0,
     created_at: 0,
@@ -1240,11 +1242,26 @@ app.post('/posts/:id/update', async (c) => {
         : multiline(form.get('body'), '내용', 20000)
       safeDraftBody = body
       visibility = isDevlog ? postVisibility(form.get('visibility')) : 'private'
+      const previewImageAction = form.get('previewImageAction')
+      if (!isDevlog && previewImageAction !== null) {
+        throw new ValidationError('개발일지에서만 미리보기 이미지를 재설정할 수 있습니다.')
+      }
+      const resetPreviewImage = isDevlog
+        ? validateDevlogPreviewImageReset(previewImageAction, post.preview_image_url, body)
+        : false
       completeStep(activeStep, `${body.length}자 · ${isDevlog ? 'rich HTML' : 'plain text'}`)
 
       activeStep = 'D1 게시글 저장'
       activeStepStartedAt = Date.now()
-      const changed = await updatePost(c.env.DB, postId, title, body, isDevlog ? 'rich' : 'plain', visibility)
+      const changed = await updatePost(
+        c.env.DB,
+        postId,
+        title,
+        body,
+        isDevlog ? 'rich' : 'plain',
+        visibility,
+        resetPreviewImage,
+      )
       if (!changed) throw new HTTPException(404, { message: '게시글을 찾을 수 없습니다.' })
       completeStep(activeStep, '변경사항 반영')
 

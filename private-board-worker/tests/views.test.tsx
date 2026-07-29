@@ -473,6 +473,46 @@ describe('핵심 화면', () => {
     expect(html).toContain('이미지는 현재 커서 위치에 삽입됩니다.')
     expect(html).toContain('2MiB 미만 클립보드 이미지는 바로 붙여넣을 수 있습니다.')
     expect(html).toContain('accept="image/jpeg,image/png,image/webp,image/gif,image/avif"')
+    expect(html).not.toContain('data-preview-image-reset')
+  })
+
+  it('renders the fixed preview reset submit control only for an editable fixed preview', async () => {
+    const previewImageUrl = `/devlog-images/i/${'a'.repeat(64)}.png`
+    const currentFirstImageUrl = `/devlog-images/i/${'b'.repeat(64)}.gif`
+    const developmentBoard: BoardRow = {
+      ...board,
+      id: 2,
+      slug: 'development',
+      name: '개발일지',
+    }
+    const editPost: PostDetailRow = {
+      ...post,
+      board_id: developmentBoard.id,
+      board_slug: developmentBoard.slug,
+      board_name: developmentBoard.name,
+      body: `<p>수정 중입니다.</p><img src="${currentFirstImageUrl}">`,
+      body_format: 'rich',
+      visibility: 'private',
+      preview_image_url: previewImageUrl,
+    }
+    const html = String(
+      await PostFormPage({
+        appName: 'Private Board',
+        deployInfo,
+        user,
+        csrfToken: 'csrf-test',
+        board: developmentBoard,
+        mode: 'edit',
+        post: editPost,
+        imageServiceEnabled: true,
+      }),
+    )
+
+    expect(html).toContain('data-preview-image-reset')
+    expect(html).toContain(`data-fixed-preview-image="${previewImageUrl}"`)
+    expect(html).toContain('name="previewImageAction" value="reset-current"')
+    expect(html).toContain('hidden')
+    expect(html).toContain('미리보기 이미지 재설정')
   })
 
   it('공개 개발일지는 로그인 없이 리치 본문을 렌더링한다', async () => {
@@ -484,6 +524,7 @@ describe('핵심 화면', () => {
       body: '<h2>오늘 만든 것</h2><p>배포 자동화를 개선했습니다.</p>',
       body_format: 'rich',
       visibility: 'public',
+      preview_image_url: null,
     }
     const html = String(
       await DevlogPostPage({
@@ -515,9 +556,21 @@ describe('핵심 화면', () => {
             board_id: 2,
             board_slug: 'development',
             board_name: '개발일지',
-            body: '<p>초안입니다.</p>',
+            body: `<p>초안입니다.</p><img src="/devlog-images/i/${'a'.repeat(64)}.webp">`,
             body_format: 'rich',
             visibility: 'private',
+            preview_image_url: `/devlog-images/i/${'b'.repeat(64)}.gif`,
+          },
+          {
+            ...post,
+            id: 2,
+            board_id: 2,
+            board_slug: 'development',
+            board_name: '개발일지',
+            body: `<p>기존 글입니다.</p><img src="/devlog-images/i/${'c'.repeat(64)}.avif">`,
+            body_format: 'rich',
+            visibility: 'public',
+            preview_image_url: null,
           },
         ],
         hasMore: false,
@@ -527,6 +580,9 @@ describe('핵심 화면', () => {
     expect(html).toContain('href="/boards/development/new"')
     expect(html).toContain('visibility-badge">비공개')
     expect(html).toContain(`/devlogs/u/${user.id}/posts/${post.id}`)
+    expect(html).toContain(`class="devlog-post-card-preview"`)
+    expect(html).toContain(`src="/devlog-images/i/${'b'.repeat(64)}.gif"`)
+    expect(html).toContain(`src="/devlog-images/i/${'c'.repeat(64)}.avif"`)
   })
 
   it('인증 화면은 문맥형 탑바와 오른쪽 단일 메뉴 토글을 포함한다', async () => {
