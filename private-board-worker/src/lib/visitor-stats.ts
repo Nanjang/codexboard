@@ -5,6 +5,7 @@ export interface VisitorStats {
   today: number
   total: number
   databaseUsagePercent: number
+  databaseUsedMegabytes: number
 }
 
 interface VisitorCountRow {
@@ -205,6 +206,10 @@ export function databaseUsagePercent(sizeBytes: number): number {
   return (sizeBytes / FREE_D1_DATABASE_LIMIT_BYTES) * 100
 }
 
+export function databaseUsedMegabytes(sizeBytes: number): number {
+  return Math.ceil(sizeBytes / 1_000_000)
+}
+
 export async function recordVisitor(
   db: D1Database,
   request: Request,
@@ -258,12 +263,13 @@ export async function recordVisitor(
     db.prepare('SELECT unique_count AS count FROM visitor_total_stats WHERE singleton_id = 1'),
   ])
 
+  const databaseSizeBytes = results[results.length - 1]?.meta.size_after ?? 0
+
   return {
     today: results[2]?.results[0]?.count ?? 0,
     total: results[3]?.results[0]?.count ?? 0,
-    databaseUsagePercent: databaseUsagePercent(
-      results[results.length - 1]?.meta.size_after ?? 0,
-    ),
+    databaseUsagePercent: databaseUsagePercent(databaseSizeBytes),
+    databaseUsedMegabytes: databaseUsedMegabytes(databaseSizeBytes),
   }
 }
 
@@ -291,6 +297,14 @@ export function injectVisitorStats(response: Response, stats: VisitorStats): Res
         element.setAttribute(
           'value',
           Math.min(100, Math.max(0, stats.databaseUsagePercent)).toString(),
+        )
+      },
+    })
+    .on('[data-database-usage-tooltip]', {
+      element(element) {
+        element.setAttribute(
+          'title',
+          `사용량 ${stats.databaseUsedMegabytes}/${FREE_D1_DATABASE_LIMIT_BYTES / 1_000_000} MB`,
         )
       },
     })

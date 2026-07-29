@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   databaseUsagePercent,
+  databaseUsedMegabytes,
   FREE_D1_DATABASE_LIMIT_BYTES,
   getVisitorTimeSeries,
   koreaVisitDay,
@@ -209,6 +210,8 @@ describe('방문자 통계', () => {
 
   it('D1 무료 플랜의 DB당 한도 대비 사용률을 계산한다', () => {
     expect(databaseUsagePercent(FREE_D1_DATABASE_LIMIT_BYTES / 4)).toBe(25)
+    expect(databaseUsedMegabytes(125_000_000)).toBe(125)
+    expect(databaseUsedMegabytes(125_000_001)).toBe(126)
   })
 
   it('Cloudflare 원본 IP만 신뢰한다', () => {
@@ -252,7 +255,12 @@ describe('방문자 통계', () => {
       Date.UTC(2026, 6, 30, 3),
     )
 
-    expect(stats).toEqual({ today: 12, total: 3456, databaseUsagePercent: 25 })
+    expect(stats).toEqual({
+      today: 12,
+      total: 3456,
+      databaseUsagePercent: 25,
+      databaseUsedMegabytes: 125,
+    })
     expect(db.statements[0]?.query).toContain('INSERT INTO visitor_page_views')
     expect(db.statements[0]?.values).toEqual([
       '2026-07-30',

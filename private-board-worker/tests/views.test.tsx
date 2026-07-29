@@ -1059,6 +1059,8 @@ describe('핵심 화면', () => {
     expect(html).toContain('data-visitor-total')
     expect(html).toContain('data-database-usage')
     expect(html).toContain('data-database-usage-bar')
+    expect(html).toContain('data-database-usage-tooltip')
+    expect(html).toContain('title="사용량 확인 중"')
     expect(html).not.toContain('style=')
     expect(html.indexOf('data-database-usage')).toBeGreaterThan(html.indexOf(deployInfo.displayTimestamp))
     expect(html).toContain('오늘')

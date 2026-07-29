@@ -13,7 +13,7 @@ export function DeployFooter({ deployInfo }: { deployInfo: DeployInfo }) {
       <span aria-hidden="true">·</span>
       <time datetime={deployInfo.timestamp}>{deployInfo.displayTimestamp}</time>
       <span aria-hidden="true">·</span>
-      <span class="database-usage">
+      <span class="database-usage" data-database-usage-tooltip title="사용량 확인 중">
         <progress data-database-usage-bar max="100" value="0" aria-hidden="true"></progress>
         <span data-database-usage aria-label="사용량 확인 중">—</span>
       </span>
