@@ -49,4 +49,39 @@ describe('북마크 사이트 아이콘', () => {
     expect(icon).toBeNull()
     expect(fallback.headers.get('content-type')).toContain('image/svg+xml')
   })
+
+  it('favicon.ico가 없으면 페이지에 선언된 표준 아이콘을 가져온다', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response('not found', { status: 404 }))
+      .mockResolvedValueOnce(
+        new Response(
+          `<html><head>
+            <link rel="apple-touch-icon" sizes="180x180" href="/img/apple-icon.png">
+            <link rel="icon" type="image/png" sizes="96x96" href="/img/favicon-96x96.png">
+            <link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32x32.png">
+          </head></html>`,
+          { headers: { 'Content-Type': 'text/html; charset=utf-8' } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(new Uint8Array([137, 80, 78, 71]), {
+          headers: { 'Content-Type': 'image/png' },
+        }),
+      )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const icon = await fetchBookmarkIcon('https://littlecandle.co.kr/')
+
+    expect(icon).toEqual({
+      bytes: new Uint8Array([137, 80, 78, 71]),
+      contentType: 'image/png',
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('https://littlecandle.co.kr/favicon.ico')
+    expect(fetchMock.mock.calls[1]?.[0]).toBe('https://littlecandle.co.kr/')
+    expect(fetchMock.mock.calls[2]?.[0]).toBe(
+      'https://littlecandle.co.kr/img/favicon-32x32.png',
+    )
+  })
 })
