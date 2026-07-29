@@ -29,14 +29,33 @@ CodexBoard 개발일지 이미지를 라즈베리파이의 외장 SSD에 저장�
 - Cloudflare 계정과 관리 중인 도메인
 - `cloudflared`
 
-## 설치
+## 설치 구조
 
-저장소를 `/opt/codexboard`에 배치했다고 가정합니다.
+Git 저장소는 로그인 사용자의 홈에 둡니다.
+
+```text
+/home/pi/github/codexboard           Git 저장소와 개발 파일
+/opt/codexboard-image-service       실제 서비스 런타임만 배치
+/etc/codexboard-image-service.env   서비스 환경 설정
+/srv/codexboard-images              외장 SSD 이미지 저장소
+```
+
+`/opt/codexboard-image-service`에는 이미지 서비스의 `package.json`, `package-lock.json`, `src/`,
+운영 의존성만 들어갑니다. 게시판 Worker, Git 이력, 문서와 테스트 파일은 복사하지 않습니다.
+
+## 저장소 준비
 
 ```bash
-cd /opt/codexboard/raspberry-image-service
-npm ci --omit=dev
+mkdir -p /home/pi/github
+git clone https://github.com/Nanjang/codexboard.git /home/pi/github/codexboard
+cd /home/pi/github/codexboard/raspberry-image-service
+npm ci
+npm test
+```
 
+서비스 사용자와 이미지 저장 경로를 준비합니다.
+
+```bash
 sudo useradd --system --home /nonexistent --shell /usr/sbin/nologin codex-images
 sudo mkdir -p /srv/codexboard-images
 sudo chown -R codex-images:codex-images /srv/codexboard-images
@@ -48,6 +67,7 @@ sudo chmod 750 /srv/codexboard-images
 환경 설정 파일을 만듭니다.
 
 ```bash
+cd /home/pi/github/codexboard/raspberry-image-service
 sudo cp .env.example /etc/codexboard-image-service.env
 sudo chmod 600 /etc/codexboard-image-service.env
 sudo editor /etc/codexboard-image-service.env
@@ -59,13 +79,14 @@ sudo editor /etc/codexboard-image-service.env
 openssl rand -hex 32
 ```
 
-`IMAGE_SERVICE_TOKEN`은 게시판 Worker의 Secret에도 같은 값으로 등록합니다. 브라우저에는 이 값을 전달하지 않습니다.
+`IMAGE_SERVICE_TOKEN`은 게시판의 관리자 설정 화면에도 같은 값으로 등록합니다. 브라우저에는 이 값을
+전달하지 않으며, 게시판 Worker가 암호화하여 D1에 저장합니다.
 
-systemd 서비스를 설치하고 시작합니다.
+전용 설치 스크립트로 이미지 서비스 런타임과 systemd 유닛만 `/opt`에 설치합니다.
 
 ```bash
-sudo cp deploy/codexboard-image-service.service /etc/systemd/system/
-sudo systemctl daemon-reload
+cd /home/pi/github/codexboard/raspberry-image-service
+sudo bash ./deploy/install-service.sh
 sudo systemctl enable --now codexboard-image-service
 sudo systemctl status codexboard-image-service
 ```
@@ -74,6 +95,22 @@ sudo systemctl status codexboard-image-service
 
 ```bash
 curl http://127.0.0.1:8085/health
+```
+
+## 업데이트
+
+홈 디렉터리의 저장소를 갱신하고 테스트한 다음 서비스 파일만 다시 배포합니다.
+
+```bash
+cd /home/pi/github/codexboard
+git pull --ff-only
+
+cd raspberry-image-service
+npm ci
+npm test
+sudo bash ./deploy/install-service.sh
+sudo systemctl restart codexboard-image-service
+sudo systemctl status codexboard-image-service
 ```
 
 ## Cloudflare Tunnel
@@ -159,20 +196,10 @@ curl \
 
 ## 게시판 Worker 연동
 
-브라우저가 게시판의 업로드 API로 원본 바이트를 보내면 Worker가 로그인과 CSRF를 확인한 다음 이미지 서비스로 그대로 전달합니다.
-
-```ts
-const response = await fetch(`${env.IMAGE_SERVICE_BASE_URL}/upload`, {
-  method: 'POST',
-  headers: {
-    Authorization: `Bearer ${env.IMAGE_SERVICE_TOKEN}`,
-    'Content-Type': upload.type,
-  },
-  body: upload.stream(),
-})
-```
-
-`IMAGE_SERVICE_BASE_URL`은 일반 Worker 변수로, `IMAGE_SERVICE_TOKEN`은 Worker Secret으로 관리합니다. 이미지 서비스의 공개 `GET`에는 인증이 필요하지 않습니다.
+브라우저가 게시판의 업로드 API로 원본 바이트를 보내면 Worker가 로그인과 CSRF를 확인한 다음 이미지
+서비스로 전달합니다. 게시판 관리자 설정의 **개발일지 이미지 서비스**에서 공개 기본 URL과
+`IMAGE_SERVICE_TOKEN`을 입력하면 `/health` 확인 후 활성화됩니다. 이미지 서비스의 공개 `GET`에는
+인증이 필요하지 않습니다.
 
 ## 테스트
 
