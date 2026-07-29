@@ -88,10 +88,14 @@ import { getAppName, getDeployInfo, turnstileEnabled } from './lib/env'
 import { acceptsJson, noticeFromRequest, redirectWithNotice } from './lib/http'
 import { postVisibility, sanitizeDevlogHtml } from './lib/devlog'
 import {
+  DEVLOG_IMAGE_CACHE_CONTROL,
+  DEVLOG_IMAGE_HASH_PATTERN,
   DEVLOG_IMAGE_MAX_BYTES,
+  devlogImagePublicUrl,
+  imageServiceBindingConfigured,
   imageServiceCredentials,
+  imageServiceFetch,
   imageUploadContentType,
-  normalizeImageServiceBaseUrl,
   verifyImageService,
 } from './lib/image-service'
 import { decryptSecret, encryptSecret } from './lib/secret-box'
@@ -130,6 +134,7 @@ import {
   assertSameOrigin,
   enforceAuthRateLimit,
   enforceWriteRateLimit,
+  isPublicDevlogImagePath,
   isPublicPath,
   requireAuth,
   SameOriginError,
@@ -478,7 +483,7 @@ app.use('*', securityMiddleware)
 app.use('*', async (c, next) => {
   c.set('auth', null)
 
-  if (!c.req.path.startsWith('/assets/')) {
+  if (!c.req.path.startsWith('/assets/') && !isPublicDevlogImagePath(c.req.path)) {
     const auth = await loadAuthContext(c)
     if (auth) {
       auth.user.imageStorageEnabled = await isImageStorageEnabled(c.env.DB)
@@ -516,6 +521,61 @@ app.use('*', async (c, next) => {
 
 app.get('/assets/*', (c) => c.env.ASSETS.fetch(c.req.raw))
 app.get('/health', (c) => c.json({ ok: true }))
+app.on(['GET', 'HEAD'], '/devlog-images/i/:image', async (c) => {
+  const filename = c.req.param('image')
+  const match = /^([a-f0-9]{64})\.webp$/u.exec(filename)
+  if (!match) return new Response(null, { status: 404 })
+
+  const hash = match[1]!
+  let upstream: Response
+  try {
+    const headers = new Headers({ Accept: 'image/webp' })
+    const ifNoneMatch = c.req.header('If-None-Match')
+    if (ifNoneMatch) headers.set('If-None-Match', ifNoneMatch)
+
+    upstream = await imageServiceFetch(c.env, `/i/${hash}.webp`, {
+      method: c.req.method,
+      headers,
+      signal: AbortSignal.timeout(15_000),
+    })
+  } catch {
+    return new Response(null, { status: 503 })
+  }
+
+  const responseHeaders = new Headers({
+    'Cache-Control': upstream.headers.get('Cache-Control') ?? DEVLOG_IMAGE_CACHE_CONTROL,
+    'Content-Type': upstream.headers.get('Content-Type') ?? 'image/webp',
+    ETag: upstream.headers.get('ETag') ?? `"sha256-${hash}"`,
+  })
+  const contentLength = upstream.headers.get('Content-Length')
+  if (contentLength) responseHeaders.set('Content-Length', contentLength)
+
+  if (upstream.status === 304) {
+    await upstream.body?.cancel()
+    return new Response(null, { status: 304, headers: responseHeaders })
+  }
+  if (upstream.status === 404) {
+    await upstream.body?.cancel()
+    return new Response(null, { status: 404 })
+  }
+  if (!upstream.ok || !upstream.headers.get('Content-Type')?.toLowerCase().startsWith('image/webp')) {
+    await upstream.body?.cancel()
+    return new Response(null, { status: 503 })
+  }
+
+  if (c.req.method === 'HEAD') {
+    await upstream.body?.cancel()
+    return new Response(null, {
+      status: upstream.status,
+      headers: responseHeaders,
+    })
+  }
+
+  return new Response(upstream.body, {
+    status: upstream.status,
+    headers: responseHeaders,
+  })
+})
 app.get('/account/theme.css', async (c) => {
   const auth = requireActiveAuth(c)
   const palette = await resolveUserTheme(c.env.DB, auth.user.id)
@@ -961,7 +1021,7 @@ app.get('/boards/:slug/new', async (c) => {
       csrfToken={auth.csrfToken}
       board={board}
       mode="create"
-      imageServiceEnabled={imageService?.enabled === true}
+      imageServiceEnabled={imageService?.enabled === true && imageServiceBindingConfigured(c.env)}
     />,
   )
 })
@@ -1019,7 +1079,7 @@ app.post('/boards/:slug/posts', async (c) => {
           isDevlog ? 'rich' : 'plain',
           visibility,
         )}
-        imageServiceEnabled={imageService?.enabled === true}
+        imageServiceEnabled={imageService?.enabled === true && imageServiceBindingConfigured(c.env)}
         error={error.message}
       />,
       400,
@@ -1066,7 +1126,7 @@ app.get('/posts/:id/edit', async (c) => {
       board={board}
       mode="edit"
       post={post}
-      imageServiceEnabled={imageService?.enabled === true}
+      imageServiceEnabled={imageService?.enabled === true && imageServiceBindingConfigured(c.env)}
     />,
   )
 })
@@ -1116,7 +1176,7 @@ app.post('/posts/:id/update', async (c) => {
           body_format: isDevlog ? 'rich' : 'plain',
           visibility,
         }}
-        imageServiceEnabled={imageService?.enabled === true}
+        imageServiceEnabled={imageService?.enabled === true && imageServiceBindingConfigured(c.env)}
         error={error.message}
       />,
       400,
@@ -1225,6 +1285,7 @@ app.get('/admin', async (c) => {
       csrfToken={auth.csrfToken}
       imageStorageEnabled={auth.user.imageStorageEnabled === true}
       r2Configured={isR2ImageStorageConfigured(c.env)}
+      imageServiceBound={imageServiceBindingConfigured(c.env)}
       imageService={imageService}
       notice={noticeFromRequest(c)}
     />,
@@ -1235,7 +1296,6 @@ app.post('/admin/image-service', async (c) => {
   const auth = requireAdminAuth(c)
   await enforceWriteRateLimit(c, 'admin-image-service')
   const form = await readForm(c)
-  const baseUrl = normalizeImageServiceBaseUrl(form.get('baseUrl'))
   const rawToken = typeof form.get('token') === 'string' ? String(form.get('token')).trim() : ''
   const existing = await getImageServiceRecord(c.env.DB)
 
@@ -1251,8 +1311,8 @@ app.post('/admin/image-service', async (c) => {
     await decryptSecret(tokenCiphertext, c.env.SESSION_SECRET)
   }
 
-  await verifyImageService(baseUrl)
-  await saveImageServiceSettings(c.env.DB, baseUrl, tokenCiphertext, auth.user.id)
+  await verifyImageService(c.env)
+  await saveImageServiceSettings(c.env.DB, tokenCiphertext, auth.user.id)
   return redirectWithNotice(c, '/admin', 'image-service-saved')
 })
 
@@ -1265,6 +1325,7 @@ app.post('/admin/image-service/toggle', async (c) => {
     throw new ValidationError('기능 활성화 값이 올바르지 않습니다.')
   }
   const enabled = rawEnabled === 'true'
+  if (enabled) await verifyImageService(c.env)
   const changed = await setImageServiceEnabled(c.env.DB, enabled, auth.user.id)
   if (!changed) throw new ValidationError('이미지 서비스를 먼저 등록해 주세요.')
   return redirectWithNotice(c, '/admin', enabled ? 'image-service-enabled' : 'image-service-disabled')
@@ -1297,17 +1358,16 @@ app.post('/api/devlog/images', async (c) => {
     throw new ValidationError('이미지는 최대 10MiB까지 업로드할 수 있습니다.')
   }
 
-  const { baseUrl, token } = await imageServiceCredentials(c.env)
+  const { token } = await imageServiceCredentials(c.env)
   let upstream: Response
   try {
-    upstream = await fetch(`${baseUrl}/upload`, {
+    upstream = await imageServiceFetch(c.env, '/upload', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,
         'Content-Type': contentType,
       },
       body: c.req.raw.body,
-      redirect: 'error',
       signal: AbortSignal.timeout(30_000),
     })
   } catch {
@@ -1327,24 +1387,14 @@ app.post('/api/devlog/images', async (c) => {
   const payload = (await readBoundedJson(upstream, 32 * 1024)) as Record<string, unknown> | null
   if (
     !payload ||
-    typeof payload.url !== 'string' ||
     typeof payload.hash !== 'string' ||
-    !/^[a-f0-9]{64}$/u.test(payload.hash)
+    !DEVLOG_IMAGE_HASH_PATTERN.test(payload.hash)
   ) {
     throw new HTTPException(503, { message: '이미지 서비스 응답이 올바르지 않습니다.' })
   }
-  let imageUrl: URL
-  try {
-    imageUrl = new URL(payload.url)
-  } catch {
-    throw new HTTPException(503, { message: '이미지 서비스가 잘못된 URL을 반환했습니다.' })
-  }
-  if (imageUrl.protocol !== 'https:' || imageUrl.origin !== new URL(baseUrl).origin) {
-    throw new HTTPException(503, { message: '이미지 서비스가 허용되지 않은 URL을 반환했습니다.' })
-  }
 
   return c.json({
-    url: imageUrl.toString(),
+    url: devlogImagePublicUrl(c.req.url, payload.hash),
     hash: payload.hash,
     width: typeof payload.width === 'number' ? payload.width : null,
     height: typeof payload.height === 'number' ? payload.height : null,

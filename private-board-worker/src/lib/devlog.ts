@@ -53,6 +53,11 @@ function safeHttpsUrl(value: string | null): string | null {
   }
 }
 
+function safeImageUrl(value: string | null): string | null {
+  if (value && /^\/devlog-images\/i\/[a-f0-9]{64}\.webp$/u.test(value)) return value
+  return safeHttpsUrl(value)
+}
+
 function removeAttributes(element: Element): Map<string, string> {
   const attributes = new Map<string, string>()
   for (const { name, value } of Array.from(element.attributes)) {
@@ -92,7 +97,7 @@ export async function sanitizeDevlogHtml(rawValue: FormDataEntryValue | null): P
           element.setAttribute('target', '_blank')
           element.setAttribute('rel', 'noopener noreferrer')
         } else if (tag === 'img') {
-          const src = safeHttpsUrl(attributes.get('src') ?? null)
+          const src = safeImageUrl(attributes.get('src') ?? null)
           if (!src) {
             element.remove()
             return

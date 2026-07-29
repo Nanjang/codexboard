@@ -1,7 +1,23 @@
 import { describe, expect, it } from 'vitest'
 import { devlogExcerpt, plainTextAsHtml, postVisibility } from '../src/lib/devlog'
-import { imageUploadContentType, normalizeImageServiceBaseUrl } from '../src/lib/image-service'
+import {
+  devlogImagePublicUrl,
+  imageServiceBindingConfigured,
+  imageUploadContentType,
+  verifyImageService,
+} from '../src/lib/image-service'
 import { decryptSecret, encryptSecret } from '../src/lib/secret-box'
+import {
+  devlogImageValidationError,
+  MAX_DEVLOG_CLIPBOARD_IMAGE_BYTES,
+  MAX_DEVLOG_IMAGE_BYTES,
+  normalizedDevlogImageSource,
+} from '../src/shared/images'
+import type { Bindings } from '../src/types'
+
+function imageEnv(fetcher?: Fetcher): Bindings {
+  return { IMAGE_VAULT: fetcher } as Bindings
+}
 
 describe('개발일지 본문', () => {
   it('리치 본문에서 태그를 제외한 요약을 만든다', () => {
@@ -24,16 +40,76 @@ describe('개발일지 본문', () => {
 })
 
 describe('개발일지 이미지 서비스', () => {
-  it('표준 HTTPS 도메인만 등록한다', () => {
-    expect(normalizeImageServiceBaseUrl('https://images.example.com/')).toBe('https://images.example.com')
-    expect(() => normalizeImageServiceBaseUrl('http://images.example.com')).toThrow('HTTPS')
-    expect(() => normalizeImageServiceBaseUrl('https://127.0.0.1')).toThrow('HTTPS')
-    expect(() => normalizeImageServiceBaseUrl('https://localhost')).toThrow('HTTPS')
+  it('같은 Worker origin의 해시 이미지 URL을 만든다', () => {
+    const hash = 'a'.repeat(64)
+    expect(devlogImagePublicUrl('https://board.example.com/api/devlog/images', hash)).toBe(
+      `https://board.example.com/devlog-images/i/${hash}.webp`,
+    )
+    expect(() => devlogImagePublicUrl('https://board.example.com', 'invalid')).toThrow('해시')
+  })
+
+  it('VPC 바인딩을 통해 내부 상태 엔드포인트를 확인한다', async () => {
+    let requestedUrl = ''
+    const fetcher = {
+      async fetch(input: RequestInfo | URL) {
+        requestedUrl = new Request(input).url
+        return Response.json({ status: 'ok' })
+      },
+    } as Fetcher
+
+    expect(imageServiceBindingConfigured(imageEnv())).toBe(false)
+    expect(imageServiceBindingConfigured(imageEnv(fetcher))).toBe(true)
+    await expect(verifyImageService(imageEnv(fetcher))).resolves.toBeUndefined()
+    expect(requestedUrl).toBe('http://localhost:8085/health')
+    await expect(verifyImageService(imageEnv())).rejects.toThrow('VPC Service ID')
   })
 
   it('허용된 이미지 MIME 형식만 통과시킨다', () => {
     expect(imageUploadContentType('image/webp; charset=binary')).toBe('image/webp')
     expect(() => imageUploadContentType('image/svg+xml')).toThrow('JPEG')
+  })
+
+  it('파일 선택과 클립보드의 서로 다른 크기 경계를 적용한다', () => {
+    expect(
+      devlogImageValidationError({ type: 'image/png', size: MAX_DEVLOG_IMAGE_BYTES }, 'file'),
+    ).toBeNull()
+    expect(
+      devlogImageValidationError({ type: 'image/png', size: MAX_DEVLOG_IMAGE_BYTES + 1 }, 'file'),
+    ).toContain('10MiB')
+    expect(
+      devlogImageValidationError(
+        { type: 'image/png', size: MAX_DEVLOG_CLIPBOARD_IMAGE_BYTES - 1 },
+        'clipboard',
+      ),
+    ).toBeNull()
+    expect(
+      devlogImageValidationError(
+        { type: 'image/png', size: MAX_DEVLOG_CLIPBOARD_IMAGE_BYTES },
+        'clipboard',
+      ),
+    ).toContain('2MiB 미만')
+  })
+
+  it('동일 Worker 이미지는 상대 경로로, 외부 HTTPS 이미지는 절대 주소로 정규화한다', () => {
+    const hash = 'b'.repeat(64)
+    expect(
+      normalizedDevlogImageSource(
+        `http://127.0.0.1:8787/devlog-images/i/${hash}.webp`,
+        'http://127.0.0.1:8787/boards/development/new',
+      ),
+    ).toBe(`/devlog-images/i/${hash}.webp`)
+    expect(
+      normalizedDevlogImageSource(
+        'https://images.example.com/object.webp',
+        'https://board.example.com/boards/development/new',
+      ),
+    ).toBe('https://images.example.com/object.webp')
+    expect(
+      normalizedDevlogImageSource(
+        'http://images.example.com/object.webp',
+        'https://board.example.com/boards/development/new',
+      ),
+    ).toBeNull()
   })
 
   it('업로드 토큰을 평문 없이 암호화하고 복호화한다', async () => {

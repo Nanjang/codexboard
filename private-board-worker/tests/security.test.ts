@@ -79,6 +79,7 @@ describe('Content Security Policy', () => {
 
 describe('공개 경로', () => {
   it('손님 홈과 공개 개발일지만 공개한다', () => {
+    const imageHash = 'a'.repeat(64)
     expect(isPublicPath('/')).toBe(true)
     expect(isPublicPath('/boards/free')).toBe(false)
     expect(isPublicPath('/boards/development')).toBe(true)
@@ -90,5 +91,7 @@ describe('공개 경로', () => {
     expect(isPublicPath('/devlogs/u/user-1/posts/42')).toBe(true)
     expect(isPublicPath('/devlogs/u/user-1/posts/0')).toBe(false)
     expect(isPublicPath('/devlogs/u/user-1/edit')).toBe(false)
+    expect(isPublicPath(`/devlog-images/i/${imageHash}.webp`)).toBe(true)
+    expect(isPublicPath('/devlog-images/i/not-a-hash.webp')).toBe(false)
   })
 })

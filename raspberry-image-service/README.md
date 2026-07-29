@@ -1,16 +1,16 @@
 # Raspberry Pi image service
 
-CodexBoard 개발일지 이미지를 라즈베리파이의 외장 SSD에 저장하고 공개 HTTPS 주소로 제공하는 독립 서비스입니다.
+CodexBoard 개발일지 이미지를 라즈베리파이의 외장 SSD에 저장하는 독립 서비스입니다. 외부 요청은 단일 게시판 Worker가 받고, Workers VPC를 통해 이 서비스로 전달합니다.
 
 이 디렉터리는 저장소 최상위에 있으며 GitHub Actions의 Worker 배포 대상인 `private-board-worker/**` 밖에 있습니다. 이 서비스의 변경은 `Private Board Worker` 워크플로를 실행하지 않으며 Wrangler 배포에도 포함되지 않습니다.
 
 ## 동작
 
 - 내부 주소: `http://127.0.0.1:8085`
-- 외부 주소: `https://img.example.com`
-- 공개 조회: `GET /i/{sha256}.webp`
-- 업로드: `POST /upload`
-- 삭제: `DELETE /i/{sha256}.webp`
+- 외부 주소: `https://<게시판-Worker>/devlog-images/i/{sha256}.webp`
+- Worker 내부 조회: `GET /i/{sha256}.webp`
+- Worker 내부 업로드: `POST /upload`
+- 관리용 내부 삭제: `DELETE /i/{sha256}.webp`
 - 상태 확인: `GET /health`
 
 업로드 파일은 Sharp로 디코딩하고 방향을 보정한 뒤 WebP로 다시 인코딩합니다. 이 과정에서 EXIF 등 원본 메타데이터는 유지하지 않습니다. 변환 결과의 SHA-256을 계산하여 다음처럼 외장 SSD에 분산 저장합니다.
@@ -26,7 +26,7 @@ CodexBoard 개발일지 이미지를 라즈베리파이의 외장 SSD에 저장�
 - 64비트 Raspberry Pi OS 권장
 - Node.js 22 이상
 - 외장 SSD
-- Cloudflare 계정과 관리 중인 도메인
+- Cloudflare 계정
 - `cloudflared`
 
 ## 설치 구조
@@ -113,24 +113,37 @@ sudo systemctl restart codexboard-image-service
 sudo systemctl status codexboard-image-service
 ```
 
-## Cloudflare Tunnel
+## Cloudflare Tunnel과 Workers VPC
 
-`deploy/cloudflared-config.yml.example`을 기준으로 터널의 공개 호스트 이름을 내부 서비스에 연결합니다.
+터널에 공개 Route나 도메인을 추가하지 않습니다. `cloudflared`가 연결된 Named Tunnel을 Workers VPC Service의 내부 원본으로만 사용합니다.
 
-```yaml
-ingress:
-  - hostname: img.example.com
-    service: http://127.0.0.1:8085
-  - service: http_status:404
+1. Cloudflare Dashboard에서 Named Tunnel `imgvault`가 `Healthy`인지 확인합니다.
+2. **Workers VPC → Services → Create service**에서 다음 값으로 서비스를 만듭니다.
+   - Tunnel: `imgvault`
+   - Type: `HTTP`
+   - Host: `localhost`
+   - Port: `8085`
+3. 생성된 VPC Service의 UUID를 복사합니다.
+4. GitHub 저장소의 `production` Environment 변수 `IMAGE_VAULT_VPC_SERVICE_ID`에 UUID를 등록합니다.
+5. Worker를 다시 배포합니다.
+
+Worker에는 `IMAGE_VAULT` Fetcher 바인딩이 생성되고, 게시판의 업로드와 이미지 조회 요청이 이 바인딩을 통해 `http://localhost:8085`로 전달됩니다. 공유기 포트포워딩, 공개 Tunnel Route, Custom Domain, Quick Tunnel은 필요하지 않습니다.
+
+라즈베리파이의 `/etc/codexboard-image-service.env`에는 실제 게시판 Worker 주소를 넣습니다.
+
+```dotenv
+HOST=127.0.0.1
+PORT=8085
+PUBLIC_BASE_URL=https://private-board-worker.<YOUR_WORKERS_SUBDOMAIN>.workers.dev/devlog-images
 ```
 
-외부 클라이언트는 일반 HTTPS 443을 사용하고, `cloudflared`만 라즈베리파이의 `127.0.0.1:8085`에 접근합니다. 공유기 포트포워딩은 필요하지 않습니다.
+`cloudflared`는 2025.7.0 이상이어야 하며 `auto` 또는 QUIC 프로토콜로 실행해야 합니다. 현재 화면에 보인 2026.7.3은 이 조건을 충족합니다.
 
 ## API
 
 ### 이미지 업로드
 
-요청 본문에 이미지 파일 바이트를 그대로 보냅니다. `multipart/form-data`는 사용하지 않습니다.
+외부 브라우저는 게시판 Worker의 `/api/devlog/images`로 업로드합니다. 아래 명령은 라즈베리파이에서 원본 서비스를 직접 점검할 때만 사용합니다. 요청 본문에 이미지 파일 바이트를 그대로 보내며 `multipart/form-data`는 사용하지 않습니다.
 
 ```bash
 curl \
@@ -138,7 +151,7 @@ curl \
   --header "Authorization: Bearer $IMAGE_SERVICE_TOKEN" \
   --header "Content-Type: image/png" \
   --data-binary @screenshot.png \
-  https://img.example.com/upload
+  http://127.0.0.1:8085/upload
 ```
 
 성공 응답:
@@ -146,7 +159,7 @@ curl \
 ```json
 {
   "hash": "abcdef...",
-  "url": "https://img.example.com/i/abcdef....webp",
+  "url": "https://private-board-worker.example.workers.dev/devlog-images/i/abcdef....webp",
   "contentType": "image/webp",
   "sizeBytes": 123456,
   "width": 1920,
@@ -158,7 +171,8 @@ curl \
 ### 이미지 조회
 
 ```bash
-curl --output image.webp https://img.example.com/i/<sha256>.webp
+curl --output image.webp \
+  https://private-board-worker.example.workers.dev/devlog-images/i/<sha256>.webp
 ```
 
 조회 응답에는 다음 캐시 정책이 적용됩니다.
@@ -174,7 +188,7 @@ ETag: "sha256-<hash>"
 curl \
   --request DELETE \
   --header "Authorization: Bearer $IMAGE_SERVICE_TOKEN" \
-  https://img.example.com/i/<sha256>.webp
+  http://127.0.0.1:8085/i/<sha256>.webp
 ```
 
 같은 해시를 여러 게시글에서 참조할 수 있으므로 게시글 삭제와 동시에 이미지 파일을 자동 삭제하지 않는 것을 권장합니다.
@@ -186,7 +200,7 @@ curl \
 | `HOST` | `127.0.0.1` | 내부 수신 주소 |
 | `PORT` | `8085` | 내부 수신 포트 |
 | `IMAGE_STORAGE_ROOT` | 필수 | 외장 SSD의 절대 경로 |
-| `PUBLIC_BASE_URL` | 필수 | 공개 HTTPS origin |
+| `PUBLIC_BASE_URL` | 필수 | 게시판 Worker의 `<origin>/devlog-images` 주소 |
 | `IMAGE_SERVICE_TOKEN` | 필수 | 32바이트 이상의 업로드·삭제 토큰 |
 | `MAX_UPLOAD_BYTES` | `10485760` | 입력 파일 최대 크기 |
 | `MAX_IMAGE_WIDTH` | `4096` | 변환 결과 최대 너비 |
@@ -196,10 +210,9 @@ curl \
 
 ## 게시판 Worker 연동
 
-브라우저가 게시판의 업로드 API로 원본 바이트를 보내면 Worker가 로그인과 CSRF를 확인한 다음 이미지
-서비스로 전달합니다. 게시판 관리자 설정의 **개발일지 이미지 서비스**에서 공개 기본 URL과
-`IMAGE_SERVICE_TOKEN`을 입력하면 `/health` 확인 후 활성화됩니다. 이미지 서비스의 공개 `GET`에는
-인증이 필요하지 않습니다.
+브라우저가 게시판의 업로드 API로 원본 바이트를 보내면 Worker가 로그인과 CSRF를 확인한 다음 Workers VPC로 이미지 서비스에 전달합니다. 게시판 관리자 설정의 **개발일지 이미지 서비스**에는 `IMAGE_SERVICE_TOKEN`만 입력합니다. Worker가 VPC를 통해 `/health`를 확인한 뒤 기능을 활성화합니다.
+
+이미지 본문에는 `https://<게시판-Worker>/devlog-images/i/<sha256>.webp`가 저장됩니다. 이미지 조회도 같은 Worker가 VPC로 전달하므로 사용자에게 라즈베리파이 주소나 별도 Tunnel 주소가 노출되지 않습니다.
 
 ## 테스트
 

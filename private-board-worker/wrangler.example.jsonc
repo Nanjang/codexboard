@@ -2,7 +2,7 @@
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "__WORKER_NAME__",
   "main": "src/index.tsx",
-  "compatibility_date": "2026-07-26",
+  "compatibility_date": "2026-07-29",
   "workers_dev": true,
   "upload_source_maps": true,
 
@@ -40,6 +40,8 @@
       "migrations_dir": "migrations"
     }
   ],
+
+  "vpc_services": __IMAGE_VAULT_VPC_SERVICES__,
 
   "ratelimits": [
     {

@@ -9,7 +9,8 @@ export function AdminPage({
   csrfToken,
   imageStorageEnabled,
   r2Configured,
-  imageService = { configured: false, enabled: false, baseUrl: null, updatedAt: null },
+  imageServiceBound = false,
+  imageService = { configured: false, enabled: false, updatedAt: null },
   notice = null,
 }: {
   appName: string
@@ -18,9 +19,19 @@ export function AdminPage({
   csrfToken: string
   imageStorageEnabled: boolean
   r2Configured: boolean
+  imageServiceBound?: boolean
   imageService?: ImageServiceSettings
   notice?: string | null
 }) {
+  const imageServiceReady = imageServiceBound && imageService.enabled
+  const imageServiceStatus = imageServiceReady
+    ? '활성'
+    : !imageServiceBound
+      ? 'VPC 미연결'
+      : imageService.configured
+        ? '비활성'
+        : '미등록'
+
   return (
     <AppLayout
       appName={appName}
@@ -44,30 +55,31 @@ export function AdminPage({
         <article class="form-card admin-feature-card">
           <div class="admin-feature-heading">
             <div>
-              <p class="eyebrow">Raspberry Pi REST</p>
+              <p class="eyebrow">Workers VPC · Raspberry Pi REST</p>
               <h3>개발일지 이미지 서비스</h3>
             </div>
-            <strong class={imageService.enabled ? 'feature-status is-enabled' : 'feature-status'}>
-              {imageService.enabled ? '활성' : imageService.configured ? '비활성' : '미등록'}
+            <strong class={imageServiceReady ? 'feature-status is-enabled' : 'feature-status'}>
+              {imageServiceStatus}
             </strong>
           </div>
           <p>
-            Cloudflare Tunnel로 공개한 HTTPS 주소와 업로드 토큰을 등록합니다. 이미지는 공개 URL로 제공되고,
-            업로드 요청만 토큰으로 인증합니다.
+            Worker가 VPC Service를 통해 라즈베리파이에 연결합니다. 사용자는 게시판 Worker의 공개 이미지
+            주소만 사용하고, 내부 주소와 업로드 토큰은 노출되지 않습니다.
           </p>
+          <dl class="admin-feature-details">
+            <div>
+              <dt>VPC 바인딩</dt>
+              <dd>{imageServiceBound ? '준비됨' : '미설정 · IMAGE_VAULT 바인딩 필요'}</dd>
+            </div>
+            <div>
+              <dt>공개 경로</dt>
+              <dd>
+                <code>/devlog-images/i/&lt;hash&gt;.webp</code>
+              </dd>
+            </div>
+          </dl>
           <form action="/admin/image-service" method="post" class="stack-form">
             <CsrfInput token={csrfToken} />
-            <label>
-              <span>서비스 기본 URL</span>
-              <input
-                type="url"
-                name="baseUrl"
-                value={imageService.baseUrl ?? ''}
-                placeholder="https://images.example.com"
-                required
-                autocomplete="url"
-              />
-            </label>
             <label>
               <span>업로드 토큰</span>
               <input
@@ -80,9 +92,10 @@ export function AdminPage({
               />
             </label>
             <p class="form-hint">
-              저장 시 <code>/health</code> 연결을 확인하며 즉시 활성화합니다. 토큰은 암호화해 D1에 저장합니다.
+              저장 시 VPC를 통해 <code>/health</code> 연결을 확인하며 즉시 활성화합니다. 토큰은 암호화해
+              D1에 저장합니다.
             </p>
-            <button class="button" type="submit">
+            <button class="button" type="submit" disabled={!imageServiceBound}>
               {imageService.configured ? '연결 확인 후 저장' : '서비스 등록 및 활성화'}
             </button>
           </form>

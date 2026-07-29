@@ -1,5 +1,9 @@
 import Sortable from 'sortablejs'
-import { localImageValidationError } from '../shared/images'
+import {
+  devlogImageValidationError,
+  localImageValidationError,
+  normalizedDevlogImageSource,
+} from '../shared/images'
 
 function showToast(message: string, tone: 'success' | 'error' = 'success'): void {
   const region = document.querySelector<HTMLElement>('[data-toast-region]')
@@ -221,6 +225,8 @@ function setupDevlogEditor(): void {
   if (!form || !editor || !value) return
 
   let savedRange: Range | null = null
+  let imageUploadInProgress = false
+  const imageUploadEnabled = imageInput?.disabled === false
   const sync = (): void => {
     value.value = editor.innerHTML
     if (count) count.textContent = `${value.value.length.toLocaleString()} / 20,000`
@@ -244,49 +250,30 @@ function setupDevlogEditor(): void {
     rememberRange()
     sync()
   }
-
-  editor.addEventListener('input', sync)
-  editor.addEventListener('keyup', rememberRange)
-  editor.addEventListener('mouseup', rememberRange)
-  editor.addEventListener('focus', rememberRange)
-
-  form.querySelectorAll<HTMLButtonElement>('[data-editor-command]').forEach((button) => {
-    button.addEventListener('mousedown', (event) => event.preventDefault())
-    button.addEventListener('click', () => runCommand(button.dataset.editorCommand ?? ''))
-  })
-  form.querySelectorAll<HTMLButtonElement>('[data-editor-format]').forEach((button) => {
-    button.addEventListener('mousedown', (event) => event.preventDefault())
-    button.addEventListener('click', () => runCommand('formatBlock', button.dataset.editorFormat ?? 'p'))
-  })
-  form.querySelector<HTMLButtonElement>('[data-editor-link]')?.addEventListener('click', () => {
-    const href = window.prompt('연결할 HTTPS 주소를 입력하세요.')
-    if (!href) return
-    try {
-      const url = new URL(href)
-      if (url.protocol !== 'https:') throw new Error('HTTPS required')
-      runCommand('createLink', url.toString())
-    } catch {
-      showToast('HTTPS 링크만 삽입할 수 있습니다.', 'error')
-    }
-  })
-
-  imageButton?.addEventListener('mousedown', () => rememberRange())
-  imageButton?.addEventListener('click', () => imageInput?.click())
-  imageInput?.addEventListener('change', async () => {
-    const file = imageInput.files?.[0]
-    imageInput.value = ''
-    if (!file) return
-    if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'].includes(file.type)) {
-      showToast('JPEG, PNG, WebP, GIF, AVIF 이미지만 업로드할 수 있습니다.', 'error')
+  const uploadAndInsertImage = async (
+    file: File,
+    insertionRange: Range | null,
+    source: 'file' | 'clipboard',
+  ): Promise<void> => {
+    if (!imageInput || !imageUploadEnabled) {
+      showToast('이미지 서비스가 비활성화되어 있습니다.', 'error')
       return
     }
-    if (file.size < 1 || file.size > 10 * 1024 * 1024) {
-      showToast('이미지는 최대 10MiB까지 업로드할 수 있습니다.', 'error')
+    if (imageUploadInProgress) {
+      showToast('이미지 업로드가 끝난 뒤 다시 시도해 주세요.', 'error')
+      return
+    }
+    const validationError = devlogImageValidationError(file, source)
+    if (validationError) {
+      showToast(validationError, 'error')
       return
     }
 
+    imageUploadInProgress = true
     if (status) status.textContent = '이미지를 업로드하고 있습니다…'
     if (imageButton) imageButton.disabled = true
+    imageInput.disabled = true
+    editor.setAttribute('aria-busy', 'true')
     try {
       const response = await fetch('/api/devlog/images', {
         method: 'POST',
@@ -298,13 +285,13 @@ function setupDevlogEditor(): void {
       })
       if (!response.ok) throw await jsonError(response, '이미지를 업로드하지 못했습니다.')
       const uploaded = (await response.json()) as DevlogImageUpload
-      const url = new URL(uploaded.url)
-      if (url.protocol !== 'https:') throw new Error('이미지 URL이 올바르지 않습니다.')
+      const imageSource = normalizedDevlogImageSource(uploaded.url, window.location.href)
+      if (!imageSource) throw new Error('이미지 URL이 올바르지 않습니다.')
 
       const figure = document.createElement('figure')
       figure.className = 'devlog-image'
       const image = document.createElement('img')
-      image.src = url.toString()
+      image.setAttribute('src', imageSource)
       image.alt = file.name.replace(/\.[^.]+$/u, '').slice(0, 300)
       image.loading = 'lazy'
       image.decoding = 'async'
@@ -312,6 +299,7 @@ function setupDevlogEditor(): void {
       figure.appendChild(image)
       figure.appendChild(caption)
 
+      savedRange = insertionRange
       focusSavedRange()
       const selection = window.getSelection()
       const range = selection?.rangeCount ? selection.getRangeAt(0) : null
@@ -339,10 +327,69 @@ function setupDevlogEditor(): void {
       if (status) status.textContent = '이미지 업로드에 실패했습니다.'
     } finally {
       if (imageButton) imageButton.disabled = false
+      imageInput.disabled = false
+      editor.removeAttribute('aria-busy')
+      imageUploadInProgress = false
+    }
+  }
+
+  editor.addEventListener('input', sync)
+  editor.addEventListener('keyup', rememberRange)
+  editor.addEventListener('mouseup', rememberRange)
+  editor.addEventListener('focus', rememberRange)
+  editor.addEventListener('paste', (event) => {
+    const imageItem = Array.from(event.clipboardData?.items ?? []).find(
+      (item) => item.kind === 'file' && item.type.toLowerCase().startsWith('image/'),
+    )
+    if (!imageItem) return
+
+    event.preventDefault()
+    rememberRange()
+    const file = imageItem.getAsFile()
+    if (!file) {
+      showToast('클립보드 이미지를 읽지 못했습니다.', 'error')
+      return
+    }
+    const insertionRange = savedRange?.cloneRange() ?? null
+    void uploadAndInsertImage(file, insertionRange, 'clipboard')
+  })
+
+  form.querySelectorAll<HTMLButtonElement>('[data-editor-command]').forEach((button) => {
+    button.addEventListener('mousedown', (event) => event.preventDefault())
+    button.addEventListener('click', () => runCommand(button.dataset.editorCommand ?? ''))
+  })
+  form.querySelectorAll<HTMLButtonElement>('[data-editor-format]').forEach((button) => {
+    button.addEventListener('mousedown', (event) => event.preventDefault())
+    button.addEventListener('click', () => runCommand('formatBlock', button.dataset.editorFormat ?? 'p'))
+  })
+  form.querySelector<HTMLButtonElement>('[data-editor-link]')?.addEventListener('click', () => {
+    const href = window.prompt('연결할 HTTPS 주소를 입력하세요.')
+    if (!href) return
+    try {
+      const url = new URL(href)
+      if (url.protocol !== 'https:') throw new Error('HTTPS required')
+      runCommand('createLink', url.toString())
+    } catch {
+      showToast('HTTPS 링크만 삽입할 수 있습니다.', 'error')
     }
   })
 
+  imageButton?.addEventListener('mousedown', () => rememberRange())
+  imageButton?.addEventListener('click', () => imageInput?.click())
+  imageInput?.addEventListener('change', async () => {
+    const file = imageInput.files?.[0]
+    imageInput.value = ''
+    if (!file) return
+    const insertionRange = savedRange?.cloneRange() ?? null
+    await uploadAndInsertImage(file, insertionRange, 'file')
+  })
+
   form.addEventListener('submit', (event) => {
+    if (imageUploadInProgress) {
+      event.preventDefault()
+      showToast('이미지 업로드가 끝난 뒤 글을 저장해 주세요.', 'error')
+      return
+    }
     sync()
     if (value.value.length > 20_000) {
       event.preventDefault()

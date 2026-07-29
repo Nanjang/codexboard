@@ -231,7 +231,7 @@ export function PostFormPage({
                   <input
                     class="visually-hidden"
                     type="file"
-                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
                     data-editor-image-input
                     disabled={!imageServiceEnabled}
                   />
@@ -250,7 +250,7 @@ export function PostFormPage({
                 <div class="editor-status-row">
                   <span data-editor-status aria-live="polite">
                     {imageServiceEnabled
-                      ? '이미지는 현재 커서 위치에 삽입됩니다.'
+                      ? '이미지는 현재 커서 위치에 삽입됩니다. 2MiB 미만 클립보드 이미지는 바로 붙여넣을 수 있습니다.'
                       : '이미지 서비스가 비활성화되어 있습니다.'}
                   </span>
                   <span data-editor-count>{initialEditorHtml.length.toLocaleString()} / 20,000</span>

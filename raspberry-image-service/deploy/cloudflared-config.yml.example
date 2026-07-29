@@ -1,7 +1,4 @@
-tunnel: <TUNNEL_ID>
-credentials-file: /etc/cloudflared/<TUNNEL_ID>.json
-
-ingress:
-  - hostname: img.example.com
-    service: http://127.0.0.1:8085
-  - service: http_status:404
+# Workers VPC 구성에서는 공개 hostname ingress 파일을 사용하지 않습니다.
+# Cloudflare Dashboard가 안내한 토큰으로 Named Tunnel을 systemd 서비스로 설치한 뒤,
+# Workers VPC Service에서 이 Tunnel의 localhost:8085를 HTTP 서비스로 등록합니다.
+# 공개 Route와 공유기 포트포워딩은 만들지 않습니다.

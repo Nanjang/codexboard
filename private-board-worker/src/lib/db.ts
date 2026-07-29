@@ -54,14 +54,12 @@ export async function getImageServiceSettings(db: D1Database): Promise<ImageServ
   return {
     configured: record !== null,
     enabled: record?.enabled === 1,
-    baseUrl: record?.base_url ?? null,
     updatedAt: record?.updated_at ?? null,
   }
 }
 
 export async function saveImageServiceSettings(
   db: D1Database,
-  baseUrl: string,
   tokenCiphertext: string,
   updatedBy: string,
 ): Promise<void> {
@@ -78,7 +76,7 @@ export async function saveImageServiceSettings(
          updated_by = excluded.updated_by,
          updated_at = excluded.updated_at`,
     )
-    .bind(baseUrl, tokenCiphertext, updatedBy, now)
+    .bind('vpc://image-vault', tokenCiphertext, updatedBy, now)
     .run()
 }
 

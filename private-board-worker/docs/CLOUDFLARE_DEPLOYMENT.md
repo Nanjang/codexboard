@@ -1,6 +1,6 @@
 # Cloudflare 등록 및 운영 배포
 
-이 문서는 D1 생성, 운영 Secret 등록, 최초 배포, Custom Domain, GitHub Actions 연결 순서까지 다룹니다.
+이 문서는 D1 생성, 운영 Secret 등록, 최초 배포, Custom Domain, Workers VPC 이미지 서비스, GitHub Actions 연결 순서까지 다룹니다.
 
 개인 이미지 저장 기능을 사용할 때 필요한 R2 버킷·CORS·Custom Domain·자격증명 설정은 [R2 개인 이미지 저장소 설정](R2_IMAGE_STORAGE_SETUP.md)을 함께 진행하세요. R2 Secret이 없어도 Worker는 배포되지만 이미지 업로드만 설정 오류 toast로 거절됩니다.
 
@@ -44,10 +44,12 @@ WORKER_NAME="private-board-worker" \
 D1_DATABASE_NAME="private-board-db" \
 AUTH_RATE_LIMIT_NAMESPACE="41001" \
 WRITE_RATE_LIMIT_NAMESPACE="41002" \
+IMAGE_VAULT_VPC_SERVICE_ID="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" \
 npm run config:render
 ```
 
 Rate Limiting namespace ID는 Cloudflare 계정 안에서 고유한 양의 정수 문자열이어야 하며 두 바인딩은 서로 다른 값을 사용해야 합니다.
+자체 이미지 서비스를 아직 연결하지 않았다면 `IMAGE_VAULT_VPC_SERVICE_ID`는 생략합니다.
 
 ## 3. Google OAuth 운영 URL 등록
 
@@ -199,7 +201,35 @@ npx wrangler tail --config wrangler.jsonc
 
 OAuth code, ID token, 세션 쿠키, 사용자 이메일 전체가 포함된 요청을 이슈나 채팅에 복사하지 마세요. 애플리케이션 오류 로그는 인증 토큰 원문을 의도적으로 출력하지 않습니다.
 
-## 9. GitHub Actions 배포
+## 9. 자체 이미지 서비스를 Workers VPC로 연결
+
+라즈베리파이 이미지 서비스를 사용할 때만 진행합니다. Named Tunnel에는 공개 Route나 도메인을 추가하지 않아도 됩니다.
+
+1. 라즈베리파이의 `cloudflared` 터널이 `Healthy`인지 확인합니다.
+2. Cloudflare Dashboard의 **Workers VPC → Services**에서 HTTP VPC Service를 만듭니다.
+3. Tunnel은 라즈베리파이에 설치한 Named Tunnel, Host는 `localhost`, HTTP Port는 `8085`로 설정합니다.
+4. 생성된 Service ID를 복사합니다.
+5. 아래 GitHub Environment 변수에 Service ID를 등록하고 Worker를 다시 배포합니다.
+
+```text
+IMAGE_VAULT_VPC_SERVICE_ID=<VPC-Service-UUID>
+```
+
+배포 후 Worker 설정에 `IMAGE_VAULT` VPC Service 바인딩이 표시되어야 합니다. `/admin`의 **개발일지 이미지 서비스**에 라즈베리파이와 동일한 `IMAGE_SERVICE_TOKEN`을 입력하면 Worker가 VPC를 통해 `/health`를 검사하고 기능을 활성화합니다.
+
+외부 브라우저는 게시판 Worker만 호출합니다.
+
+```text
+업로드:     POST https://<게시판-Worker>/api/devlog/images
+이미지 조회: GET https://<게시판-Worker>/devlog-images/i/<sha256>.webp
+내부 전달:  IMAGE_VAULT binding → http://localhost:8085
+```
+
+GitHub Actions용 Cloudflare API Token의 소유 사용자에게는 기존 VPC Service를 Worker에 연결할 수 있는 `Connectivity Directory Bind` 역할이 필요합니다. VPC Service 자체를 만들거나 수정하는 계정에는 `Connectivity Directory Admin` 역할이 필요합니다.
+
+라즈베리파이 설치와 환경 변수는 [Raspberry Pi image service](../../raspberry-image-service/README.md)를 참고하세요.
+
+## 10. GitHub Actions 배포
 
 저장소의 `.github/workflows/private-board-worker.yml`은 `main` 브랜치의 Worker 관련 변경을 push하는 즉시 검사, D1 마이그레이션, Worker 배포를 수행합니다. Pull Request에서는 검사만 수행합니다. 먼저 위의 수동 최초 배포로 Cloudflare Worker Secrets를 등록한 뒤 GitHub 배포를 연결하세요.
 
@@ -220,13 +250,16 @@ AUTH_RATE_LIMIT_NAMESPACE
 WRITE_RATE_LIMIT_NAMESPACE
 R2_BUCKET_NAME
 R2_PUBLIC_BASE_URL
+IMAGE_VAULT_VPC_SERVICE_ID
 ```
 
-Google Client ID/Secret, `SESSION_SECRET`, Turnstile Secret, 허용 이메일 목록, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`는 GitHub에 넣지 않습니다. 기존 Cloudflare Worker Secrets에 유지하며 GitHub Actions는 저장소 코드와 비밀이 아닌 바인딩 설정만 배포합니다.
+`IMAGE_VAULT_VPC_SERVICE_ID`는 자체 이미지 서비스를 사용할 때만 설정합니다. 값이 없으면 `IMAGE_VAULT` 바인딩 없이 기존 Worker가 정상 배포됩니다.
+
+Google Client ID/Secret, `SESSION_SECRET`, Turnstile Secret, 허용 이메일 목록, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `IMAGE_SERVICE_TOKEN`은 GitHub에 넣지 않습니다. 기존 Cloudflare Worker Secrets 또는 관리자 설정의 암호화된 D1 값으로 유지하며 GitHub Actions는 저장소 코드와 비밀이 아닌 바인딩 설정만 배포합니다.
 
 Cloudflare API Token에는 대상 계정의 Worker 배포와 D1 마이그레이션에 필요한 최소 권한만 부여하고 만료·회전 정책을 적용하세요. GitHub의 `production` Environment에 승인 규칙을 설정하면 운영 배포를 추가로 보호할 수 있습니다.
 
-## 10. 운영 배포 체크리스트
+## 11. 운영 배포 체크리스트
 
 - [ ] `/privacy`, `/terms`, 운영자 연락처를 실제 정책에 맞게 수정
 - [ ] `REGISTRATION_MODE`가 의도한 값인지 확인
@@ -236,6 +269,7 @@ Cloudflare API Token에는 대상 계정의 Worker 배포와 D1 마이그레이�
 - [ ] 비로그인 보호 경로 점검
 - [ ] 서로 다른 두 계정으로 개인 티켓 격리 점검
 - [ ] R2를 사용한다면 개인 이미지 격리, 직접 업로드, 공개 캐시 URL 점검
+- [ ] 자체 이미지 서비스를 사용한다면 VPC Service ID, `IMAGE_VAULT` 바인딩, Worker 경유 이미지 조회 점검
 - [ ] `.env.production`, `.dev.vars`, `wrangler.jsonc`가 Git에서 제외되는지 확인
 - [ ] GitHub Actions용 Cloudflare Token 최소 권한 확인
 
@@ -246,3 +280,5 @@ Cloudflare API Token에는 대상 계정의 Worker 배포와 D1 마이그레이�
 - Worker Secrets: https://developers.cloudflare.com/workers/configuration/secrets/
 - Rate Limiting 바인딩: https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/
 - GitHub Actions: https://developers.cloudflare.com/workers/ci-cd/external-cicd/github-actions/
+- Workers VPC 시작하기: https://developers.cloudflare.com/workers-vpc/get-started/
+- Workers VPC Service 바인딩: https://developers.cloudflare.com/workers-vpc/configuration/vpc-services/

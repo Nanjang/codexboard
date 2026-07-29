@@ -21,6 +21,7 @@ export interface Bindings {
   AUTH_RATE_LIMITER: RateLimiterBinding
   WRITE_RATE_LIMITER: RateLimiterBinding
   CF_VERSION_METADATA: WorkerVersionMetadata
+  IMAGE_VAULT?: Fetcher
 
   BASE_URL: string
   GOOGLE_CLIENT_ID: string
@@ -131,7 +132,6 @@ export interface DevlogAuthor {
 export interface ImageServiceSettings {
   configured: boolean
   enabled: boolean
-  baseUrl: string | null
   updatedAt: number | null
 }
 

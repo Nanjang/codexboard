@@ -85,6 +85,7 @@ jobs:
           R2_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           R2_BUCKET_NAME: ${{ vars.R2_BUCKET_NAME }}
           R2_PUBLIC_BASE_URL: ${{ vars.R2_PUBLIC_BASE_URL }}
+          IMAGE_VAULT_VPC_SERVICE_ID: ${{ vars.IMAGE_VAULT_VPC_SERVICE_ID }}
 
       - name: Apply D1 migrations
         uses: cloudflare/wrangler-action@v3

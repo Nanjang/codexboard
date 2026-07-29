@@ -468,6 +468,8 @@ describe('핵심 화면', () => {
     expect(html).not.toContain('작성자와 관리자만 읽을 수 있습니다.')
     expect(html).toContain('data-editor-image')
     expect(html).toContain('이미지는 현재 커서 위치에 삽입됩니다.')
+    expect(html).toContain('2MiB 미만 클립보드 이미지는 바로 붙여넣을 수 있습니다.')
+    expect(html).toContain('accept="image/jpeg,image/png,image/webp,image/gif,image/avif"')
   })
 
   it('공개 개발일지는 로그인 없이 리치 본문을 렌더링한다', async () => {
@@ -725,6 +727,8 @@ describe('핵심 화면', () => {
     expect(html).toContain('name="enabled" value="true"')
     expect(html).toContain('이미지 기능 활성화')
     expect(html).toContain('미설정 · 활성화 후 업로드 시 오류 toast 표시')
+    expect(html).toContain('VPC 미연결')
+    expect(html).toContain('IMAGE_VAULT 바인딩 필요')
     expect(html).not.toContain('href="/images"')
   })
 
@@ -737,6 +741,7 @@ describe('핵심 화면', () => {
         csrfToken: 'csrf-test',
         imageStorageEnabled: true,
         r2Configured: true,
+        imageServiceBound: true,
       }),
     )
 

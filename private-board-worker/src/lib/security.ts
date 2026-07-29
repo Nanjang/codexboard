@@ -29,6 +29,10 @@ export class SameOriginError extends HTTPException {
   }
 }
 
+export function isPublicDevlogImagePath(path: string): boolean {
+  return /^\/devlog-images\/i\/[a-f0-9]{64}\.webp$/u.test(path)
+}
+
 export function isPublicPath(path: string): boolean {
   return (
     path === '/' ||
@@ -40,6 +44,7 @@ export function isPublicPath(path: string): boolean {
     path === '/auth/google/callback' ||
     path === '/devlogs' ||
     path === '/boards/development' ||
+    isPublicDevlogImagePath(path) ||
     /^\/devlogs\/u\/[^/]+(?:\/posts\/[1-9][0-9]*)?$/u.test(path) ||
     path.startsWith('/assets/')
   )
@@ -159,6 +164,7 @@ export async function securityMiddleware(c: AppContext, next: () => Promise<void
   await next()
 
   const isAsset = c.req.path.startsWith('/assets/')
+  const isDevlogImage = isPublicDevlogImagePath(c.req.path)
   const policy = contentSecurityPolicy(turnstileEnabled(c.env), r2ImageOrigins(c.env))
 
   c.header('Content-Security-Policy', policy)
@@ -168,7 +174,7 @@ export async function securityMiddleware(c: AppContext, next: () => Promise<void
   c.header('X-Robots-Tag', 'noindex, nofollow, noarchive')
   c.header('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=()')
   c.header('Cross-Origin-Opener-Policy', 'same-origin')
-  c.header('Cross-Origin-Resource-Policy', 'same-origin')
+  c.header('Cross-Origin-Resource-Policy', isDevlogImage ? 'cross-origin' : 'same-origin')
 
   if (secureCookies(c.env)) {
     c.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
@@ -176,6 +182,10 @@ export async function securityMiddleware(c: AppContext, next: () => Promise<void
 
   if (isAsset) {
     c.header('Cache-Control', 'public, max-age=300, must-revalidate')
+  } else if (isDevlogImage && (c.res.ok || c.res.status === 304)) {
+    if (!c.res.headers.has('Cache-Control')) {
+      c.header('Cache-Control', 'public, max-age=31536000, immutable')
+    }
   } else {
     c.header('Cache-Control', 'private, no-store')
     c.header('Pragma', 'no-cache')
