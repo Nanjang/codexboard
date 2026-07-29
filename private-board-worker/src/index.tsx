@@ -176,6 +176,7 @@ import type {
   AuthContext,
   BoardSlug,
   BookmarkIconColor,
+  MemoLinkMode,
   MemoUrlSettings,
   PostDetailRow,
   RssWidgetResult,
@@ -577,10 +578,16 @@ function privateImageIdsInRichBody(
   return imageIds
 }
 
-function selectedMemoPatternId(value: FormDataEntryValue | null): number | null {
-  if (value === null || value === 'auto') return null
+function selectedMemoPattern(value: FormDataEntryValue | null): {
+  linkMode: MemoLinkMode
+  patternId: number | null
+} {
+  if (value === null || value === '' || value === 'none') {
+    return { linkMode: 'none', patternId: null }
+  }
+  if (value === 'auto') return { linkMode: 'auto', patternId: null }
   if (typeof value !== 'string') throw new ValidationError('메모 패턴 형식이 올바르지 않습니다.')
-  return positiveInteger(value, '메모 패턴 ID')
+  return { linkMode: 'custom', patternId: positiveInteger(value, '메모 패턴 ID') }
 }
 
 function rawMemoPatternDraft(form: FormData, id: number | null): MemoPatternDraft {
@@ -1886,17 +1893,17 @@ app.post('/memos', async (c) => {
   const form = await readForm(c)
   const draftMemo = rawFormString(form.get('memo'))
   const draftValue = rawFormString(form.get('value'))
-  const draftPatternId = rawFormString(form.get('patternId')) || 'auto'
+  const draftPatternId = rawFormString(form.get('patternId')) || 'none'
 
   try {
     const memo = singleLine(form.get('memo'), '메모', 240)
     const value = singleLine(form.get('value'), '값', 500)
-    const patternId = selectedMemoPatternId(form.get('patternId'))
+    const { linkMode, patternId } = selectedMemoPattern(form.get('patternId'))
     if (patternId !== null) {
       const pattern = await getMemoUrlPattern(c.env.DB, auth.user.id, patternId)
       if (!pattern) throw new ValidationError('선택한 메모 패턴을 찾을 수 없습니다.')
     }
-    const memoId = await createMemo(c.env.DB, auth.user.id, memo, value, patternId)
+    const memoId = await createMemo(c.env.DB, auth.user.id, memo, value, linkMode, patternId)
     if (!memoId) throw new ValidationError('선택한 메모 패턴을 찾을 수 없습니다.')
     return redirectWithNotice(c, '/memos', 'memo-created')
   } catch (error) {

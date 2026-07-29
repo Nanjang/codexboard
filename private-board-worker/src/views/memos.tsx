@@ -64,7 +64,7 @@ export function MemoBoardPage({
   patterns,
   draftMemo = '',
   draftValue = '',
-  draftPatternId = 'auto',
+  draftPatternId = 'none',
   error = null,
 }: CommonMemoPageProps & {
   notice?: string | null
@@ -95,7 +95,7 @@ export function MemoBoardPage({
         <div>
           <p class="eyebrow">개인 전용</p>
           <h2>메모 게시판</h2>
-          <p>메모와 값을 저장하고, 자동 또는 직접 선택한 패턴의 주소로 이동합니다.</p>
+          <p>기본은 링크 없이 저장하며, 자동 또는 직접 선택한 패턴으로 링크를 만들 수 있습니다.</p>
         </div>
       </section>
 
@@ -103,7 +103,7 @@ export function MemoBoardPage({
         <div class="memo-create-heading">
           <div>
             <h3 id="memo-create-title">새 메모</h3>
-            <p>패턴을 고르지 않으면 값이 숫자인지 자동으로 판별합니다.</p>
+            <p>기본값인 없음을 선택하면 링크를 만들지 않고 본문만 저장합니다.</p>
           </div>
           <div class="memo-template-status" aria-label="URL 설정 상태">
             <span class={hasNumericTemplate ? 'is-configured' : ''}>숫자 {hasNumericTemplate ? '설정됨' : '미설정'}</span>
@@ -142,6 +142,9 @@ export function MemoBoardPage({
           <label>
             <span>패턴</span>
             <select name="patternId">
+              <option value="none" selected={draftPatternId === 'none'}>
+                없음
+              </option>
               <option value="auto" selected={draftPatternId === 'auto'}>
                 자동 (숫자/문자 판별)
               </option>
@@ -170,11 +173,16 @@ export function MemoBoardPage({
           {memos.map((item) => {
             const numeric = isNumericMemoValue(item.value)
             const customPattern =
-              item.pattern_id !== null && item.pattern_prefix !== null && item.pattern_suffix !== null
+              item.link_mode === 'custom' &&
+              item.pattern_id !== null &&
+              item.pattern_prefix !== null &&
+              item.pattern_suffix !== null
                 ? { prefix: item.pattern_prefix, suffix: item.pattern_suffix }
                 : null
-            const targetUrl = composeMemoUrl(item.value, settings, customPattern)
-            const kindLabel = item.pattern_name ?? (numeric ? '숫자' : '문자')
+            const targetUrl =
+              item.link_mode === 'none' ? null : composeMemoUrl(item.value, settings, customPattern)
+            const kindLabel =
+              item.link_mode === 'none' ? '없음' : item.pattern_name ?? (numeric ? '숫자' : '문자')
             return (
               <article class="memo-row" key={item.id}>
                 <div class="memo-copy">
@@ -191,7 +199,10 @@ export function MemoBoardPage({
                       <span aria-hidden="true">↗</span>
                     </a>
                   ) : (
-                    <span class="memo-value-disabled" title="이 값 유형의 URL을 먼저 설정하세요.">
+                    <span
+                      class="memo-value-disabled"
+                      title={item.link_mode === 'none' ? undefined : '이 값 유형의 URL을 먼저 설정하세요.'}
+                    >
                       {item.value}
                     </span>
                   )}

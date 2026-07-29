@@ -11,6 +11,7 @@ import type {
   DevlogPostListRow,
   ImageServiceSettings,
   ImageExtension,
+  MemoLinkMode,
   MemoRow,
   MemoUrlPatternRow,
   MemoUrlSettings,
@@ -1354,6 +1355,7 @@ export async function listMemos(db: D1Database, ownerId: string): Promise<MemoRo
         m.owner_id,
         m.memo,
         m.value,
+        m.link_mode,
         m.pattern_id,
         p.name AS pattern_name,
         p.prefix AS pattern_prefix,
@@ -1383,6 +1385,7 @@ export async function createMemo(
   ownerId: string,
   memo: string,
   value: string,
+  linkMode: MemoLinkMode,
   patternId: number | null,
 ): Promise<number | null> {
   const count = await db
@@ -1395,21 +1398,37 @@ export async function createMemo(
 
   const now = Date.now()
   const result =
-    patternId === null
+    linkMode !== 'custom'
       ? await db
           .prepare(
             `
-            INSERT INTO private_memos (owner_id, memo, value, pattern_id, created_at, updated_at)
-            VALUES (?1, ?2, ?3, NULL, ?4, ?4)
+            INSERT INTO private_memos (
+              owner_id,
+              memo,
+              value,
+              link_mode,
+              pattern_id,
+              created_at,
+              updated_at
+            )
+            VALUES (?1, ?2, ?3, ?4, NULL, ?5, ?5)
             `,
           )
-          .bind(ownerId, memo, value, now)
+          .bind(ownerId, memo, value, linkMode, now)
           .run()
       : await db
           .prepare(
             `
-            INSERT INTO private_memos (owner_id, memo, value, pattern_id, created_at, updated_at)
-            SELECT ?1, ?2, ?3, id, ?5, ?5
+            INSERT INTO private_memos (
+              owner_id,
+              memo,
+              value,
+              link_mode,
+              pattern_id,
+              created_at,
+              updated_at
+            )
+            SELECT ?1, ?2, ?3, 'custom', id, ?5, ?5
             FROM memo_url_patterns
             WHERE id = ?4 AND user_id = ?1
             `,
@@ -1824,7 +1843,13 @@ export async function deleteMemoUrlPattern(
 
   await db.batch([
     db
-      .prepare('UPDATE private_memos SET pattern_id = NULL, updated_at = ?1 WHERE owner_id = ?2 AND pattern_id = ?3')
+      .prepare(
+        `
+        UPDATE private_memos
+        SET link_mode = 'auto', pattern_id = NULL, updated_at = ?1
+        WHERE owner_id = ?2 AND pattern_id = ?3
+        `,
+      )
       .bind(Date.now(), userId, patternId),
     db.prepare('DELETE FROM memo_url_patterns WHERE id = ?1 AND user_id = ?2').bind(patternId, userId),
   ])

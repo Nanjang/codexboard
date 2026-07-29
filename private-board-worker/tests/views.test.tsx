@@ -187,6 +187,7 @@ const memos: MemoRow[] = [
     owner_id: user.id,
     memo: '상품 번호',
     value: '00123',
+    link_mode: 'auto',
     pattern_id: null,
     pattern_name: null,
     pattern_prefix: null,
@@ -199,6 +200,7 @@ const memos: MemoRow[] = [
     owner_id: user.id,
     memo: '검색어',
     value: '한글 단어',
+    link_mode: 'auto',
     pattern_id: null,
     pattern_name: null,
     pattern_prefix: null,
@@ -211,12 +213,26 @@ const memos: MemoRow[] = [
     owner_id: user.id,
     memo: '선택한 상품',
     value: 'ABC-42',
+    link_mode: 'custom',
     pattern_id: memoPatterns[0]!.id,
     pattern_name: memoPatterns[0]!.name,
     pattern_prefix: memoPatterns[0]!.prefix,
     pattern_suffix: memoPatterns[0]!.suffix,
     created_at: 3,
     updated_at: 3,
+  },
+  {
+    id: 4,
+    owner_id: user.id,
+    memo: '링크 없는 메모',
+    value: '본문만 저장',
+    link_mode: 'none',
+    pattern_id: null,
+    pattern_name: null,
+    pattern_prefix: null,
+    pattern_suffix: null,
+    created_at: 4,
+    updated_at: 4,
   },
 ]
 
@@ -936,7 +952,15 @@ describe('핵심 화면', () => {
     expect(html).toContain('https://example.com/items/00123?from=memo')
     expect(html).toContain('https://example.com/search?q=%ED%95%9C%EA%B8%80%20%EB%8B%A8%EC%96%B4&amp;from=memo')
     expect(html).toContain('https://shop.example.com/products/ABC-42?ref=memo')
+    expect(html).toMatch(/<option value="none" selected[^>]*>없음<\/option>/u)
     expect(html).toContain('자동 (숫자/문자 판별)')
+    const bodyOnlyMemoMarker = html.indexOf('링크 없는 메모')
+    const bodyOnlyMemoStart = html.lastIndexOf('<article class="memo-row"', bodyOnlyMemoMarker)
+    const bodyOnlyMemoEnd = html.indexOf('</article>', bodyOnlyMemoMarker)
+    const bodyOnlyMemo = html.slice(bodyOnlyMemoStart, bodyOnlyMemoEnd + '</article>'.length)
+    expect(bodyOnlyMemo).toContain('본문만 저장')
+    expect(bodyOnlyMemo).toContain('없음')
+    expect(bodyOnlyMemo).not.toContain('memo-value-link')
     expect(html).toContain('상품 상세')
     expect(html).toContain('action="/memos/1/delete"')
     expect(html).not.toContain('/memos/1"')

@@ -279,6 +279,7 @@ export interface MemoRow {
   owner_id: string
   memo: string
   value: string
+  link_mode: MemoLinkMode
   pattern_id: number | null
   pattern_name: string | null
   pattern_prefix: string | null
@@ -286,6 +287,8 @@ export interface MemoRow {
   created_at: number
   updated_at: number
 }
+
+export type MemoLinkMode = 'none' | 'auto' | 'custom'
 
 export interface MemoUrlSettings {
   numeric_prefix: string
