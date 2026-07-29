@@ -78,6 +78,7 @@ import {
 import { normalizeBookmarkIconColor } from './lib/bookmark-icon-palette'
 import { getAppName, getDeployInfo, turnstileEnabled } from './lib/env'
 import { acceptsJson, noticeFromRequest, redirectWithNotice } from './lib/http'
+import { creationRequestId } from './lib/idempotency'
 import {
   createImageUploadUrl,
   IMAGE_CACHE_CONTROL,
@@ -592,6 +593,7 @@ app.get('/', async (c) => {
       widgets={widgets}
       freeBoardPosts={freeBoardPosts}
       rssResults={rssResults}
+      bookmarkCreationRequestId={crypto.randomUUID()}
     />,
   )
 })
@@ -645,6 +647,7 @@ app.post('/dashboard/bookmarks', async (c) => {
   const form = await readForm(c)
   const title = singleLine(form.get('title'), '표시 이름', 60)
   const url = bookmarkUrl(form.get('url'))
+  const requestId = creationRequestId(form.get('creation_request_id'))
   const { iconUrl, iconColor, icon } = await bookmarkIconSelection(form)
   const widgetId = await addBookmarkDashboardWidget(
     c.env.DB,
@@ -653,6 +656,7 @@ app.post('/dashboard/bookmarks', async (c) => {
     url,
     iconUrl,
     iconColor,
+    requestId,
   )
   if (icon) {
     await saveBookmarkDashboardIcon(

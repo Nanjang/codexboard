@@ -222,6 +222,7 @@ export async function addBookmarkDashboardWidget(
   url: string,
   iconUrl: string | null,
   iconColor: DashboardWidgetRow['icon_color'],
+  creationRequestId: string,
 ): Promise<number> {
   await ensureUserDashboard(db, userId)
   const now = Date.now()
@@ -230,17 +231,41 @@ export async function addBookmarkDashboardWidget(
     .prepare(
       `
       INSERT INTO dashboard_widgets (
-        user_id, widget_type, title, url, icon_url, icon_color, sort_order, created_at
+        user_id,
+        widget_type,
+        title,
+        url,
+        icon_url,
+        icon_color,
+        sort_order,
+        created_at,
+        create_request_id
       )
-      VALUES (?1, 'bookmark', ?2, ?3, ?4, ?5, ?6, ?7)
+      VALUES (?1, 'bookmark', ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+      ON CONFLICT DO NOTHING
       `,
     )
-    .bind(userId, title, url, iconUrl, iconColor, sortOrder, now)
+    .bind(userId, title, url, iconUrl, iconColor, sortOrder, now, creationRequestId)
     .run()
 
-  const widgetId = result.meta.last_row_id
-  if (!widgetId) throw new Error('북마크 위젯 ID를 확인할 수 없습니다.')
-  return widgetId
+  if (result.meta.changes > 0 && result.meta.last_row_id) {
+    return result.meta.last_row_id
+  }
+
+  const existing = await db
+    .prepare(
+      `
+      SELECT id
+      FROM dashboard_widgets
+      WHERE user_id = ?1 AND create_request_id = ?2
+      LIMIT 1
+      `,
+    )
+    .bind(userId, creationRequestId)
+    .first<{ id: number }>()
+  if (existing) return existing.id
+
+  throw new Error('북마크 위젯을 추가할 수 없습니다.')
 }
 
 export async function getBookmarkDashboardWidget(

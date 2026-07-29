@@ -157,10 +157,15 @@ function setupConfirmations(): void {
 }
 
 function setupDoubleSubmitPrevention(): void {
+  const protectedFormSelector = 'form[method="post"], form[data-prevent-double-submit]'
+
   const resetForms = (): void => {
-    document.querySelectorAll<HTMLFormElement>('form[data-prevent-double-submit]').forEach((form) => {
+    document.querySelectorAll<HTMLFormElement>(protectedFormSelector).forEach((form) => {
       delete form.dataset.submitting
       form.removeAttribute('aria-busy')
+      form.querySelectorAll<HTMLInputElement>('[data-submit-value-proxy]').forEach((control) => {
+        control.remove()
+      })
       form.querySelectorAll<HTMLButtonElement | HTMLInputElement>('[type="submit"]').forEach((control) => {
         control.disabled = false
       })
@@ -171,10 +176,23 @@ function setupDoubleSubmitPrevention(): void {
   window.addEventListener('pageshow', resetForms)
   document.addEventListener('submit', (event) => {
     const form = event.target
-    if (!(form instanceof HTMLFormElement) || !form.hasAttribute('data-prevent-double-submit')) return
+    if (!(form instanceof HTMLFormElement) || !form.matches(protectedFormSelector)) return
     if (event.defaultPrevented || form.dataset.submitting === 'true') {
       event.preventDefault()
       return
+    }
+
+    const submitter = event instanceof SubmitEvent ? event.submitter : null
+    if (
+      (submitter instanceof HTMLButtonElement || submitter instanceof HTMLInputElement)
+      && submitter.name
+    ) {
+      const proxy = document.createElement('input')
+      proxy.type = 'hidden'
+      proxy.name = submitter.name
+      proxy.value = submitter.value
+      proxy.dataset.submitValueProxy = 'true'
+      form.appendChild(proxy)
     }
 
     form.dataset.submitting = 'true'

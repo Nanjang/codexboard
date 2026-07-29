@@ -22,6 +22,7 @@ interface DashboardPageProps {
   widgets: DashboardWidgetRow[]
   freeBoardPosts: PostListRow[]
   rssResults: Record<number, RssWidgetResult>
+  bookmarkCreationRequestId: string
 }
 
 function WidgetEditControls({ label, compact = false }: { label: string; compact?: boolean }) {
@@ -287,11 +288,23 @@ function BookmarkIconFields({ widget }: { widget?: DashboardWidgetRow }) {
   )
 }
 
-function BookmarkAddDialog({ csrfToken }: { csrfToken: string }) {
+function BookmarkAddDialog({
+  csrfToken,
+  creationRequestId,
+}: {
+  csrfToken: string
+  creationRequestId: string
+}) {
   return (
     <dialog id="bookmark-add-dialog" class="ticket-dialog bookmark-dialog">
-      <form action="/dashboard/bookmarks" method="post" class="bookmark-dialog-content">
+      <form
+        action="/dashboard/bookmarks"
+        method="post"
+        class="bookmark-dialog-content"
+        data-prevent-double-submit
+      >
         <CsrfInput token={csrfToken} />
+        <input type="hidden" name="creation_request_id" value={creationRequestId} />
         <div class="dialog-header">
           <div>
             <span class="dashboard-widget-kicker">빠른 이동</span>
@@ -431,6 +444,7 @@ export function DashboardPage({
   widgets,
   freeBoardPosts,
   rssResults,
+  bookmarkCreationRequestId,
 }: DashboardPageProps) {
   const hasFreeBoard = widgets.some((widget) => widget.widget_type === 'free-board')
   const bookmarkWidgets = widgets.filter((widget) => widget.widget_type === 'bookmark')
@@ -539,7 +553,10 @@ export function DashboardPage({
         </section>
       </div>
 
-      <BookmarkAddDialog csrfToken={csrfToken} />
+      <BookmarkAddDialog
+        csrfToken={csrfToken}
+        creationRequestId={bookmarkCreationRequestId}
+      />
       {bookmarkWidgets.map((widget) => (
         <BookmarkEditDialog key={widget.id} widget={widget} csrfToken={csrfToken} />
       ))}

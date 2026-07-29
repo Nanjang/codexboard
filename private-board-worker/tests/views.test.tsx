@@ -246,6 +246,7 @@ describe('핵심 화면', () => {
         csrfToken: 'csrf-test',
         widgets: dashboardWidgets,
         freeBoardPosts: [post],
+        bookmarkCreationRequestId: ticketCreationRequestId,
         rssResults: {
           3: {
             feed: {
@@ -280,6 +281,8 @@ describe('핵심 화면', () => {
     expect(html).toContain('내 북마크')
     expect(html).toContain('data-dialog-open="bookmark-add-dialog"')
     expect(html).toContain('action="/dashboard/bookmarks"')
+    expect(html).toContain(`name="creation_request_id" value="${ticketCreationRequestId}"`)
+    expect(html).toContain('data-prevent-double-submit')
     expect(html).toContain('action="/dashboard/bookmarks/2/update"')
     expect(html).toContain('기본 아이콘 사용')
     expect(html).toContain('아이콘 URL 사용')
