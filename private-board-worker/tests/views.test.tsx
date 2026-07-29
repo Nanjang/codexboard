@@ -916,24 +916,20 @@ describe('핵심 화면', () => {
     expect(html).toContain('원본 이미지는 삭제되지 않습니다')
   })
 
-  it('관리자 설정에서 기본 비활성 이미지 기능을 수동 활성화할 수 있다', async () => {
+  it('관리자 설정에서 통합 이미지 서비스의 VPC 연결 상태를 표시한다', async () => {
     const html = String(
       await AdminPage({
         appName: 'Private Board',
         deployInfo,
         user: adminUser,
         csrfToken: 'csrf-test',
-        imageStorageEnabled: false,
         imageServiceBound: false,
       }),
     )
 
     expect(html).toContain('관리자 전용')
     expect(html).toContain('관리자 설정')
-    expect(html).toContain('>비활성</strong>')
-    expect(html).toContain('name="enabled" value="true"')
-    expect(html).toContain('이미지 기능 활성화')
-    expect(html).toContain('미설정 · 개발일지 이미지 서비스를 먼저 활성화하세요')
+    expect(html).toContain('통합 이미지 서비스')
     expect(html).toContain('VPC 미연결')
     expect(html).toContain('IMAGE_VAULT 바인딩 필요')
     expect(html).toContain('href="/admin/image-cache/requests"')
@@ -941,14 +937,13 @@ describe('핵심 화면', () => {
     expect(html).not.toContain('href="/images"')
   })
 
-  it('이미지 기능이 활성화되면 메뉴와 관리자 비활성화 동작을 표시한다', async () => {
+  it('통합 이미지 서비스가 활성화되면 메뉴와 통합 비활성화 동작을 표시한다', async () => {
     const html = String(
       await AdminPage({
         appName: 'Private Board',
         deployInfo,
         user: { ...adminUser, imageStorageEnabled: true },
         csrfToken: 'csrf-test',
-        imageStorageEnabled: true,
         imageServiceBound: true,
         imageService: { configured: true, enabled: true, updatedAt: Date.now() },
       }),
@@ -957,11 +952,11 @@ describe('핵심 화면', () => {
     expect(html).toContain('href="/images"')
     expect(html).toContain('>활성</strong>')
     expect(html).toContain('name="enabled" value="false"')
-    expect(html).toContain('이미지 기능 비활성화')
+    expect(html).toContain('통합 이미지 서비스 비활성화')
     expect(html).toContain('>준비됨</dd>')
-    expect(html).toContain('aria-label="개인 이미지 캐시 통계"')
-    expect(html.match(/최근 캐시 요청/g)).toHaveLength(2)
-    expect(html.match(/파일별 캐시 통계/g)).toHaveLength(2)
+    expect(html).toContain('aria-label="통합 이미지 캐시 통계"')
+    expect(html.match(/최근 캐시 요청/g)).toHaveLength(1)
+    expect(html.match(/파일별 캐시 통계/g)).toHaveLength(1)
   })
 
   it('최근 개발일지 이미지 요청의 캐시 결과와 페이지 이동을 표시한다', async () => {

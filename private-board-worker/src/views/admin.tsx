@@ -7,7 +7,6 @@ export function AdminPage({
   deployInfo,
   user,
   csrfToken,
-  imageStorageEnabled,
   imageServiceBound = false,
   imageService = { configured: false, enabled: false, updatedAt: null },
   notice = null,
@@ -16,7 +15,6 @@ export function AdminPage({
   deployInfo: DeployInfo
   user: CurrentUser
   csrfToken: string
-  imageStorageEnabled: boolean
   imageServiceBound?: boolean
   imageService?: ImageServiceSettings
   notice?: string | null
@@ -54,15 +52,16 @@ export function AdminPage({
           <div class="admin-feature-heading">
             <div>
               <p class="eyebrow">Workers VPC · Raspberry Pi REST</p>
-              <h3>개발일지 이미지 서비스</h3>
+              <h3>통합 이미지 서비스</h3>
             </div>
             <strong class={imageServiceReady ? 'feature-status is-enabled' : 'feature-status'}>
               {imageServiceStatus}
             </strong>
           </div>
           <p>
-            Worker가 VPC Service를 통해 라즈베리파이에 연결합니다. 사용자는 게시판 Worker의 공개 이미지
-            주소만 사용하고, 내부 주소와 업로드 토큰은 노출되지 않습니다.
+            Worker가 VPC Service를 통해 라즈베리파이에 연결합니다. 활성화하면 개발일지와 자유게시판의
+            본문 이미지, 개인 이미지 저장 메뉴가 함께 열립니다. 사용자는 게시판 Worker의 공개 이미지
+            주소만 사용하며 내부 주소와 업로드 토큰은 노출되지 않습니다.
           </p>
           <dl class="admin-feature-details">
             <div>
@@ -76,7 +75,7 @@ export function AdminPage({
               </dd>
             </div>
           </dl>
-          <nav class="admin-feature-links" aria-label="개발일지 이미지 캐시 통계">
+          <nav class="admin-feature-links" aria-label="통합 이미지 캐시 통계">
             <a class="button button-secondary" href="/admin/image-cache/requests">
               최근 캐시 요청
             </a>
@@ -110,63 +109,10 @@ export function AdminPage({
               <CsrfInput token={csrfToken} />
               <input type="hidden" name="enabled" value={imageService.enabled ? 'false' : 'true'} />
               <button class={imageService.enabled ? 'button button-danger' : 'button button-secondary'} type="submit">
-                {imageService.enabled ? '이미지 서비스 비활성화' : '이미지 서비스 다시 활성화'}
+                {imageService.enabled ? '통합 이미지 서비스 비활성화' : '통합 이미지 서비스 다시 활성화'}
               </button>
             </form>
           ) : null}
-        </article>
-
-        <article class="form-card admin-feature-card">
-          <div class="admin-feature-heading">
-            <div>
-              <p class="eyebrow">통합 이미지 서비스</p>
-              <h3>개인 이미지 저장</h3>
-            </div>
-            <strong class={imageStorageEnabled ? 'feature-status is-enabled' : 'feature-status'}>
-              {imageStorageEnabled ? '활성' : '비활성'}
-            </strong>
-          </div>
-
-          <p>
-            활성화하면 모든 로그인 회원의 메뉴에 개인 이미지 저장 항목이 나타나고, 이미지 업로드 API를
-            사용할 수 있습니다. 자유게시판 첨부와 개인 이미지도 개발일지와 같은 이미지 저장소를 사용합니다.
-            기본값은 비활성입니다.
-          </p>
-
-          <dl class="admin-feature-details">
-            <div>
-              <dt>이미지 서비스</dt>
-              <dd>{imageServiceReady ? '준비됨' : '미설정 · 개발일지 이미지 서비스를 먼저 활성화하세요'}</dd>
-            </div>
-            <div>
-              <dt>공개 URL</dt>
-              <dd>
-                <code>/i/&lt;hash&gt;.&lt;jpg|png|webp|gif|avif&gt;</code>
-                {' '}경로로 통합되며, 기능을 꺼도 이미 업로드된 파일은 삭제되지 않습니다.
-              </dd>
-            </div>
-          </dl>
-
-          <nav class="admin-feature-links" aria-label="개인 이미지 캐시 통계">
-            <a class="button button-secondary" href="/admin/image-cache/requests">
-              최근 캐시 요청
-            </a>
-            <a class="button button-secondary" href="/admin/image-cache/files">
-              파일별 캐시 통계
-            </a>
-          </nav>
-
-          <form action="/admin/features/image-storage" method="post">
-            <CsrfInput token={csrfToken} />
-            <input type="hidden" name="enabled" value={imageStorageEnabled ? 'false' : 'true'} />
-            <button
-              class={imageStorageEnabled ? 'button button-danger' : 'button'}
-              type="submit"
-              disabled={!imageStorageEnabled && !imageServiceReady}
-            >
-              {imageStorageEnabled ? '이미지 기능 비활성화' : '이미지 기능 활성화'}
-            </button>
-          </form>
         </article>
       </section>
     </AppLayout>

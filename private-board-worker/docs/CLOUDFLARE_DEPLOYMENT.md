@@ -215,7 +215,7 @@ OAuth code, ID token, 세션 쿠키, 사용자 이메일 전체가 포함된 요
 IMAGE_VAULT_VPC_SERVICE_ID=<VPC-Service-UUID>
 ```
 
-배포 후 Worker 설정에 `IMAGE_VAULT` VPC Service 바인딩이 표시되어야 합니다. `/admin`의 **개발일지 이미지 서비스**에 라즈베리파이와 동일한 `IMAGE_SERVICE_TOKEN`을 입력하면 Worker가 VPC를 통해 `/health`를 검사하고 기능을 활성화합니다.
+배포 후 Worker 설정에 `IMAGE_VAULT` VPC Service 바인딩이 표시되어야 합니다. `/admin`의 **통합 이미지 서비스**에 라즈베리파이와 동일한 `IMAGE_SERVICE_TOKEN`을 입력하면 Worker가 VPC를 통해 `/health`를 검사하고 개발일지·자유게시판·개인 이미지 기능을 함께 활성화합니다.
 
 외부 브라우저는 게시판 Worker만 호출합니다.
 

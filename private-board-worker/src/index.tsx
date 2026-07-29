@@ -43,7 +43,6 @@ import {
   getTicket,
   incrementPostViewCount,
   ensureUserDashboard,
-  isImageStorageEnabled,
   listDevlogAuthors,
   listDevlogExportPostsPage,
   listDevlogPosts,
@@ -69,7 +68,6 @@ import {
   saveBookmarkDashboardIcon,
   saveImageServiceSettings,
   setImageServiceEnabled,
-  setImageStorageEnabled,
   updateComment,
   updateBookmarkDashboardWidget,
   updateMemoUrlPattern,
@@ -597,7 +595,9 @@ app.use('*', async (c, next) => {
   if (!c.req.path.startsWith('/assets/') && !isPublicDevlogImagePath(c.req.path)) {
     const auth = await loadAuthContext(c)
     if (auth) {
-      auth.user.imageStorageEnabled = await isImageStorageEnabled(c.env.DB)
+      const imageService = await getImageServiceSettings(c.env.DB)
+      auth.user.imageStorageEnabled =
+        imageService.enabled && imageServiceBindingConfigured(c.env)
     }
     c.set('auth', auth)
   }
@@ -1575,7 +1575,6 @@ app.get('/admin', async (c) => {
       {...viewMeta(c)}
       user={auth.user}
       csrfToken={auth.csrfToken}
-      imageStorageEnabled={auth.user.imageStorageEnabled === true}
       imageServiceBound={imageServiceBindingConfigured(c.env)}
       imageService={imageService}
       notice={noticeFromRequest(c)}
@@ -1661,19 +1660,6 @@ app.post('/admin/image-service/toggle', async (c) => {
   const changed = await setImageServiceEnabled(c.env.DB, enabled, auth.user.id)
   if (!changed) throw new ValidationError('이미지 서비스를 먼저 등록해 주세요.')
   return redirectWithNotice(c, '/admin', enabled ? 'image-service-enabled' : 'image-service-disabled')
-})
-
-app.post('/admin/features/image-storage', async (c) => {
-  const auth = requireAdminAuth(c)
-  await enforceWriteRateLimit(c, 'admin-feature')
-  const form = await readForm(c)
-  const rawEnabled = form.get('enabled')
-  if (rawEnabled !== 'true' && rawEnabled !== 'false') {
-    throw new ValidationError('기능 활성화 값이 올바르지 않습니다.')
-  }
-  const enabled = rawEnabled === 'true'
-  await setImageStorageEnabled(c.env.DB, enabled, auth.user.id)
-  return redirectWithNotice(c, '/admin', enabled ? 'image-storage-enabled' : 'image-storage-disabled')
 })
 
 app.post('/api/devlog/images', async (c) => {

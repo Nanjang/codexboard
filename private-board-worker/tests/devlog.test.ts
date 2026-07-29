@@ -76,7 +76,7 @@ describe('개발일지 본문', () => {
   })
 })
 
-describe('개발일지 이미지 서비스', () => {
+describe('통합 이미지 서비스', () => {
   it('이미지 형식별 소문자 확장자를 사용하고 JPEG는 jpg로 통일한다', () => {
     expect(imageExtensionForContentType('image/jpeg')).toBe('jpg')
     expect(imageExtensionForContentType('image/png')).toBe('png')

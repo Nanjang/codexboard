@@ -198,7 +198,7 @@ export async function imageServiceCredentials(env: Bindings): Promise<{ token: s
 
   const record = await getImageServiceRecord(env.DB)
   if (!record || record.enabled !== 1) {
-    throw new HTTPException(503, { message: '개발일지 이미지 서비스가 활성화되지 않았습니다.' })
+    throw new HTTPException(503, { message: '통합 이미지 서비스가 활성화되지 않았습니다.' })
   }
 
   return {
