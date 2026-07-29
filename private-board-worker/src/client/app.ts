@@ -1,12 +1,14 @@
 import Sortable from 'sortablejs'
-import { strToU8, Zip, ZipDeflate } from 'fflate'
+import { strToU8, Zip, ZipDeflate, ZipPassThrough } from 'fflate'
 import {
   devlogMarkdownDocument,
   devlogMarkdownFilename,
+  devlogMarkdownImages,
   type DevlogMarkdownSource,
 } from '../lib/devlog-markdown'
 import {
   devlogImageValidationError,
+  isDevlogImagePath,
   localImageValidationError,
   normalizedDevlogImageSource,
 } from '../shared/images'
@@ -459,6 +461,13 @@ interface DevlogExportPageResponse {
   nextAfter: number | null
 }
 
+interface DevlogArchiveImage {
+  source: string
+  filename: string
+}
+
+const DEVLOG_EXPORT_IMAGE_CONCURRENCY = 3
+
 function nextPaint(): Promise<void> {
   return new Promise((resolve) => {
     requestAnimationFrame(() => resolve())
@@ -537,9 +546,11 @@ function setupDevlogExport(): void {
         }
         if (final) resolveArchive(new Blob(chunks, { type: 'application/zip' }))
       })
+      const activeZip = zip
 
       let processed = 0
       let after: number | null = null
+      const archiveImages = new Map<string, string>()
       while (processed < totalCount) {
         const params = new URLSearchParams({ maxId: String(snapshotMaxId) })
         if (after !== null) params.set('after', String(after))
@@ -552,6 +563,20 @@ function setupDevlogExport(): void {
         if (!Array.isArray(page.posts)) throw new Error('내보내기 응답 형식이 올바르지 않습니다.')
 
         for (const post of page.posts) {
+          for (const image of devlogMarkdownImages(post)) {
+            try {
+              const source = new URL(image.source, window.location.href)
+              if (
+                source.origin === window.location.origin
+                && isDevlogImagePath(source.pathname)
+                && !archiveImages.has(image.filename)
+              ) {
+                archiveImages.set(image.filename, source.pathname)
+              }
+            } catch {
+              // Ignore malformed legacy image sources while exporting the remaining post.
+            }
+          }
           const file = new ZipDeflate(devlogMarkdownFilename(post), { level: 6 })
           file.mtime = post.created_at
           zip.add(file)
@@ -573,6 +598,63 @@ function setupDevlogExport(): void {
         after = page.nextAfter
       }
 
+      const images: DevlogArchiveImage[] = Array.from(
+        archiveImages,
+        ([filename, source]) => ({ filename, source }),
+      )
+      let imageProcessed = 0
+      if (images.length > 0) {
+        status.textContent = '본문 이미지를 내려받고 있습니다.'
+        progress.max = images.length
+        progress.value = 0
+        count.textContent = `0 / ${images.length.toLocaleString()}`
+        detail.textContent = 'Worker 이미지 경로에서 파일을 받아 ZIP의 images/ 폴더에 저장합니다.'
+        await nextPaint()
+
+        let imageCursor = 0
+        const abortImages = new AbortController()
+        const addNextImage = async (): Promise<void> => {
+          while (imageCursor < images.length) {
+            const current = images[imageCursor]
+            imageCursor += 1
+            if (!current) return
+
+            try {
+              const response = await fetch(current.source, {
+                credentials: 'same-origin',
+                headers: { Accept: 'image/*' },
+                signal: abortImages.signal,
+              })
+              if (!response.ok) {
+                throw new Error(`본문 이미지를 내려받지 못했습니다. (${response.status})`)
+              }
+              const contentType = response.headers.get('Content-Type')?.split(';', 1)[0]?.trim()
+              if (!contentType?.toLowerCase().startsWith('image/')) {
+                throw new Error('본문 이미지 응답 형식이 올바르지 않습니다.')
+              }
+              const imageBytes = new Uint8Array(await response.arrayBuffer())
+              if (imageBytes.length === 0) throw new Error('빈 본문 이미지가 반환되었습니다.')
+
+              const imageFile = new ZipPassThrough(`images/${current.filename}`)
+              activeZip.add(imageFile)
+              imageFile.push(imageBytes, true)
+              imageProcessed += 1
+              progress.value = imageProcessed
+              count.textContent = `${imageProcessed.toLocaleString()} / ${images.length.toLocaleString()}`
+            } catch (error) {
+              abortImages.abort()
+              throw error
+            }
+          }
+        }
+        await Promise.all(
+          Array.from(
+            { length: Math.min(DEVLOG_EXPORT_IMAGE_CONCURRENCY, images.length) },
+            () => addNextImage(),
+          ),
+        )
+      }
+
       status.textContent = 'ZIP 파일을 마무리하고 있습니다.'
       await nextPaint()
       zip.end()
@@ -582,7 +664,7 @@ function setupDevlogExport(): void {
       download.download = archiveFilename
       download.hidden = false
       status.textContent = '내보내기가 완료되었습니다.'
-      count.textContent = `${processed.toLocaleString()}개 완료`
+      count.textContent = `${processed.toLocaleString()}개 문서 · ${imageProcessed.toLocaleString()}개 이미지`
       detail.textContent = 'ZIP 다운로드를 시작했습니다. 다시 받으려면 다운로드 버튼을 누르세요.'
       download.click()
     } catch (error) {

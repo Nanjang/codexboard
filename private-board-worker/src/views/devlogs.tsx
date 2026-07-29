@@ -205,7 +205,7 @@ export function UserDevlogPage({
               >
                 <div>
                   <strong>개발일지 전체 보관</strong>
-                  <p>모든 게시물을 Markdown 파일로 묶고 이미지 경로는 images/ 하위로 유지합니다.</p>
+                  <p>모든 게시물과 본문 이미지를 Markdown ZIP으로 함께 보관합니다.</p>
                 </div>
                 <a
                   class="button button-secondary button-compact"
@@ -306,7 +306,7 @@ export function DevlogExportPage({
         <p class="eyebrow">MARKDOWN ARCHIVE</p>
         <h1>{author.nickname}님의 개발일지</h1>
         <p class="devlog-export-description">
-          Markdown 파일을 브라우저에서 만들고 ZIP으로 압축합니다. 이 창을 닫지 마세요.
+          Markdown 파일과 본문 이미지를 브라우저에서 ZIP으로 묶습니다. 이 창을 닫지 마세요.
         </p>
         <div class="devlog-export-progress" aria-live="polite">
           <div class="devlog-export-progress-heading">

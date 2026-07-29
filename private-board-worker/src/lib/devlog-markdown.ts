@@ -8,6 +8,11 @@ export interface DevlogMarkdownSource {
   created_at: number
 }
 
+export interface DevlogMarkdownImage {
+  source: string
+  filename: string
+}
+
 interface ListState {
   type: 'ul' | 'ol'
   index: number
@@ -59,7 +64,10 @@ function imageFileName(src: string, index: number): string {
       .normalize('NFKC')
       .replaceAll(/[^a-z0-9._-]+/giu, '-')
       .replaceAll(/^-+|-+$/gu, '')
-    if (safeName && /\.(?:avif|gif|jpe?g|png|webp)$/iu.test(safeName)) return safeName
+      .toLowerCase()
+    if (safeName && /\.(?:avif|gif|jpe?g|png|webp)$/u.test(safeName)) {
+      return safeName.replace(/\.jpeg$/u, '.jpg')
+    }
   } catch {
     // Fall through to a deterministic export-only name.
   }
@@ -239,6 +247,23 @@ export function richDevlogHtmlToMarkdown(html: string): string {
     .replaceAll(/[ \t]+\n/gu, '\n')
     .replaceAll(/\n{3,}/gu, '\n\n')
     .trim()
+}
+
+export function devlogMarkdownImages(post: DevlogMarkdownSource): DevlogMarkdownImage[] {
+  if (post.body_format !== 'rich') return []
+
+  const images: DevlogMarkdownImage[] = []
+  let imageIndex = 0
+  for (const match of post.body.matchAll(/<img\b[^>]*>/giu)) {
+    imageIndex += 1
+    const source = attribute(match[0], 'src')
+    if (!source) continue
+    images.push({
+      source,
+      filename: imageFileName(source, imageIndex),
+    })
+  }
+  return images
 }
 
 export function devlogMarkdownDocument(post: DevlogMarkdownSource): string {

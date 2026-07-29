@@ -3,6 +3,7 @@ import {
   devlogMarkdownArchiveFilename,
   devlogMarkdownDocument,
   devlogMarkdownFilename,
+  devlogMarkdownImages,
   richDevlogHtmlToMarkdown,
 } from '../src/lib/devlog-markdown'
 
@@ -34,6 +35,46 @@ describe('개발일지 Markdown 내보내기', () => {
         '<p><img src="https://images.example.com/private-images/example.avif" alt="결과"></p>',
       ),
     ).toBe('![결과](images/example.avif)')
+  })
+
+  it('ZIP에 포함할 리치 본문 이미지의 원본 경로와 정규화된 파일명을 수집한다', () => {
+    const post = {
+      id: 7,
+      title: '이미지 기록',
+      body: `
+        <p><img src="/devlog-images/i/${'a'.repeat(64)}.PNG" alt="첫 이미지"></p>
+        <figure><img src="https://images.example.com/result.JPEG?size=large"></figure>
+      `,
+      body_format: 'rich' as const,
+      created_at: Date.now(),
+    }
+
+    expect(devlogMarkdownImages(post)).toEqual([
+      {
+        source: `/devlog-images/i/${'a'.repeat(64)}.PNG`,
+        filename: `${'a'.repeat(64)}.png`,
+      },
+      {
+        source: 'https://images.example.com/result.JPEG?size=large',
+        filename: 'result.jpg',
+      },
+    ])
+    expect(richDevlogHtmlToMarkdown(post.body)).toContain(
+      `images/${'a'.repeat(64)}.png`,
+    )
+    expect(richDevlogHtmlToMarkdown(post.body)).toContain('images/result.jpg')
+  })
+
+  it('일반 텍스트 본문에는 ZIP 이미지 수집 결과가 없다', () => {
+    expect(
+      devlogMarkdownImages({
+        id: 8,
+        title: '텍스트 기록',
+        body: '이미지 없음',
+        body_format: 'plain',
+        created_at: Date.now(),
+      }),
+    ).toEqual([])
   })
 
   it('제목과 본문을 문서로 만들고 서울 날짜 기반 파일명을 만든다', () => {
