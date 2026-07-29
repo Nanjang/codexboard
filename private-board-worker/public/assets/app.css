@@ -716,6 +716,12 @@ button {
   display: inline-flex;
 }
 
+.dashboard-remove-form {
+  align-items: center;
+  align-self: center;
+  margin: 0;
+}
+
 .dashboard-remove-form,
 .dashboard-edit-controls {
   display: none !important;
@@ -729,6 +735,15 @@ button {
 .dashboard-edit-controls {
   align-items: center;
   gap: 4px;
+}
+
+.dashboard-widget-actions > .text-button,
+.dashboard-widget-actions > .dashboard-remove-form > .text-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  line-height: 1;
 }
 
 .dashboard-move-button,
@@ -747,6 +762,12 @@ button {
 
 .widget-remove-button {
   color: var(--text-muted);
+}
+
+.dashboard-remove-icon {
+  display: block;
+  width: 14px;
+  height: 14px;
 }
 
 .dashboard-post-list {

@@ -181,7 +181,20 @@ function BookmarkQuickLink({
             aria-label={`${widget.title} 북마크 제거`}
             title="북마크 제거"
           >
-            ×
+            <svg
+              class="dashboard-remove-icon"
+              viewBox="0 0 16 16"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <path
+                d="M3.5 3.5 12.5 12.5M12.5 3.5 3.5 12.5"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+              />
+            </svg>
           </button>
         </form>
         <WidgetEditControls label={`${widget.title} 북마크`} compact />

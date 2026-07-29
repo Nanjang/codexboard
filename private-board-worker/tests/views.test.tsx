@@ -327,6 +327,7 @@ describe('핵심 화면', () => {
     expect(html).toContain('data-dashboard-widget-id="3"')
     expect(html).toContain('data-dashboard-move="-1"')
     expect(html).toContain('data-dashboard-move="1"')
+    expect(html).toContain('class="dashboard-remove-icon"')
     expect(html).toContain('RSS 최신 글')
     expect(html).toContain('새로운 개발 소식')
     expect(html).toContain('최근 글의 짧은 요약입니다.')
