@@ -91,13 +91,13 @@ import { devlogMarkdownDocument, devlogMarkdownFilename } from './lib/devlog-mar
 import { RequestProcessError, type RequestProcessDiagnostic } from './lib/request-diagnostics'
 import {
   DEVLOG_IMAGE_CACHE_CONTROL,
-  DEVLOG_IMAGE_HASH_PATTERN,
   DEVLOG_IMAGE_MAX_BYTES,
   ImageServiceVerificationError,
   devlogImagePublicUrl,
   imageServiceBindingConfigured,
   imageServiceCredentials,
   imageServiceFetch,
+  imageServiceUploadResult,
   imageUploadContentType,
   verifyImageService,
 } from './lib/image-service'
@@ -184,6 +184,10 @@ import { LoginPage } from './views/login'
 import { PrivateImagesPage } from './views/images'
 import { MemoBoardPage, MemoSettingsPage, type MemoPatternDraft } from './views/memos'
 import { TicketFormPage, TicketsPage, TicketTrashPage } from './views/tickets'
+import {
+  DEVLOG_IMAGE_FILENAME_PATTERN,
+  imageContentTypeForExtension,
+} from './shared/images'
 
 const app = new Hono<AppEnv>()
 const MAX_REQUEST_BYTES = 64 * 1024
@@ -544,17 +548,21 @@ app.get('/assets/*', (c) => c.env.ASSETS.fetch(c.req.raw))
 app.get('/health', (c) => c.json({ ok: true }))
 app.on(['GET', 'HEAD'], '/devlog-images/i/:image', async (c) => {
   const filename = c.req.param('image')
-  const match = /^([a-f0-9]{64})\.webp$/u.exec(filename)
+  const match = DEVLOG_IMAGE_FILENAME_PATTERN.exec(filename)
   if (!match) return new Response(null, { status: 404 })
 
   const hash = match[1]!
+  const extension = match[2]!
+  const expectedContentType = imageContentTypeForExtension(extension)
+  if (!expectedContentType) return new Response(null, { status: 404 })
+
   let upstream: Response
   try {
-    const headers = new Headers({ Accept: 'image/webp' })
+    const headers = new Headers({ Accept: expectedContentType })
     const ifNoneMatch = c.req.header('If-None-Match')
     if (ifNoneMatch) headers.set('If-None-Match', ifNoneMatch)
 
-    upstream = await imageServiceFetch(c.env, `/i/${hash}.webp`, {
+    upstream = await imageServiceFetch(c.env, `/i/${hash}.${extension}`, {
       method: c.req.method,
       headers,
       signal: AbortSignal.timeout(15_000),
@@ -565,7 +573,7 @@ app.on(['GET', 'HEAD'], '/devlog-images/i/:image', async (c) => {
 
   const responseHeaders = new Headers({
     'Cache-Control': upstream.headers.get('Cache-Control') ?? DEVLOG_IMAGE_CACHE_CONTROL,
-    'Content-Type': upstream.headers.get('Content-Type') ?? 'image/webp',
+    'Content-Type': upstream.headers.get('Content-Type') ?? expectedContentType,
     ETag: upstream.headers.get('ETag') ?? `"sha256-${hash}"`,
   })
   const contentLength = upstream.headers.get('Content-Length')
@@ -579,7 +587,9 @@ app.on(['GET', 'HEAD'], '/devlog-images/i/:image', async (c) => {
     await upstream.body?.cancel()
     return new Response(null, { status: 404 })
   }
-  if (!upstream.ok || !upstream.headers.get('Content-Type')?.toLowerCase().startsWith('image/webp')) {
+  const upstreamContentType =
+    upstream.headers.get('Content-Type')?.split(';', 1)[0]?.trim().toLowerCase() ?? ''
+  if (!upstream.ok || upstreamContentType !== expectedContentType) {
     await upstream.body?.cancel()
     return new Response(null, { status: 503 })
   }
@@ -1490,20 +1500,14 @@ app.post('/api/devlog/images', async (c) => {
     throw new HTTPException(503, { message: '이미지 서비스 응답이 올바르지 않습니다.' })
   }
 
-  const payload = (await readBoundedJson(upstream, 32 * 1024)) as Record<string, unknown> | null
-  if (
-    !payload ||
-    typeof payload.hash !== 'string' ||
-    !DEVLOG_IMAGE_HASH_PATTERN.test(payload.hash)
-  ) {
+  const uploaded = imageServiceUploadResult(await readBoundedJson(upstream, 32 * 1024))
+  if (!uploaded) {
     throw new HTTPException(503, { message: '이미지 서비스 응답이 올바르지 않습니다.' })
   }
 
   return c.json({
-    url: devlogImagePublicUrl(c.req.url, payload.hash),
-    hash: payload.hash,
-    width: typeof payload.width === 'number' ? payload.width : null,
-    height: typeof payload.height === 'number' ? payload.height : null,
+    url: devlogImagePublicUrl(c.req.url, uploaded.hash, uploaded.extension),
+    ...uploaded,
   })
 })
 

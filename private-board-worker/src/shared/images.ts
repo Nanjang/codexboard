@@ -11,9 +11,50 @@ export const ALLOWED_IMAGE_TYPES = [
 ] as const
 
 export type AllowedImageType = (typeof ALLOWED_IMAGE_TYPES)[number]
+export const ALLOWED_IMAGE_EXTENSIONS = ['jpg', 'png', 'webp', 'gif', 'avif'] as const
+export type AllowedImageExtension = (typeof ALLOWED_IMAGE_EXTENSIONS)[number]
+
+const IMAGE_EXTENSION_BY_CONTENT_TYPE: Record<AllowedImageType, AllowedImageExtension> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'image/gif': 'gif',
+  'image/avif': 'avif',
+}
+
+const IMAGE_CONTENT_TYPE_BY_EXTENSION: Record<AllowedImageExtension, AllowedImageType> = {
+  jpg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
+  gif: 'image/gif',
+  avif: 'image/avif',
+}
+
+export const DEVLOG_IMAGE_FILENAME_PATTERN =
+  /^([a-f0-9]{64})\.(jpg|png|webp|gif|avif)$/u
 
 export function isAllowedImageType(value: unknown): value is AllowedImageType {
   return typeof value === 'string' && (ALLOWED_IMAGE_TYPES as readonly string[]).includes(value)
+}
+
+export function isAllowedImageExtension(value: unknown): value is AllowedImageExtension {
+  return (
+    typeof value === 'string' &&
+    (ALLOWED_IMAGE_EXTENSIONS as readonly string[]).includes(value)
+  )
+}
+
+export function imageExtensionForContentType(value: unknown): AllowedImageExtension | null {
+  return isAllowedImageType(value) ? IMAGE_EXTENSION_BY_CONTENT_TYPE[value] : null
+}
+
+export function imageContentTypeForExtension(value: unknown): AllowedImageType | null {
+  return isAllowedImageExtension(value) ? IMAGE_CONTENT_TYPE_BY_EXTENSION[value] : null
+}
+
+export function isDevlogImagePath(path: string): boolean {
+  const prefix = '/devlog-images/i/'
+  return path.startsWith(prefix) && DEVLOG_IMAGE_FILENAME_PATTERN.test(path.slice(prefix.length))
 }
 
 export function localImageValidationError(file: { size: number; type: string }): string | null {
@@ -58,7 +99,7 @@ export function normalizedDevlogImageSource(value: string, pageUrl: string): str
   if (imageUrl.username || imageUrl.password || imageUrl.search || imageUrl.hash) return null
   if (
     imageUrl.origin === page.origin &&
-    /^\/devlog-images\/i\/[a-f0-9]{64}\.webp$/u.test(imageUrl.pathname)
+    isDevlogImagePath(imageUrl.pathname)
   ) {
     return imageUrl.pathname
   }

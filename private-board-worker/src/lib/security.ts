@@ -3,6 +3,7 @@ import type { AppContext, AuthContext } from '../types'
 import { sha256Hex, safeEqual } from './crypto'
 import { getBaseUrl, secureCookies, turnstileEnabled, validateRuntimeConfig } from './env'
 import { r2ImageOrigins } from './r2'
+import { isDevlogImagePath } from '../shared/images'
 
 const UNSAFE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 const GOOGLE_AUTHORIZATION_ORIGIN = 'https://accounts.google.com'
@@ -30,7 +31,7 @@ export class SameOriginError extends HTTPException {
 }
 
 export function isPublicDevlogImagePath(path: string): boolean {
-  return /^\/devlog-images\/i\/[a-f0-9]{64}\.webp$/u.test(path)
+  return isDevlogImagePath(path)
 }
 
 export function isPublicPath(path: string): boolean {

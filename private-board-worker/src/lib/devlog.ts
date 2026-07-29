@@ -1,4 +1,5 @@
 import { ValidationError } from './validation'
+import { isDevlogImagePath } from '../shared/images'
 
 const MAX_RICH_BODY_LENGTH = 20_000
 const MAX_RAW_BODY_LENGTH = 50_000
@@ -54,7 +55,7 @@ function safeHttpsUrl(value: string | null): string | null {
 }
 
 function safeImageUrl(value: string | null): string | null {
-  if (value && /^\/devlog-images\/i\/[a-f0-9]{64}\.webp$/u.test(value)) return value
+  if (value && isDevlogImagePath(value)) return value
   return safeHttpsUrl(value)
 }
 

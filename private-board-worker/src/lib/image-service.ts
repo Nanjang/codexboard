@@ -3,7 +3,14 @@ import type { Bindings } from '../types'
 import { decryptSecret } from './secret-box'
 import { getImageServiceRecord } from './db'
 import { ValidationError } from './validation'
-import { isAllowedImageType, MAX_DEVLOG_IMAGE_BYTES } from '../shared/images'
+import {
+  isAllowedImageExtension,
+  isAllowedImageType,
+  imageExtensionForContentType,
+  MAX_DEVLOG_IMAGE_BYTES,
+  type AllowedImageExtension,
+  type AllowedImageType,
+} from '../shared/images'
 
 export const DEVLOG_IMAGE_MAX_BYTES = MAX_DEVLOG_IMAGE_BYTES
 export const DEVLOG_IMAGE_PUBLIC_PREFIX = '/devlog-images'
@@ -54,13 +61,54 @@ export function imageUploadContentType(value: string | undefined): string {
   return contentType
 }
 
+export interface ImageServiceUploadResult {
+  hash: string
+  extension: AllowedImageExtension
+  contentType: AllowedImageType
+  width: number | null
+  height: number | null
+}
+
+export function imageServiceUploadResult(value: unknown): ImageServiceUploadResult | null {
+  if (!value || typeof value !== 'object') return null
+  const payload = value as Record<string, unknown>
+  const contentType =
+    typeof payload.contentType === 'string' ? payload.contentType.toLowerCase() : null
+  const extension = imageExtensionForContentType(contentType)
+  const responseExtension =
+    typeof payload.extension === 'string' ? payload.extension.toLowerCase() : extension
+  if (
+    typeof payload.hash !== 'string' ||
+    !DEVLOG_IMAGE_HASH_PATTERN.test(payload.hash) ||
+    !contentType ||
+    !isAllowedImageType(contentType) ||
+    !extension ||
+    responseExtension !== extension
+  ) {
+    return null
+  }
+
+  return {
+    hash: payload.hash,
+    extension,
+    contentType,
+    width: typeof payload.width === 'number' ? payload.width : null,
+    height: typeof payload.height === 'number' ? payload.height : null,
+  }
+}
+
 function imageServiceUrl(path: string): URL {
   return new URL(path, IMAGE_SERVICE_ORIGIN)
 }
 
-export function devlogImagePublicUrl(requestUrl: string, hash: string): string {
+export function devlogImagePublicUrl(
+  requestUrl: string,
+  hash: string,
+  extension: AllowedImageExtension,
+): string {
   if (!DEVLOG_IMAGE_HASH_PATTERN.test(hash)) throw new Error('올바르지 않은 이미지 해시입니다.')
-  return new URL(`${DEVLOG_IMAGE_PUBLIC_PREFIX}/i/${hash}.webp`, requestUrl).toString()
+  if (!isAllowedImageExtension(extension)) throw new Error('올바르지 않은 이미지 확장자입니다.')
+  return new URL(`${DEVLOG_IMAGE_PUBLIC_PREFIX}/i/${hash}.${extension}`, requestUrl).toString()
 }
 
 export async function imageServiceFetch(

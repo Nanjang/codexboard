@@ -74,7 +74,7 @@ export function AdminPage({
             <div>
               <dt>공개 경로</dt>
               <dd>
-                <code>/devlog-images/i/&lt;hash&gt;.webp</code>
+                <code>/devlog-images/i/&lt;hash&gt;.&lt;jpg|png|webp|gif|avif&gt;</code>
               </dd>
             </div>
           </dl>

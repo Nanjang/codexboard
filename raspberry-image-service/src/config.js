@@ -53,9 +53,6 @@ export function loadConfig(env = process.env) {
     publicBaseUrl: publicBaseUrl(baseUrlValue),
     serviceToken: token,
     maxUploadBytes: integerSetting(env, 'MAX_UPLOAD_BYTES', 10 * 1024 * 1024, 1024, 100 * 1024 * 1024),
-    maxImageWidth: integerSetting(env, 'MAX_IMAGE_WIDTH', 4096, 64, 20000),
-    maxImageHeight: integerSetting(env, 'MAX_IMAGE_HEIGHT', 4096, 64, 20000),
     maxInputPixels: integerSetting(env, 'MAX_INPUT_PIXELS', 40_000_000, 4096, 200_000_000),
-    webpQuality: integerSetting(env, 'WEBP_QUALITY', 82, 1, 100),
   }
 }

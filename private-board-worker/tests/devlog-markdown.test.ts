@@ -12,7 +12,7 @@ describe('개발일지 Markdown 내보내기', () => {
       `<h2>구현 내용</h2>
        <p>본문 <strong>강조</strong><br>다음 줄</p>
        <figure class="devlog-image">
-         <img src="/devlog-images/i/${hash}.webp" alt="구조도">
+         <img src="/devlog-images/i/${hash}.gif" alt="구조도">
          <figcaption>서비스 구조</figcaption>
        </figure>
        <ol><li>첫 단계</li><li>두 번째</li></ol>`,
@@ -20,7 +20,7 @@ describe('개발일지 Markdown 내보내기', () => {
 
     expect(markdown).toContain('## 구현 내용')
     expect(markdown).toContain('본문 **강조**')
-    expect(markdown).toContain(`![구조도](images/${hash}.webp)`)
+    expect(markdown).toContain(`![구조도](images/${hash}.gif)`)
     expect(markdown).toContain('*서비스 구조*')
     expect(markdown).toContain('1. 첫 단계')
     expect(markdown).toContain('2. 두 번째')

@@ -4,12 +4,15 @@ import {
   devlogImagePublicUrl,
   ImageServiceVerificationError,
   imageServiceBindingConfigured,
+  imageServiceUploadResult,
   imageUploadContentType,
   verifyImageService,
 } from '../src/lib/image-service'
 import { decryptSecret, encryptSecret } from '../src/lib/secret-box'
 import {
   devlogImageValidationError,
+  imageContentTypeForExtension,
+  imageExtensionForContentType,
   MAX_DEVLOG_CLIPBOARD_IMAGE_BYTES,
   MAX_DEVLOG_IMAGE_BYTES,
   normalizedDevlogImageSource,
@@ -74,12 +77,54 @@ describe('개발일지 본문', () => {
 })
 
 describe('개발일지 이미지 서비스', () => {
+  it('이미지 형식별 소문자 확장자를 사용하고 JPEG는 jpg로 통일한다', () => {
+    expect(imageExtensionForContentType('image/jpeg')).toBe('jpg')
+    expect(imageExtensionForContentType('image/png')).toBe('png')
+    expect(imageExtensionForContentType('image/webp')).toBe('webp')
+    expect(imageExtensionForContentType('image/gif')).toBe('gif')
+    expect(imageExtensionForContentType('image/avif')).toBe('avif')
+    expect(imageContentTypeForExtension('jpg')).toBe('image/jpeg')
+    expect(imageContentTypeForExtension('jpeg')).toBeNull()
+    expect(imageContentTypeForExtension('PNG')).toBeNull()
+  })
+
+  it('신규 원본 형식 응답과 기존 WebP 응답을 모두 검증한다', () => {
+    const hash = 'c'.repeat(64)
+    expect(
+      imageServiceUploadResult({
+        hash,
+        extension: 'JPG',
+        contentType: 'image/jpeg',
+        width: 100,
+        height: 50,
+      }),
+    ).toEqual({ hash, extension: 'jpg', contentType: 'image/jpeg', width: 100, height: 50 })
+    expect(imageServiceUploadResult({ hash, contentType: 'image/webp' })).toEqual({
+      hash,
+      extension: 'webp',
+      contentType: 'image/webp',
+      width: null,
+      height: null,
+    })
+    expect(
+      imageServiceUploadResult({ hash, extension: 'png', contentType: 'image/jpeg' }),
+    ).toBeNull()
+    expect(
+      imageServiceUploadResult({ hash, extension: 'jpeg', contentType: 'image/jpeg' }),
+    ).toBeNull()
+  })
+
   it('같은 Worker origin의 해시 이미지 URL을 만든다', () => {
     const hash = 'a'.repeat(64)
-    expect(devlogImagePublicUrl('https://board.example.com/api/devlog/images', hash)).toBe(
+    expect(devlogImagePublicUrl('https://board.example.com/api/devlog/images', hash, 'png')).toBe(
+      `https://board.example.com/devlog-images/i/${hash}.png`,
+    )
+    expect(devlogImagePublicUrl('https://board.example.com', hash, 'webp')).toBe(
       `https://board.example.com/devlog-images/i/${hash}.webp`,
     )
-    expect(() => devlogImagePublicUrl('https://board.example.com', 'invalid')).toThrow('해시')
+    expect(() => devlogImagePublicUrl('https://board.example.com', 'invalid', 'jpg')).toThrow(
+      '해시',
+    )
   })
 
   it('VPC 바인딩을 통해 내부 상태 엔드포인트를 확인한다', async () => {
@@ -188,10 +233,10 @@ describe('개발일지 이미지 서비스', () => {
     const hash = 'b'.repeat(64)
     expect(
       normalizedDevlogImageSource(
-        `http://127.0.0.1:8787/devlog-images/i/${hash}.webp`,
+        `http://127.0.0.1:8787/devlog-images/i/${hash}.gif`,
         'http://127.0.0.1:8787/boards/development/new',
       ),
-    ).toBe(`/devlog-images/i/${hash}.webp`)
+    ).toBe(`/devlog-images/i/${hash}.gif`)
     expect(
       normalizedDevlogImageSource(
         'https://images.example.com/object.webp',

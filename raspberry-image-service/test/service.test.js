@@ -12,6 +12,10 @@ let baseUrl
 let server
 let storageRoot
 let png
+let jpeg
+let webp
+let animatedGif
+let avif
 
 before(async () => {
   storageRoot = await mkdtemp(join(tmpdir(), 'codexboard-images-'))
@@ -20,10 +24,7 @@ before(async () => {
     publicBaseUrl: 'https://img.example.com',
     serviceToken: token,
     maxUploadBytes: 1024 * 1024,
-    maxImageWidth: 4096,
-    maxImageHeight: 4096,
     maxInputPixels: 40_000_000,
-    webpQuality: 82,
   })
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
   const address = server.address()
@@ -38,6 +39,22 @@ before(async () => {
   })
     .png()
     .toBuffer()
+  jpeg = await sharp({
+    create: {
+      width: 40,
+      height: 20,
+      channels: 3,
+      background: { r: 90, g: 80, b: 70 },
+    },
+  })
+    .jpeg()
+    .toBuffer()
+  webp = await sharp(png).webp().toBuffer()
+  animatedGif = Buffer.from(
+    'R0lGODlhAQABAIAAAAAAAP///yH/C05FVFNDQVBFMi4wAwEAAAAh+QQACgAAACwAAAAAAQABAAACAkQBACH5BAAKAAAALAAAAAABAAEAAAICTAEAOw==',
+    'base64',
+  )
+  avif = await sharp(png).avif().toBuffer()
 })
 
 after(async () => {
@@ -82,7 +99,7 @@ test('upload requires service authorization', async () => {
   assert.equal(response.status, 401)
 })
 
-test('normalizes, stores, serves, deduplicates, and deletes an image', async () => {
+test('preserves, stores, serves, deduplicates, and deletes a PNG image', async () => {
   const upload = () =>
     fetch(`${baseUrl}/upload`, {
       method: 'POST',
@@ -97,19 +114,20 @@ test('normalizes, stores, serves, deduplicates, and deletes an image', async () 
   assert.equal(firstResponse.status, 201)
   const first = await firstResponse.json()
   assert.match(first.hash, /^[a-f0-9]{64}$/u)
-  assert.equal(first.contentType, 'image/webp')
+  assert.equal(first.extension, 'png')
+  assert.equal(first.contentType, 'image/png')
   assert.equal(first.deduplicated, false)
-  assert.equal(first.url, `https://img.example.com/i/${first.hash}.webp`)
+  assert.equal(first.url, `https://img.example.com/i/${first.hash}.png`)
 
-  const imageResponse = await fetch(`${baseUrl}/i/${first.hash}.webp`)
+  const imageResponse = await fetch(`${baseUrl}/i/${first.hash}.png`)
   assert.equal(imageResponse.status, 200)
-  assert.equal(imageResponse.headers.get('content-type'), 'image/webp')
+  assert.equal(imageResponse.headers.get('content-type'), 'image/png')
   assert.equal(imageResponse.headers.get('cache-control'), 'public, max-age=31536000, immutable')
   const etag = imageResponse.headers.get('etag')
   assert.equal(etag, `"sha256-${first.hash}"`)
-  assert.ok((await imageResponse.arrayBuffer()).byteLength > 0)
+  assert.deepEqual(Buffer.from(await imageResponse.arrayBuffer()), png)
 
-  const notModified = await fetch(`${baseUrl}/i/${first.hash}.webp`, {
+  const notModified = await fetch(`${baseUrl}/i/${first.hash}.png`, {
     headers: { 'If-None-Match': etag },
   })
   assert.equal(notModified.status, 304)
@@ -120,20 +138,58 @@ test('normalizes, stores, serves, deduplicates, and deletes an image', async () 
   assert.equal(second.hash, first.hash)
   assert.equal(second.deduplicated, true)
 
-  const unauthorizedDelete = await fetch(`${baseUrl}/i/${first.hash}.webp`, { method: 'DELETE' })
+  const unauthorizedDelete = await fetch(`${baseUrl}/i/${first.hash}.png`, { method: 'DELETE' })
   assert.equal(unauthorizedDelete.status, 401)
 
-  const deleted = await fetch(`${baseUrl}/i/${first.hash}.webp`, {
+  const deleted = await fetch(`${baseUrl}/i/${first.hash}.png`, {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${token}` },
   })
   assert.equal(deleted.status, 204)
 
-  const missing = await fetch(`${baseUrl}/i/${first.hash}.webp`)
+  const missing = await fetch(`${baseUrl}/i/${first.hash}.png`)
   assert.equal(missing.status, 404)
 })
 
-test('rejects unsupported content types and oversized bodies', async () => {
+test('preserves JPEG, WebP, animated GIF, and AVIF bytes with canonical extensions', async () => {
+  for (const example of [
+    { body: jpeg, contentType: 'image/jpeg', extension: 'jpg' },
+    { body: webp, contentType: 'image/webp', extension: 'webp' },
+    { body: animatedGif, contentType: 'image/gif', extension: 'gif' },
+    { body: avif, contentType: 'image/avif', extension: 'avif' },
+  ]) {
+    const upload = await fetch(`${baseUrl}/upload`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': example.contentType,
+      },
+      body: example.body,
+    })
+    assert.equal(upload.status, 201)
+    const stored = await upload.json()
+    assert.equal(stored.extension, example.extension)
+    assert.equal(stored.contentType, example.contentType)
+    assert.equal(stored.url, `https://img.example.com/i/${stored.hash}.${example.extension}`)
+
+    const imageResponse = await fetch(`${baseUrl}/i/${stored.hash}.${example.extension}`)
+    assert.equal(imageResponse.status, 200)
+    assert.equal(imageResponse.headers.get('content-type'), example.contentType)
+    assert.deepEqual(Buffer.from(await imageResponse.arrayBuffer()), example.body)
+  }
+})
+
+test('rejects mismatched or unsupported content types and oversized bodies', async () => {
+  const mismatched = await fetch(`${baseUrl}/upload`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'image/jpeg',
+    },
+    body: png,
+  })
+  assert.equal(mismatched.status, 415)
+
   const unsupported = await fetch(`${baseUrl}/upload`, {
     method: 'POST',
     headers: {

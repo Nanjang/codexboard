@@ -1,9 +1,9 @@
 import { createServer } from 'node:http'
 import { hasServiceAuthorization } from './auth.js'
 import { HttpError } from './errors.js'
-import { ImageStore } from './image-store.js'
+import { contentTypeForExtension, ImageStore } from './image-store.js'
 
-const IMAGE_PATH = /^\/i\/([a-f0-9]{64})\.webp$/u
+const IMAGE_PATH = /^\/i\/([a-f0-9]{64})\.(jpg|png|webp|gif|avif)$/u
 const IMMUTABLE_CACHE_CONTROL = 'public, max-age=31536000, immutable'
 
 function commonHeaders() {
@@ -60,8 +60,8 @@ function contentType(request) {
   return (request.headers['content-type'] ?? '').split(';', 1)[0].trim().toLowerCase()
 }
 
-function imageUrl(config, hash) {
-  return `${config.publicBaseUrl}/i/${hash}.webp`
+function imageUrl(config, hash, extension) {
+  return `${config.publicBaseUrl}/i/${hash}.${extension}`
 }
 
 export async function createImageServer(config) {
@@ -95,7 +95,8 @@ export async function createImageServer(config) {
         const stored = await store.store(input, contentType(request))
         sendJson(response, stored.created ? 201 : 200, {
           hash: stored.hash,
-          url: imageUrl(config, stored.hash),
+          extension: stored.extension,
+          url: imageUrl(config, stored.hash, stored.extension),
           contentType: stored.contentType,
           sizeBytes: stored.sizeBytes,
           width: stored.width,
@@ -108,10 +109,16 @@ export async function createImageServer(config) {
       const imageMatch = IMAGE_PATH.exec(url.pathname)
       if (imageMatch) {
         const hash = imageMatch[1]
+        const extension = imageMatch[2]
+        const imageContentType = contentTypeForExtension(extension)
+        if (!imageContentType) {
+          sendJson(response, 404, { error: 'not_found' })
+          return
+        }
 
         if (request.method === 'DELETE') {
           requireAuthorization(request, config)
-          const deleted = await store.delete(hash)
+          const deleted = await store.delete(hash, extension)
           if (!deleted) {
             sendJson(response, 404, { error: 'not_found' })
             return
@@ -126,7 +133,7 @@ export async function createImageServer(config) {
         }
 
         const etag = `"sha256-${hash}"`
-        const file = await store.metadata(hash)
+        const file = await store.metadata(hash, extension)
         if (!file) {
           sendJson(response, 404, { error: 'not_found' })
           return
@@ -145,7 +152,7 @@ export async function createImageServer(config) {
           'Cache-Control': IMMUTABLE_CACHE_CONTROL,
           'Content-Length': String(file.sizeBytes),
           'Content-Security-Policy': "default-src 'none'; sandbox",
-          'Content-Type': 'image/webp',
+          'Content-Type': imageContentType,
           ETag: etag,
         }
         if (request.method === 'HEAD') {
@@ -153,7 +160,7 @@ export async function createImageServer(config) {
           return
         }
 
-        const image = await store.read(hash)
+        const image = await store.read(hash, extension)
         if (!image) {
           sendJson(response, 404, { error: 'not_found' })
           return

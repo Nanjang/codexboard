@@ -7,19 +7,19 @@ CodexBoard 개발일지 이미지를 라즈베리파이의 외장 SSD에 저장�
 ## 동작
 
 - 내부 주소: `http://127.0.0.1:8085`
-- 외부 주소: `https://<게시판-Worker>/devlog-images/i/{sha256}.webp`
-- Worker 내부 조회: `GET /i/{sha256}.webp`
+- 외부 주소: `https://<게시판-Worker>/devlog-images/i/{sha256}.{확장자}`
+- Worker 내부 조회: `GET /i/{sha256}.{확장자}`
 - Worker 내부 업로드: `POST /upload`
-- 관리용 내부 삭제: `DELETE /i/{sha256}.webp`
+- 관리용 내부 삭제: `DELETE /i/{sha256}.{확장자}`
 - 상태 확인: `GET /health`
 
-업로드 파일은 Sharp로 디코딩하고 방향을 보정한 뒤 WebP로 다시 인코딩합니다. 이 과정에서 EXIF 등 원본 메타데이터는 유지하지 않습니다. 변환 결과의 SHA-256을 계산하여 다음처럼 외장 SSD에 분산 저장합니다.
+업로드 파일은 Sharp로 실제 형식과 픽셀 제한을 검증하지만 재인코딩하지 않습니다. JPEG, PNG, WebP, GIF, AVIF의 원본 바이트와 메타데이터, 애니메이션을 그대로 유지합니다. 원본 바이트의 SHA-256을 계산하여 다음처럼 외장 SSD에 분산 저장합니다. 확장자는 항상 소문자이며 JPEG는 `.jpg`로 통일합니다.
 
 ```text
-/srv/codexboard-images/objects/sha256/ab/cd/abcdef...1234.webp
+/srv/codexboard-images/objects/sha256/ab/cd/abcdef...1234.png
 ```
 
-동일한 변환 결과는 같은 해시를 사용하므로 중복 저장되지 않습니다. 애니메이션 이미지는 받지 않습니다.
+동일한 원본 파일은 같은 해시를 사용하므로 중복 저장되지 않습니다. 기존에 저장된 `.webp` 객체와 URL도 계속 사용할 수 있습니다.
 
 ## 요구 사항
 
@@ -103,15 +103,10 @@ curl http://127.0.0.1:8085/health
 
 ```bash
 cd /home/pi/github/codexboard
-git pull --ff-only
-
-cd raspberry-image-service
-npm ci
-npm test
-sudo bash ./deploy/install-service.sh
-sudo systemctl restart codexboard-image-service
-sudo systemctl status codexboard-image-service
+bash ./raspberry-image-service/deploy/update-service.sh
 ```
+
+스크립트는 작업 트리가 깨끗한지 확인하고 `origin/main`을 fast-forward로 갱신한 뒤 테스트, `/opt` 런타임 교체, systemd 재시작과 `/health` 확인을 순서대로 수행합니다.
 
 ## Cloudflare Tunnel과 Workers VPC
 
@@ -159,8 +154,9 @@ curl \
 ```json
 {
   "hash": "abcdef...",
-  "url": "https://private-board-worker.example.workers.dev/devlog-images/i/abcdef....webp",
-  "contentType": "image/webp",
+  "extension": "png",
+  "url": "https://private-board-worker.example.workers.dev/devlog-images/i/abcdef....png",
+  "contentType": "image/png",
   "sizeBytes": 123456,
   "width": 1920,
   "height": 1080,
@@ -171,8 +167,8 @@ curl \
 ### 이미지 조회
 
 ```bash
-curl --output image.webp \
-  https://private-board-worker.example.workers.dev/devlog-images/i/<sha256>.webp
+curl --output image.png \
+  https://private-board-worker.example.workers.dev/devlog-images/i/<sha256>.png
 ```
 
 조회 응답에는 다음 캐시 정책이 적용됩니다.
@@ -188,7 +184,7 @@ ETag: "sha256-<hash>"
 curl \
   --request DELETE \
   --header "Authorization: Bearer $IMAGE_SERVICE_TOKEN" \
-  http://127.0.0.1:8085/i/<sha256>.webp
+  http://127.0.0.1:8085/i/<sha256>.png
 ```
 
 같은 해시를 여러 게시글에서 참조할 수 있으므로 게시글 삭제와 동시에 이미지 파일을 자동 삭제하지 않는 것을 권장합니다.
@@ -203,16 +199,13 @@ curl \
 | `PUBLIC_BASE_URL` | 필수 | 게시판 Worker의 `<origin>/devlog-images` 주소 |
 | `IMAGE_SERVICE_TOKEN` | 필수 | 32바이트 이상의 업로드·삭제 토큰 |
 | `MAX_UPLOAD_BYTES` | `10485760` | 입력 파일 최대 크기 |
-| `MAX_IMAGE_WIDTH` | `4096` | 변환 결과 최대 너비 |
-| `MAX_IMAGE_HEIGHT` | `4096` | 변환 결과 최대 높이 |
 | `MAX_INPUT_PIXELS` | `40000000` | 디코딩할 최대 픽셀 수 |
-| `WEBP_QUALITY` | `82` | WebP 품질 |
 
 ## 게시판 Worker 연동
 
 브라우저가 게시판의 업로드 API로 원본 바이트를 보내면 Worker가 로그인과 CSRF를 확인한 다음 Workers VPC로 이미지 서비스에 전달합니다. 게시판 관리자 설정의 **개발일지 이미지 서비스**에는 `IMAGE_SERVICE_TOKEN`만 입력합니다. Worker가 VPC를 통해 `/health`를 확인한 뒤 기능을 활성화합니다.
 
-이미지 본문에는 `https://<게시판-Worker>/devlog-images/i/<sha256>.webp`가 저장됩니다. 이미지 조회도 같은 Worker가 VPC로 전달하므로 사용자에게 라즈베리파이 주소나 별도 Tunnel 주소가 노출되지 않습니다.
+이미지 본문에는 `https://<게시판-Worker>/devlog-images/i/<sha256>.<확장자>`가 저장됩니다. 이미지 조회도 같은 Worker가 VPC로 전달하므로 사용자에게 라즈베리파이 주소나 별도 Tunnel 주소가 노출되지 않습니다.
 
 ## 테스트
 
