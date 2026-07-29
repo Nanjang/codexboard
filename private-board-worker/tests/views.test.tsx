@@ -20,7 +20,7 @@ import { AdminPage } from '../src/views/admin'
 import { BoardListPage, PostFormPage } from '../src/views/boards'
 import { DevlogPostPage, UserDevlogPage } from '../src/views/devlogs'
 import { DashboardPage } from '../src/views/dashboard'
-import { PublicErrorPage } from '../src/views/errors'
+import { AppErrorPage, PublicErrorPage } from '../src/views/errors'
 import { GuestHomePage } from '../src/views/home'
 import { LoginPage } from '../src/views/login'
 import { PrivateImagesPage } from '../src/views/images'
@@ -333,6 +333,29 @@ describe('핵심 화면', () => {
     expect(html).toContain('오류 코드')
     expect(html).toContain('PB-A1B2C3D4E5')
     expect(html).not.toContain('Database binding is missing')
+  })
+
+  it('출처 검사 상세 정보는 관리자 오류 화면에만 표시한다', async () => {
+    const props = {
+      appName: 'Private Board',
+      deployInfo,
+      title: '접근할 수 없습니다',
+      message: '허용되지 않은 요청 출처입니다.',
+      status: 403,
+      csrfToken: 'csrf-test',
+      adminDetails: [
+        { label: '실패한 검사', value: '요청 URL Origin' },
+        { label: '설정된 BASE_URL Origin', value: 'https://board.oc7.workers.dev' },
+      ],
+    }
+    const adminHtml = String(await AppErrorPage({ ...props, user: adminUser }))
+    const userHtml = String(await AppErrorPage({ ...props, user }))
+
+    expect(adminHtml).toContain('관리자용 오류 상세')
+    expect(adminHtml).toContain('https://board.oc7.workers.dev')
+    expect(adminHtml).toContain('쿠키, 세션 및 CSRF 값은 보안상 표시하지 않습니다.')
+    expect(userHtml).not.toContain('관리자용 오류 상세')
+    expect(userHtml).not.toContain('https://board.oc7.workers.dev')
   })
 
   it('자유게시판 목록은 제목, 댓글 수, 닉네임, 작성 시간, 조회수 순서로 표시한다', async () => {

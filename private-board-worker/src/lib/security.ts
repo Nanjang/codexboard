@@ -7,6 +7,28 @@ import { r2ImageOrigins } from './r2'
 const UNSAFE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 const GOOGLE_AUTHORIZATION_ORIGIN = 'https://accounts.google.com'
 
+export type SameOriginFailureStage = 'request-url' | 'origin-header' | 'referer-header' | 'referer-invalid'
+
+export interface SameOriginFailureDetails {
+  stage: SameOriginFailureStage
+  expectedOrigin: string
+  requestOrigin: string
+  originHeader: string | null
+  refererOrigin: string | null
+  method: string
+  path: string
+}
+
+export class SameOriginError extends HTTPException {
+  readonly details: SameOriginFailureDetails
+
+  constructor(details: SameOriginFailureDetails, message = '허용되지 않은 요청 출처입니다.') {
+    super(403, { message })
+    this.name = 'SameOriginError'
+    this.details = details
+  }
+}
+
 export function isPublicPath(path: string): boolean {
   return (
     path === '/' ||
@@ -37,29 +59,55 @@ export function assertCsrf(c: AppContext, suppliedToken: string | null | undefin
 }
 
 export function assertSameOrigin(c: AppContext): void {
-  if (!UNSAFE_METHODS.has(c.req.method.toUpperCase())) return
+  const method = c.req.method.toUpperCase()
+  if (!UNSAFE_METHODS.has(method)) return
 
   const expectedOrigin = getBaseUrl(c.env).origin
-  const requestOrigin = new URL(c.req.url).origin
-  if (requestOrigin !== expectedOrigin) {
-    throw new HTTPException(403, { message: '허용되지 않은 요청 출처입니다.' })
-  }
-
-  const origin = c.req.header('Origin')
-  if (origin && origin !== expectedOrigin) {
-    throw new HTTPException(403, { message: '허용되지 않은 요청 출처입니다.' })
-  }
-
+  const requestUrl = new URL(c.req.url)
+  const requestOrigin = requestUrl.origin
+  const originHeader = c.req.header('Origin') ?? null
   const referer = c.req.header('Referer')
-  if (!origin && referer) {
+  let refererOrigin: string | null = null
+
+  if (!originHeader && referer) {
     try {
-      if (new URL(referer).origin !== expectedOrigin) {
-        throw new HTTPException(403, { message: '허용되지 않은 요청 출처입니다.' })
-      }
-    } catch (error) {
-      if (error instanceof HTTPException) throw error
-      throw new HTTPException(403, { message: '요청 출처를 확인할 수 없습니다.' })
+      refererOrigin = new URL(referer).origin
+    } catch {
+      throw new SameOriginError(
+        {
+          stage: 'referer-invalid',
+          expectedOrigin,
+          requestOrigin,
+          originHeader,
+          refererOrigin: null,
+          method,
+          path: requestUrl.pathname,
+        },
+        '요청 출처를 확인할 수 없습니다.',
+      )
     }
+  }
+
+  const details = (stage: SameOriginFailureStage): SameOriginFailureDetails => ({
+    stage,
+    expectedOrigin,
+    requestOrigin,
+    originHeader,
+    refererOrigin,
+    method,
+    path: requestUrl.pathname,
+  })
+
+  if (requestOrigin !== expectedOrigin) {
+    throw new SameOriginError(details('request-url'))
+  }
+
+  if (originHeader && originHeader !== expectedOrigin) {
+    throw new SameOriginError(details('origin-header'))
+  }
+
+  if (!originHeader && refererOrigin && refererOrigin !== expectedOrigin) {
+    throw new SameOriginError(details('referer-header'))
   }
 }
 
@@ -108,7 +156,6 @@ export function contentSecurityPolicy(
 
 export async function securityMiddleware(c: AppContext, next: () => Promise<void>): Promise<void> {
   validateRuntimeConfig(c.env)
-  assertSameOrigin(c)
   await next()
 
   const isAsset = c.req.path.startsWith('/assets/')

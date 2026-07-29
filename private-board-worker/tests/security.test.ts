@@ -1,5 +1,52 @@
 import { describe, expect, it } from 'vitest'
-import { contentSecurityPolicy, isPublicPath } from '../src/lib/security'
+import type { AppContext } from '../src/types'
+import { assertSameOrigin, contentSecurityPolicy, isPublicPath, SameOriginError } from '../src/lib/security'
+
+function originContext(
+  url: string,
+  headers: Record<string, string> = {},
+  method = 'POST',
+): AppContext {
+  return {
+    env: { BASE_URL: 'https://board.oc7.workers.dev' },
+    req: {
+      method,
+      url,
+      header: (name: string) => headers[name],
+    },
+  } as unknown as AppContext
+}
+
+describe('동일 출처 검사 진단', () => {
+  it('요청 URL Origin 불일치 정보를 구조화한다', () => {
+    const run = () => assertSameOrigin(originContext('https://old-board.example.com/dashboard/bookmarks/3/update'))
+
+    expect(run).toThrow(SameOriginError)
+    try {
+      run()
+    } catch (error) {
+      expect(error).toBeInstanceOf(SameOriginError)
+      expect((error as SameOriginError).details).toMatchObject({
+        stage: 'request-url',
+        expectedOrigin: 'https://board.oc7.workers.dev',
+        requestOrigin: 'https://old-board.example.com',
+        method: 'POST',
+        path: '/dashboard/bookmarks/3/update',
+      })
+    }
+  })
+
+  it('Origin 헤더가 있으면 Referer 대신 Origin 헤더를 검사한다', () => {
+    expect(() =>
+      assertSameOrigin(
+        originContext('https://board.oc7.workers.dev/dashboard/bookmarks/3/update', {
+          Origin: 'https://board.oc7.workers.dev',
+          Referer: 'not-a-url',
+        }),
+      ),
+    ).not.toThrow()
+  })
+})
 
 describe('Content Security Policy', () => {
   it('Google OAuth 리디렉션만 외부 form-action으로 허용한다', () => {

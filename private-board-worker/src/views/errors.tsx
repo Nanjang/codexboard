@@ -1,6 +1,11 @@
 import type { CurrentUser, DeployInfo } from '../types'
 import { AppLayout, PublicLayout } from './layout'
 
+export interface AdminErrorDetail {
+  label: string
+  value: string
+}
+
 export function PublicErrorPage({
   appName,
   deployInfo,
@@ -44,6 +49,7 @@ export function AppErrorPage({
   message,
   status,
   incidentCode,
+  adminDetails,
   user,
   csrfToken,
 }: {
@@ -53,6 +59,7 @@ export function AppErrorPage({
   message: string
   status: number
   incidentCode?: string
+  adminDetails?: AdminErrorDetail[]
   user: CurrentUser
   csrfToken: string
 }) {
@@ -74,6 +81,22 @@ export function AppErrorPage({
           <p class="error-reference">
             오류 코드 <code>{incidentCode}</code>
           </p>
+        ) : null}
+        {user.role === 'admin' && adminDetails?.length ? (
+          <details class="admin-error-details" open>
+            <summary>관리자용 오류 상세</summary>
+            <dl>
+              {adminDetails.map((detail) => (
+                <>
+                  <dt>{detail.label}</dt>
+                  <dd>
+                    <code>{detail.value}</code>
+                  </dd>
+                </>
+              ))}
+            </dl>
+            <p>쿠키, 세션 및 CSRF 값은 보안상 표시하지 않습니다.</p>
+          </details>
         ) : null}
         <a class="button" href="/boards/free">
           자유게시판으로 이동

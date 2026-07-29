@@ -127,10 +127,12 @@ import {
 } from './lib/themes'
 import {
   assertCsrf,
+  assertSameOrigin,
   enforceAuthRateLimit,
   enforceWriteRateLimit,
   isPublicPath,
   requireAuth,
+  SameOriginError,
   securityMiddleware,
 } from './lib/security'
 import {
@@ -167,7 +169,7 @@ import { AccountPage } from './views/account'
 import { BoardListPage, CommentEditPage, PostDetailPage, PostFormPage } from './views/boards'
 import { DevlogDirectoryPage, DevlogPostPage, UserDevlogPage } from './views/devlogs'
 import { DashboardPage } from './views/dashboard'
-import { AppErrorPage, BlockedPage, PublicErrorPage } from './views/errors'
+import { AppErrorPage, BlockedPage, PublicErrorPage, type AdminErrorDetail } from './views/errors'
 import { GuestHomePage } from './views/home'
 import { PrivacyPage, TermsPage } from './views/legal'
 import { LoginPage } from './views/login'
@@ -219,11 +221,36 @@ function createIncidentCode(): string {
   return `PB-${crypto.randomUUID().replaceAll('-', '').slice(0, 10).toUpperCase()}`
 }
 
+function sameOriginAdminDetails(c: AppContext, error: unknown): AdminErrorDetail[] | undefined {
+  if (c.get('auth')?.user.role !== 'admin' || !(error instanceof SameOriginError)) return undefined
+
+  const stageLabels: Record<SameOriginError['details']['stage'], string> = {
+    'request-url': '요청 URL Origin',
+    'origin-header': 'Origin 헤더',
+    'referer-header': 'Referer 헤더',
+    'referer-invalid': 'Referer 형식',
+  }
+  const details = error.details
+
+  return [
+    { label: '실패한 검사', value: stageLabels[details.stage] },
+    { label: '설정된 BASE_URL Origin', value: details.expectedOrigin },
+    { label: '실제 요청 URL Origin', value: details.requestOrigin },
+    { label: 'Origin 헤더', value: details.originHeader ?? '(없음)' },
+    {
+      label: 'Referer Origin',
+      value: details.refererOrigin ?? (details.stage === 'referer-invalid' ? '(해석 실패)' : '(없음)'),
+    },
+    { label: '요청', value: `${details.method} ${details.path}` },
+  ]
+}
+
 function renderError(
   c: AppContext,
   status: ErrorStatus,
   message: string,
   incidentCode?: string,
+  adminDetails?: AdminErrorDetail[],
 ): Response | Promise<Response> {
   const auth = c.get('auth')
   const meta = viewMeta(c)
@@ -234,6 +261,7 @@ function renderError(
       message={message}
       status={status}
       {...(incidentCode ? { incidentCode } : {})}
+      {...(adminDetails ? { adminDetails } : {})}
       user={auth.user}
       csrfToken={auth.csrfToken}
     />
@@ -457,6 +485,8 @@ app.use('*', async (c, next) => {
     }
     c.set('auth', auth)
   }
+
+  assertSameOrigin(c)
 
   if (!isPublicPath(c.req.path) && !c.get('auth')) {
     if (acceptsJson(c)) return c.json({ error: '로그인이 필요합니다.' }, 401)
@@ -2006,6 +2036,7 @@ app.notFound((c) => renderError(c, 404, '요청한 페이지 또는 데이터를
 app.onError((error, c) => {
   const status = normalizeStatus(error instanceof HTTPException ? error.status : error instanceof ValidationError ? 400 : 500)
   const incidentCode = status === 500 ? createIncidentCode() : undefined
+  const adminDetails = sameOriginAdminDetails(c, error)
   const message =
     status === 500
       ? '일시적인 오류가 발생했습니다. 잠시 후 다시 시도하세요.'
@@ -2025,11 +2056,15 @@ app.onError((error, c) => {
 
   if (acceptsJson(c)) {
     return c.json(
-      incidentCode ? { error: message, code: incidentCode } : { error: message },
+      adminDetails
+        ? { error: message, details: Object.fromEntries(adminDetails.map((detail) => [detail.label, detail.value])) }
+        : incidentCode
+          ? { error: message, code: incidentCode }
+          : { error: message },
       status as ContentfulStatusCode,
     )
   }
-  return renderError(c, status, message, incidentCode)
+  return renderError(c, status, message, incidentCode, adminDetails)
 })
 
 export default app

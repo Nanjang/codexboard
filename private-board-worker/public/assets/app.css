@@ -2456,6 +2456,49 @@ button.privacy-toggle.is-on > span {
   letter-spacing: 0.04em;
 }
 
+.admin-error-details {
+  margin: 24px 0;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-muted);
+  text-align: left;
+}
+
+.admin-error-details summary {
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.admin-error-details dl {
+  display: grid;
+  grid-template-columns: minmax(120px, auto) 1fr;
+  gap: 8px 12px;
+  margin: 16px 0 12px;
+}
+
+.admin-error-details dt {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.admin-error-details dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.admin-error-details code {
+  font: inherit;
+  font-size: 0.82rem;
+}
+
+.error-card .admin-error-details p {
+  margin: 0;
+  font-size: 0.78rem;
+}
+
 .app-error-card {
   width: min(600px, 100%);
   margin: 50px auto;
