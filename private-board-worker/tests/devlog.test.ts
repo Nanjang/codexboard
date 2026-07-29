@@ -23,13 +23,25 @@ function imageEnv(fetcher?: Fetcher): Bindings {
 describe('개발일지 본문', () => {
   it('HTMLRewriter의 속성 튜플을 이미지 정제용 맵으로 변환한다', () => {
     const removed: string[] = []
+    let attributesModified = false
+    const sourceAttributes = [
+      ['CLASS', 'devlog-image is-wide'],
+      ['src', `/devlog-images/i/${'a'.repeat(64)}.webp`],
+      ['alt', '첫 이미지'],
+    ]
+    function* liveAttributes(): Generator<string[]> {
+      for (const attribute of sourceAttributes) {
+        if (attributesModified) {
+          throw new Error('attributes modified during iteration')
+        }
+        yield attribute
+      }
+    }
+
     const attributes = removeAttributes({
-      attributes: [
-        ['CLASS', 'devlog-image is-wide'],
-        ['src', `/devlog-images/i/${'a'.repeat(64)}.webp`],
-        ['alt', '첫 이미지'],
-      ],
+      attributes: liveAttributes(),
       removeAttribute(name) {
+        attributesModified = true
         removed.push(name)
       },
     })

@@ -65,7 +65,8 @@ interface RewriterElementAttributes {
 
 export function removeAttributes(element: RewriterElementAttributes): Map<string, string> {
   const attributes = new Map<string, string>()
-  for (const attribute of element.attributes) {
+  const attributeEntries = Array.from(element.attributes)
+  for (const attribute of attributeEntries) {
     if (!Array.isArray(attribute)) continue
     const name = attribute[0]
     const value = attribute[1]
