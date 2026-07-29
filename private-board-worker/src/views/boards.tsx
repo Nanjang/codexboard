@@ -169,8 +169,14 @@ export function PostFormPage({
           </label>
           {isDevlog ? (
             <>
-              <fieldset class="visibility-fieldset">
-                <legend>공개 범위</legend>
+              <div
+                class="visibility-fieldset"
+                role="radiogroup"
+                aria-labelledby="visibility-label"
+              >
+                <span class="visibility-label" id="visibility-label">
+                  공개 여부
+                </span>
                 <label class="visibility-option">
                   <input
                     type="radio"
@@ -178,10 +184,7 @@ export function PostFormPage({
                     value="public"
                     checked={post?.visibility === 'public'}
                   />
-                  <span>
-                    <strong>공개</strong>
-                    <small>로그인하지 않은 방문자도 읽을 수 있습니다.</small>
-                  </span>
+                  <span>공개</span>
                 </label>
                 <label class="visibility-option">
                   <input
@@ -190,12 +193,9 @@ export function PostFormPage({
                     value="private"
                     checked={post?.visibility !== 'public'}
                   />
-                  <span>
-                    <strong>비공개</strong>
-                    <small>작성자와 관리자만 읽을 수 있습니다.</small>
-                  </span>
+                  <span>비공개</span>
                 </label>
-              </fieldset>
+              </div>
 
               <div class="devlog-editor-field">
                 <span class="field-label">내용</span>

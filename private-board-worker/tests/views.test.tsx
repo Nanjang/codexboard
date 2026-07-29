@@ -439,7 +439,7 @@ describe('핵심 화면', () => {
     expect(html).toContain('공개 개발일지는 바로 읽을 수 있으며, 다른 게시판 참여는 로그인 후 가능합니다.')
   })
 
-  it('개발일지 편집기에 공개 범위와 커서 위치 이미지 도구를 표시한다', async () => {
+  it('개발일지 편집기에 간결한 공개 여부와 커서 위치 이미지 도구를 표시한다', async () => {
     const developmentBoard: BoardRow = {
       ...board,
       id: 2,
@@ -460,8 +460,12 @@ describe('핵심 화면', () => {
 
     expect(html).toContain('data-devlog-editor-form')
     expect(html).toContain('contenteditable')
+    expect(html).toContain('role="radiogroup" aria-labelledby="visibility-label"')
+    expect(html).toContain('공개 여부')
     expect(html).toContain('name="visibility" value="public"')
     expect(html).toContain('name="visibility" value="private" checked')
+    expect(html).not.toContain('로그인하지 않은 방문자도 읽을 수 있습니다.')
+    expect(html).not.toContain('작성자와 관리자만 읽을 수 있습니다.')
     expect(html).toContain('data-editor-image')
     expect(html).toContain('이미지는 현재 커서 위치에 삽입됩니다.')
   })
