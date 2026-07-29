@@ -177,7 +177,7 @@ export async function listDashboardWidgets(db: D1Database, userId: string): Prom
   const result = await db
     .prepare(
       `
-      SELECT id, user_id, widget_type, title, url, sort_order, created_at
+      SELECT id, user_id, widget_type, title, url, icon_url, icon_color, sort_order, created_at
       FROM dashboard_widgets
       WHERE user_id = ?1
       ORDER BY sort_order, widget_type
@@ -220,6 +220,8 @@ export async function addBookmarkDashboardWidget(
   userId: string,
   title: string,
   url: string,
+  iconUrl: string | null,
+  iconColor: DashboardWidgetRow['icon_color'],
 ): Promise<number> {
   await ensureUserDashboard(db, userId)
   const now = Date.now()
@@ -227,11 +229,13 @@ export async function addBookmarkDashboardWidget(
   const result = await db
     .prepare(
       `
-      INSERT INTO dashboard_widgets (user_id, widget_type, title, url, sort_order, created_at)
-      VALUES (?1, 'bookmark', ?2, ?3, ?4, ?5)
+      INSERT INTO dashboard_widgets (
+        user_id, widget_type, title, url, icon_url, icon_color, sort_order, created_at
+      )
+      VALUES (?1, 'bookmark', ?2, ?3, ?4, ?5, ?6, ?7)
       `,
     )
-    .bind(userId, title, url, sortOrder, now)
+    .bind(userId, title, url, iconUrl, iconColor, sortOrder, now)
     .run()
 
   const widgetId = result.meta.last_row_id
@@ -247,7 +251,7 @@ export async function getBookmarkDashboardWidget(
   return db
     .prepare(
       `
-      SELECT id, user_id, widget_type, title, url, sort_order, created_at
+      SELECT id, user_id, widget_type, title, url, icon_url, icon_color, sort_order, created_at
       FROM dashboard_widgets
       WHERE id = ?1 AND user_id = ?2 AND widget_type = 'bookmark'
       LIMIT 1
@@ -263,29 +267,25 @@ export async function updateBookmarkDashboardWidget(
   widgetId: number,
   title: string,
   url: string,
-  clearIcon: boolean,
+  iconUrl: string | null,
+  iconColor: DashboardWidgetRow['icon_color'],
 ): Promise<boolean> {
-  const result = clearIcon
-    ? await db
-        .prepare(
-          `
-          UPDATE dashboard_widgets
-          SET title = ?1, url = ?2, icon_content_type = NULL, icon_data = NULL, icon_updated_at = NULL
-          WHERE id = ?3 AND user_id = ?4 AND widget_type = 'bookmark'
-          `,
-        )
-        .bind(title, url, widgetId, userId)
-        .run()
-    : await db
-        .prepare(
-          `
-          UPDATE dashboard_widgets
-          SET title = ?1, url = ?2
-          WHERE id = ?3 AND user_id = ?4 AND widget_type = 'bookmark'
-          `,
-        )
-        .bind(title, url, widgetId, userId)
-        .run()
+  const result = await db
+    .prepare(
+      `
+      UPDATE dashboard_widgets
+      SET title = ?1,
+          url = ?2,
+          icon_url = ?3,
+          icon_color = ?4,
+          icon_content_type = NULL,
+          icon_data = NULL,
+          icon_updated_at = NULL
+      WHERE id = ?5 AND user_id = ?6 AND widget_type = 'bookmark'
+      `,
+    )
+    .bind(title, url, iconUrl, iconColor, widgetId, userId)
+    .run()
   return result.meta.changes > 0
 }
 

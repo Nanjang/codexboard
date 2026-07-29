@@ -1,4 +1,9 @@
 import { normalizeRssUrl } from './rss'
+import type { BookmarkIconColor } from '../types'
+import {
+  bookmarkIconPalette,
+  DEFAULT_BOOKMARK_ICON_COLOR,
+} from './bookmark-icon-palette'
 
 const ICON_FETCH_TIMEOUT_MS = 3_000
 const ICON_MAX_BYTES = 128 * 1024
@@ -18,11 +23,6 @@ const ACCEPTED_ICON_TYPES = new Set([
   'application/octet-stream',
 ])
 
-const FALLBACK_ICON = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28">
-  <rect width="28" height="28" rx="8" fill="#e7f3ea"/>
-  <path d="M10 18 18 10m-6 0h6v6" fill="none" stroke="#157347" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-</svg>`
-
 function iconHeaders(contentType: string, maxAge: number): HeadersInit {
   return {
     'Cache-Control': `private, max-age=${maxAge}`,
@@ -31,8 +31,15 @@ function iconHeaders(contentType: string, maxAge: number): HeadersInit {
   }
 }
 
-export function bookmarkIconFallback(): Response {
-  return new Response(FALLBACK_ICON, {
+export function bookmarkIconFallback(
+  color: BookmarkIconColor = DEFAULT_BOOKMARK_ICON_COLOR,
+): Response {
+  const palette = bookmarkIconPalette(color)
+  const icon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28">
+  <rect width="28" height="28" rx="8" fill="${palette.background}"/>
+  <path d="M10 18 18 10m-6 0h6v6" fill="none" stroke="${palette.foreground}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>`
+  return new Response(icon, {
     headers: iconHeaders('image/svg+xml; charset=utf-8', FALLBACK_CACHE_SECONDS),
   })
 }
@@ -145,6 +152,14 @@ async function fetchIconAt(iconUrl: string): Promise<BookmarkIconData | null> {
   }
 
   return null
+}
+
+export async function fetchBookmarkIconUrl(iconUrl: string): Promise<BookmarkIconData | null> {
+  try {
+    return await fetchIconAt(normalizeRssUrl(iconUrl))
+  } catch {
+    return null
+  }
 }
 
 async function readPageHtml(response: Response): Promise<string | null> {

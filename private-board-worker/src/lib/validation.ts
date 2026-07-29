@@ -1,4 +1,5 @@
-import type { BoardSlug } from '../types'
+import type { BoardSlug, BookmarkIconColor } from '../types'
+import { isBookmarkIconColor } from './bookmark-icon-palette'
 import { normalizeRssUrl, RssFeedError } from './rss'
 
 export class ValidationError extends Error {
@@ -100,6 +101,25 @@ export function bookmarkUrl(value: FormDataEntryValue | null): string {
     throw new ValidationError('북마크는 사용자 정보가 없는 http 또는 https URL만 지원합니다.')
   }
   return url.toString()
+}
+
+export function bookmarkIconMode(value: FormDataEntryValue | null): 'default' | 'url' {
+  if (value === 'default' || value === 'url') return value
+  throw new ValidationError('아이콘 사용 방식을 선택해 주세요.')
+}
+
+export function bookmarkIconColor(value: FormDataEntryValue | null): BookmarkIconColor {
+  if (typeof value === 'string' && isBookmarkIconColor(value)) return value
+  throw new ValidationError('기본 아이콘 색상을 선택해 주세요.')
+}
+
+export function manualBookmarkIconUrl(value: FormDataEntryValue | null): string {
+  const normalized = singleLine(value, '아이콘 URL', 2048)
+  try {
+    return normalizeRssUrl(normalized)
+  } catch {
+    throw new ValidationError('아이콘 URL은 공개 HTTPS 이미지 주소여야 합니다.')
+  }
 }
 
 export function rssUrl(value: FormDataEntryValue | null): string {

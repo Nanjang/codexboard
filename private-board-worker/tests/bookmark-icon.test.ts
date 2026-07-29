@@ -3,6 +3,7 @@ import {
   bookmarkIconFallback,
   bookmarkIconUrl,
   fetchBookmarkIcon,
+  fetchBookmarkIconUrl,
   storedBookmarkIcon,
 } from '../src/lib/bookmark-icon'
 
@@ -83,5 +84,32 @@ describe('북마크 사이트 아이콘', () => {
     expect(fetchMock.mock.calls[2]?.[0]).toBe(
       'https://littlecandle.co.kr/img/favicon-32x32.png',
     )
+  })
+
+  it('직접 입력한 HTTPS 아이콘 URL을 그대로 가져온다', async () => {
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL) =>
+      new Response(new Uint8Array([1, 2, 3]), {
+        headers: { 'Content-Type': 'image/webp' },
+      }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const icon = await fetchBookmarkIconUrl('https://cdn.example.com/bookmark.webp')
+
+    expect(icon).toEqual({
+      bytes: new Uint8Array([1, 2, 3]),
+      contentType: 'image/webp',
+    })
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('https://cdn.example.com/bookmark.webp')
+  })
+
+  it('기본 아이콘은 선택한 색상으로 같은 모양을 렌더링한다', async () => {
+    const green = await bookmarkIconFallback('green').text()
+    const rose = await bookmarkIconFallback('rose').text()
+
+    expect(green).toContain('d="M10 18 18 10m-6 0h6v6"')
+    expect(rose).toContain('d="M10 18 18 10m-6 0h6v6"')
+    expect(green).toContain('#157347')
+    expect(rose).toContain('#b4235a')
   })
 })

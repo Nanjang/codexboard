@@ -8,6 +8,10 @@ import type {
 import { AuthorName, CsrfInput } from './components'
 import { formatDateTime } from './format'
 import { AppLayout } from './layout'
+import {
+  BOOKMARK_ICON_OPTIONS,
+  normalizeBookmarkIconColor,
+} from '../lib/bookmark-icon-palette'
 
 interface DashboardPageProps {
   appName: string
@@ -215,6 +219,74 @@ function BookmarkFormFields({ widget }: { widget?: DashboardWidgetRow }) {
   )
 }
 
+function BookmarkIconFields({ widget }: { widget?: DashboardWidgetRow }) {
+  const usesIconUrl = Boolean(widget?.icon_url)
+  const iconColor = normalizeBookmarkIconColor(widget?.icon_color)
+
+  return (
+    <fieldset class="bookmark-icon-settings">
+      <legend>아이콘</legend>
+      <div class="bookmark-icon-mode-options">
+        <label>
+          <input type="radio" name="iconMode" value="default" checked={!usesIconUrl} />
+          <span>기본 아이콘 사용</span>
+        </label>
+        <label>
+          <input type="radio" name="iconMode" value="url" checked={usesIconUrl} />
+          <span>아이콘 URL 사용</span>
+        </label>
+      </div>
+
+      <div class="bookmark-icon-color-field">
+        <span>기본 아이콘 색상</span>
+        <div class="bookmark-icon-color-options">
+          {BOOKMARK_ICON_OPTIONS.map((option) => (
+            <label title={option.label}>
+              <input
+                type="radio"
+                name="iconColor"
+                value={option.value}
+                checked={iconColor === option.value}
+              />
+              <span
+                class={`bookmark-icon-color-swatch bookmark-icon-color-${option.value}`}
+                aria-hidden="true"
+              >
+                <svg viewBox="0 0 28 28">
+                  <path
+                    d="M10 18 18 10m-6 0h6v6"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </span>
+              <span>{option.label}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      <label class="bookmark-icon-url-field">
+        <span>아이콘 URL</span>
+        <input
+          type="url"
+          name="iconUrl"
+          maxlength={2048}
+          value={widget?.icon_url ?? ''}
+          placeholder="https://example.com/icon.png"
+          autocomplete="url"
+        />
+      </label>
+      <p class="bookmark-icon-hint">
+        아이콘 URL은 공개 HTTPS PNG, JPG, WebP, GIF 또는 ICO 이미지 주소를 입력해 주세요.
+      </p>
+    </fieldset>
+  )
+}
+
 function BookmarkAddDialog({ csrfToken }: { csrfToken: string }) {
   return (
     <dialog id="bookmark-add-dialog" class="ticket-dialog bookmark-dialog">
@@ -230,15 +302,10 @@ function BookmarkAddDialog({ csrfToken }: { csrfToken: string }) {
           </button>
         </div>
         <BookmarkFormFields />
-        <p class="bookmark-icon-hint">
-          사이트 아이콘은 원할 때만 한 번 가져와 D1에 저장합니다.
-        </p>
+        <BookmarkIconFields />
         <div class="bookmark-dialog-actions">
-          <button class="button button-secondary" type="submit">
-            아이콘 없이 추가
-          </button>
-          <button class="button" type="submit" name="action" value="fetch-icon">
-            사이트 아이콘 가져와 추가
+          <button class="button" type="submit">
+            북마크 추가
           </button>
         </div>
       </form>
@@ -273,16 +340,10 @@ function BookmarkEditDialog({
           </button>
         </div>
         <BookmarkFormFields widget={widget} />
-        <p class="bookmark-icon-hint">
-          URL의 사이트가 바뀌면 기존 아이콘은 비워집니다. 갱신 버튼을 누를 때만 새로
-          가져옵니다.
-        </p>
+        <BookmarkIconFields widget={widget} />
         <div class="bookmark-dialog-actions">
-          <button class="button button-secondary" type="submit" name="action" value="save">
-            정보만 저장
-          </button>
-          <button class="button" type="submit" name="action" value="refresh-icon">
-            사이트 아이콘 갱신
+          <button class="button" type="submit">
+            변경사항 저장
           </button>
         </div>
       </form>

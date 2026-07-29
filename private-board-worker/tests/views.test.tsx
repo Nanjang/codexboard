@@ -92,6 +92,8 @@ const dashboardWidgets: DashboardWidgetRow[] = [
     widget_type: 'free-board',
     title: null,
     url: null,
+    icon_url: null,
+    icon_color: 'green',
     sort_order: 1000,
     created_at: 1,
   },
@@ -101,6 +103,8 @@ const dashboardWidgets: DashboardWidgetRow[] = [
     widget_type: 'rss',
     title: '개발 소식',
     url: 'https://example.com/feed.xml',
+    icon_url: null,
+    icon_color: 'green',
     sort_order: 3000,
     created_at: 1,
   },
@@ -110,6 +114,8 @@ const dashboardWidgets: DashboardWidgetRow[] = [
     widget_type: 'bookmark',
     title: '내 문서',
     url: 'https://example.com/docs',
+    icon_url: 'https://example.com/icon.png',
+    icon_color: 'purple',
     sort_order: 2000,
     created_at: 1,
   },
@@ -275,8 +281,18 @@ describe('핵심 화면', () => {
     expect(html).toContain('data-dialog-open="bookmark-add-dialog"')
     expect(html).toContain('action="/dashboard/bookmarks"')
     expect(html).toContain('action="/dashboard/bookmarks/2/update"')
-    expect(html).toContain('사이트 아이콘 가져와 추가')
-    expect(html).toContain('사이트 아이콘 갱신')
+    expect(html).toContain('기본 아이콘 사용')
+    expect(html).toContain('아이콘 URL 사용')
+    expect(html).toContain('name="iconUrl"')
+    expect(html).toContain('value="https://example.com/icon.png"')
+    expect(html.match(/name="iconColor"/gu)).toHaveLength(10)
+    expect(html).toContain('bookmark-icon-color-green')
+    expect(html).toContain('bookmark-icon-color-blue')
+    expect(html).toContain('bookmark-icon-color-purple')
+    expect(html).toContain('bookmark-icon-color-orange')
+    expect(html).toContain('bookmark-icon-color-rose')
+    expect(html).not.toContain('사이트 아이콘 가져와 추가')
+    expect(html).not.toContain('사이트 아이콘 갱신')
     expect(html).not.toContain('name="widgetType" value="bookmark"')
     const bookmarkCard = html.match(/<article class="bookmark-quick-link"[\s\S]*?<\/article>/u)?.[0]
     expect(bookmarkCard).not.toContain('<small>')

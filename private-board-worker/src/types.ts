@@ -6,6 +6,7 @@ export type RegistrationMode = 'open' | 'allowlist' | 'domain'
 export type TicketLane = 'todo' | 'doing' | 'done'
 export type BoardSlug = 'free' | 'development' | 'news' | 'inquiry'
 export type DashboardWidgetType = 'free-board' | 'bookmark' | 'rss'
+export type BookmarkIconColor = 'green' | 'blue' | 'purple' | 'orange' | 'rose'
 export type PrivateImageStatus = 'pending' | 'ready'
 
 export interface RateLimiterBinding {
@@ -109,6 +110,8 @@ export interface DashboardWidgetRow {
   widget_type: DashboardWidgetType
   title: string | null
   url: string | null
+  icon_url: string | null
+  icon_color: BookmarkIconColor
   sort_order: number
   created_at: number
 }

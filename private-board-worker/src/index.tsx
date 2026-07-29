@@ -32,7 +32,6 @@ import {
   deletePost,
   deleteTicket,
   getBoardBySlug,
-  getBookmarkDashboardWidget,
   getComment,
   getMemoUrlPattern,
   getMemoUrlSettings,
@@ -73,9 +72,10 @@ import {
 import { safeEqual } from './lib/crypto'
 import {
   bookmarkIconFallback,
-  fetchBookmarkIcon,
+  fetchBookmarkIconUrl,
   storedBookmarkIcon,
 } from './lib/bookmark-icon'
+import { normalizeBookmarkIconColor } from './lib/bookmark-icon-palette'
 import { getAppName, getDeployInfo, turnstileEnabled } from './lib/env'
 import { acceptsJson, noticeFromRequest, redirectWithNotice } from './lib/http'
 import {
@@ -117,7 +117,10 @@ import {
 } from './lib/security'
 import {
   boardSlug,
+  bookmarkIconColor,
+  bookmarkIconMode,
   bookmarkUrl,
+  manualBookmarkIconUrl,
   multiline,
   nickname,
   optionalSingleLine,
@@ -134,6 +137,7 @@ import type {
   AppEnv,
   AuthContext,
   BoardSlug,
+  BookmarkIconColor,
   MemoUrlSettings,
   PostDetailRow,
   RssWidgetResult,
@@ -597,19 +601,43 @@ app.get('/dashboard/widgets/:id/icon', async (c) => {
   const widgetId = positiveInteger(c.req.param('id'), '위젯 ID')
   const widget = await c.env.DB.prepare(
     `
-    SELECT icon_content_type, icon_data
+    SELECT icon_url, icon_color, icon_content_type, icon_data
     FROM dashboard_widgets
     WHERE id = ?1 AND user_id = ?2 AND widget_type = 'bookmark'
     LIMIT 1
     `,
   )
     .bind(widgetId, auth.user.id)
-    .first<{ icon_content_type: string | null; icon_data: number[] | null }>()
+    .first<{
+      icon_url: string | null
+      icon_color: string | null
+      icon_content_type: string | null
+      icon_data: number[] | null
+    }>()
 
-  return widget?.icon_content_type && widget.icon_data
+  return widget?.icon_url && widget.icon_content_type && widget.icon_data
     ? storedBookmarkIcon(widget.icon_data, widget.icon_content_type)
-    : bookmarkIconFallback()
+    : bookmarkIconFallback(normalizeBookmarkIconColor(widget?.icon_color))
 })
+
+async function bookmarkIconSelection(form: FormData): Promise<{
+  iconUrl: string | null
+  iconColor: BookmarkIconColor
+  icon: Awaited<ReturnType<typeof fetchBookmarkIconUrl>>
+}> {
+  const mode = bookmarkIconMode(form.get('iconMode'))
+  const iconColor = bookmarkIconColor(form.get('iconColor'))
+  if (mode === 'default') return { iconUrl: null, iconColor, icon: null }
+
+  const iconUrl = manualBookmarkIconUrl(form.get('iconUrl'))
+  const icon = await fetchBookmarkIconUrl(iconUrl)
+  if (!icon) {
+    throw new ValidationError(
+      '아이콘 URL에서 지원하는 이미지(PNG, JPG, WebP, GIF, ICO)를 가져오지 못했습니다.',
+    )
+  }
+  return { iconUrl, iconColor, icon }
+}
 
 app.post('/dashboard/bookmarks', async (c) => {
   const auth = requireActiveAuth(c)
@@ -617,13 +645,15 @@ app.post('/dashboard/bookmarks', async (c) => {
   const form = await readForm(c)
   const title = singleLine(form.get('title'), '표시 이름', 60)
   const url = bookmarkUrl(form.get('url'))
-  const action = form.get('action')
-  if (action !== null && action !== 'fetch-icon') {
-    throw new ValidationError('북마크 등록 요청이 올바르지 않습니다.')
-  }
-
-  const icon = action === 'fetch-icon' ? await fetchBookmarkIcon(url) : null
-  const widgetId = await addBookmarkDashboardWidget(c.env.DB, auth.user.id, title, url)
+  const { iconUrl, iconColor, icon } = await bookmarkIconSelection(form)
+  const widgetId = await addBookmarkDashboardWidget(
+    c.env.DB,
+    auth.user.id,
+    title,
+    url,
+    iconUrl,
+    iconColor,
+  )
   if (icon) {
     await saveBookmarkDashboardIcon(
       c.env.DB,
@@ -634,11 +664,7 @@ app.post('/dashboard/bookmarks', async (c) => {
     )
   }
 
-  return redirectWithNotice(
-    c,
-    '/',
-    action === 'fetch-icon' && !icon ? 'bookmark-icon-unavailable' : 'bookmark-added',
-  )
+  return redirectWithNotice(c, '/', 'bookmark-added')
 })
 
 app.post('/dashboard/bookmarks/:id/update', async (c) => {
@@ -648,23 +674,15 @@ app.post('/dashboard/bookmarks/:id/update', async (c) => {
   const widgetId = positiveInteger(c.req.param('id'), '위젯 ID')
   const title = singleLine(form.get('title'), '표시 이름', 60)
   const url = bookmarkUrl(form.get('url'))
-  const action = form.get('action')
-  if (action !== 'save' && action !== 'refresh-icon') {
-    throw new ValidationError('북마크 변경 요청이 올바르지 않습니다.')
-  }
-
-  const existing = await getBookmarkDashboardWidget(c.env.DB, auth.user.id, widgetId)
-  if (!existing?.url) throw new HTTPException(404, { message: '북마크를 찾을 수 없습니다.' })
-
-  const originChanged = new URL(existing.url).origin !== new URL(url).origin
-  const icon = action === 'refresh-icon' ? await fetchBookmarkIcon(url) : null
+  const { iconUrl, iconColor, icon } = await bookmarkIconSelection(form)
   const updated = await updateBookmarkDashboardWidget(
     c.env.DB,
     auth.user.id,
     widgetId,
     title,
     url,
-    originChanged,
+    iconUrl,
+    iconColor,
   )
   if (!updated) throw new HTTPException(404, { message: '북마크를 찾을 수 없습니다.' })
   if (icon) {
@@ -677,15 +695,7 @@ app.post('/dashboard/bookmarks/:id/update', async (c) => {
     )
   }
 
-  return redirectWithNotice(
-    c,
-    '/',
-    action === 'refresh-icon'
-      ? icon
-        ? 'bookmark-icon-refreshed'
-        : 'bookmark-icon-unavailable'
-      : 'bookmark-updated',
-  )
+  return redirectWithNotice(c, '/', 'bookmark-updated')
 })
 
 app.post('/dashboard/widgets', async (c) => {
