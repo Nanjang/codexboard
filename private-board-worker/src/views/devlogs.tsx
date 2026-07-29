@@ -173,10 +173,49 @@ export function UserDevlogPage({
           <span class="devlog-blog-avatar" aria-hidden="true">
             {author.nickname.slice(0, 1).toUpperCase()}
           </span>
-          <div>
+          <div class="devlog-blog-copy">
             <p class="eyebrow">DEVELOPMENT LOG</p>
-            <h1>{author.nickname}의 개발일지</h1>
+            <div class="devlog-blog-title-row">
+              <h1>{author.nickname}의 개발일지</h1>
+              {canExport ? (
+                <button
+                  type="button"
+                  class="icon-button devlog-archive-toggle"
+                  aria-expanded="false"
+                  aria-controls="devlog-archive-panel"
+                  title="개발일지 전체 보관"
+                  data-devlog-archive-toggle
+                >
+                  <span aria-hidden="true">⚙</span>
+                  <span class="visually-hidden" data-devlog-archive-toggle-label>
+                    개발일지 전체 보관 열기
+                  </span>
+                </button>
+              ) : null}
+            </div>
             <p>작업 과정, 결정, 시행착오를 기록합니다.</p>
+            {canExport ? (
+              <section
+                id="devlog-archive-panel"
+                class="devlog-archive-panel"
+                aria-label="개발일지 전체 보관"
+                data-devlog-archive-panel
+                hidden
+              >
+                <div>
+                  <strong>개발일지 전체 보관</strong>
+                  <p>모든 게시물을 Markdown 파일로 묶고 이미지 경로는 images/ 하위로 유지합니다.</p>
+                </div>
+                <a
+                  class="button button-secondary button-compact"
+                  href={`/devlogs/u/${encodeURIComponent(author.id)}/export`}
+                  target="_blank"
+                  rel="noopener"
+                >
+                  Markdown ZIP 내보내기
+                </a>
+              </section>
+            ) : null}
           </div>
         </header>
 
@@ -223,22 +262,6 @@ export function UserDevlogPage({
           </nav>
         ) : null}
 
-        {canExport ? (
-          <footer class="devlog-archive-export">
-            <div>
-              <strong>개발일지 전체 보관</strong>
-              <p>모든 게시물을 Markdown 파일로 묶고 이미지 경로는 images/ 하위로 유지합니다.</p>
-            </div>
-            <a
-              class="button button-secondary"
-              href={`/devlogs/u/${encodeURIComponent(author.id)}/export`}
-              target="_blank"
-              rel="noopener"
-            >
-              전체 Markdown ZIP 내보내기
-            </a>
-          </footer>
-        ) : null}
       </section>
     </DevlogShell>
   )

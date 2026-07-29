@@ -585,7 +585,12 @@ describe('핵심 화면', () => {
     expect(html).toContain(`src="/devlog-images/i/${'c'.repeat(64)}.avif"`)
     expect(html).toContain(`href="/devlogs/u/${user.id}/export"`)
     expect(html).toContain('target="_blank"')
-    expect(html).toContain('전체 Markdown ZIP 내보내기')
+    expect(html).toContain('data-devlog-archive-toggle')
+    expect(html).toContain('aria-controls="devlog-archive-panel"')
+    expect(html).toContain('data-devlog-archive-panel')
+    expect(html).toContain('개발일지 전체 보관')
+    expect(html).toContain('Markdown ZIP 내보내기')
+    expect(html).not.toContain('class="devlog-archive-export"')
   })
 
   it('공개 개발일지 목록에서는 전체 ZIP 내보내기를 노출하지 않는다', async () => {
@@ -613,7 +618,8 @@ describe('핵심 화면', () => {
     )
 
     expect(html).not.toContain(`/devlogs/u/${user.id}/export`)
-    expect(html).not.toContain('전체 Markdown ZIP 내보내기')
+    expect(html).not.toContain('data-devlog-archive-toggle')
+    expect(html).not.toContain('data-devlog-archive-panel')
   })
 
   it('개발일지 내보내기 화면에는 개수 진행률만 표시한다', async () => {

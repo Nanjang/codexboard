@@ -603,6 +603,23 @@ function setupDevlogExport(): void {
   void run()
 }
 
+function setupDevlogArchiveToggle(): void {
+  const toggle = document.querySelector<HTMLButtonElement>('[data-devlog-archive-toggle]')
+  const panel = document.querySelector<HTMLElement>('[data-devlog-archive-panel]')
+  const label = toggle?.querySelector<HTMLElement>('[data-devlog-archive-toggle-label]')
+  if (!toggle || !panel) return
+
+  toggle.addEventListener('click', () => {
+    const expanded = toggle.getAttribute('aria-expanded') !== 'true'
+    toggle.setAttribute('aria-expanded', String(expanded))
+    toggle.classList.toggle('is-active', expanded)
+    panel.hidden = !expanded
+    if (label) {
+      label.textContent = `개발일지 전체 보관 ${expanded ? '닫기' : '열기'}`
+    }
+  })
+}
+
 function setupBookmarkIconLookup(): void {
   document.addEventListener('click', (event) => {
     const target = event.target
@@ -1045,6 +1062,7 @@ function initialize(): void {
   setupTicketEditing()
   setupConfirmations()
   setupDevlogEditor()
+  setupDevlogArchiveToggle()
   setupDevlogExport()
   setupDoubleSubmitPrevention()
   setupNotices()

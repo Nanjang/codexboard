@@ -3488,6 +3488,65 @@ button.privacy-toggle.is-on > span {
   font-size: 2rem;
 }
 
+.devlog-blog-copy {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.devlog-blog-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.devlog-blog-title-row h1 {
+  min-width: 0;
+}
+
+.devlog-archive-toggle {
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  color: var(--text-muted);
+  font-size: 1.1rem;
+  transition: color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.devlog-archive-toggle:hover,
+.devlog-archive-toggle.is-active {
+  color: var(--primary);
+  background: var(--surface-muted);
+}
+
+.devlog-archive-toggle.is-active {
+  transform: rotate(30deg);
+}
+
+.devlog-archive-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-top: 20px;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
+}
+
+.devlog-archive-panel[hidden] {
+  display: none;
+}
+
+.devlog-archive-panel p {
+  margin: 4px 0 0;
+  font-size: 0.86rem;
+}
+
+.devlog-archive-panel .button {
+  flex: 0 0 auto;
+}
+
 .devlog-post-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3535,26 +3594,6 @@ button.privacy-toggle.is-on > span {
 .devlog-post-card p {
   margin: 0;
   color: var(--text-muted);
-}
-
-.devlog-archive-export {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  margin-top: 34px;
-  padding-top: 24px;
-  border-top: 1px solid var(--border);
-}
-
-.devlog-archive-export p {
-  margin: 5px 0 0;
-  color: var(--text-muted);
-  font-size: 0.9rem;
-}
-
-.devlog-archive-export .button {
-  flex: 0 0 auto;
 }
 
 .devlog-export-page {
@@ -3839,15 +3878,6 @@ button.privacy-toggle.is-on > span {
     grid-template-columns: 1fr;
   }
 
-  .devlog-archive-export {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .devlog-archive-export .button {
-    width: 100%;
-  }
-
   .devlog-export-page {
     margin: 0;
     padding: 26px 20px;
@@ -3878,6 +3908,15 @@ button.privacy-toggle.is-on > span {
     width: 58px;
     height: 58px;
     font-size: 1.35rem;
+  }
+
+  .devlog-archive-panel {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .devlog-archive-panel .button {
+    width: 100%;
   }
 
   .devlog-entry {
