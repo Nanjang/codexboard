@@ -416,6 +416,12 @@ button {
   background: var(--primary-hover);
 }
 
+.button:disabled,
+.button[aria-disabled="true"] {
+  cursor: wait;
+  opacity: 0.62;
+}
+
 .button-compact {
   min-height: 38px;
   padding: 8px 13px;
@@ -1444,6 +1450,70 @@ select:focus {
 .ticket-card-footer {
   padding-top: 10px;
   border-top: 1px solid var(--border);
+}
+
+.ticket-trash-list {
+  display: grid;
+  gap: 12px;
+}
+
+.ticket-trash-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.ticket-trash-content {
+  min-width: 0;
+}
+
+.ticket-trash-heading,
+.ticket-trash-actions {
+  display: flex;
+  align-items: center;
+}
+
+.ticket-trash-heading {
+  gap: 10px;
+}
+
+.ticket-trash-heading strong {
+  overflow-wrap: anywhere;
+}
+
+.ticket-trash-heading span {
+  flex: 0 0 auto;
+  padding: 3px 8px;
+  border-radius: 999px;
+  color: var(--text-muted);
+  background: var(--surface-muted);
+  font-size: 0.75rem;
+  font-weight: 750;
+}
+
+.ticket-trash-card .ticket-note {
+  margin-bottom: 8px;
+}
+
+.ticket-trash-meta {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.ticket-trash-actions {
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
+.ticket-trash-actions form {
+  margin: 0;
 }
 
 .ticket-move-actions {
@@ -3046,6 +3116,15 @@ button.privacy-toggle.is-on > span {
 
   .form-actions .button {
     flex: 1;
+  }
+
+  .ticket-trash-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .ticket-trash-actions {
+    justify-content: flex-end;
   }
 
   .theme-card-heading,

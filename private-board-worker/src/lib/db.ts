@@ -11,11 +11,13 @@ import type {
   PostListRow,
   TicketLane,
   TicketRow,
+  TrashedTicketRow,
 } from '../types'
 
 export const POSTS_PER_PAGE = 20
 export const DASHBOARD_POSTS_LIMIT = 5
 export const MAX_TICKETS_PER_USER = 200
+export const TICKET_TRASH_RETENTION_MS = 14 * 24 * 60 * 60 * 1000
 export const MAX_MEMOS_PER_USER = 1000
 export const MAX_MEMO_PATTERNS_PER_USER = 50
 export const MAX_RSS_WIDGETS_PER_USER = 10
@@ -590,12 +592,13 @@ export function canManageResource(user: CurrentUser, authorId: string): boolean 
 }
 
 export async function listTickets(db: D1Database, ownerId: string): Promise<TicketRow[]> {
+  await purgeExpiredTickets(db, ownerId)
   const result = await db
     .prepare(
       `
-      SELECT id, owner_id, title, note, lane, sort_order, created_at, updated_at
+      SELECT id, owner_id, title, note, lane, sort_order, created_at, updated_at, deleted_at, purge_after
       FROM tickets
-      WHERE owner_id = ?1
+      WHERE owner_id = ?1 AND deleted_at IS NULL
       ORDER BY
         CASE lane WHEN 'todo' THEN 1 WHEN 'doing' THEN 2 WHEN 'done' THEN 3 END,
         sort_order,
@@ -618,7 +621,7 @@ async function nextTicketOrder(db: D1Database, ownerId: string, lane: TicketLane
       `
       SELECT COALESCE(MAX(sort_order), 0) AS max_order
       FROM tickets
-      WHERE owner_id = ?1 AND lane = ?2
+      WHERE owner_id = ?1 AND lane = ?2 AND deleted_at IS NULL
       `,
     )
     .bind(ownerId, lane)
@@ -632,39 +635,73 @@ export async function createTicket(
   title: string,
   note: string,
   lane: TicketLane,
-): Promise<number> {
-  const count = await db
-    .prepare('SELECT COUNT(*) AS count FROM tickets WHERE owner_id = ?1')
-    .bind(ownerId)
-    .first<{ count: number }>()
-  if ((count?.count ?? 0) >= MAX_TICKETS_PER_USER) {
-    throw new Error(`작업 티켓은 사용자당 최대 ${MAX_TICKETS_PER_USER}개까지 만들 수 있습니다.`)
-  }
-
-  const sortOrder = await nextTicketOrder(db, ownerId, lane)
+  creationRequestId: string,
+): Promise<{ ticketId: number; created: boolean }> {
   const now = Date.now()
   const result = await db
     .prepare(
       `
-      INSERT INTO tickets (owner_id, title, note, lane, sort_order, created_at, updated_at)
-      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)
+      INSERT INTO tickets (
+        owner_id,
+        title,
+        note,
+        lane,
+        sort_order,
+        create_request_id,
+        created_at,
+        updated_at
+      )
+      SELECT
+        ?1,
+        ?2,
+        ?3,
+        ?4,
+        (
+          SELECT COALESCE(MAX(sort_order), 0) + 1000
+          FROM tickets
+          WHERE owner_id = ?1 AND lane = ?4 AND deleted_at IS NULL
+        ),
+        ?5,
+        ?6,
+        ?6
+      WHERE (
+        SELECT COUNT(*)
+        FROM tickets
+        WHERE owner_id = ?1 AND deleted_at IS NULL
+      ) < ?7
+      ON CONFLICT DO NOTHING
       `,
     )
-    .bind(ownerId, title, note, lane, sortOrder, now)
+    .bind(ownerId, title, note, lane, creationRequestId, now, MAX_TICKETS_PER_USER)
     .run()
 
-  const ticketId = result.meta.last_row_id
-  if (!ticketId) throw new Error('티켓 ID를 확인할 수 없습니다.')
-  return ticketId
+  if (result.meta.changes > 0 && result.meta.last_row_id) {
+    return { ticketId: result.meta.last_row_id, created: true }
+  }
+
+  const existing = await db
+    .prepare(
+      `
+      SELECT id
+      FROM tickets
+      WHERE owner_id = ?1 AND create_request_id = ?2
+      LIMIT 1
+      `,
+    )
+    .bind(ownerId, creationRequestId)
+    .first<{ id: number }>()
+  if (existing) return { ticketId: existing.id, created: false }
+
+  throw new Error(`작업 티켓은 사용자당 최대 ${MAX_TICKETS_PER_USER}개까지 만들 수 있습니다.`)
 }
 
 export async function getTicket(db: D1Database, ownerId: string, ticketId: number): Promise<TicketRow | null> {
   return db
     .prepare(
       `
-      SELECT id, owner_id, title, note, lane, sort_order, created_at, updated_at
+      SELECT id, owner_id, title, note, lane, sort_order, created_at, updated_at, deleted_at, purge_after
       FROM tickets
-      WHERE id = ?1 AND owner_id = ?2
+      WHERE id = ?1 AND owner_id = ?2 AND deleted_at IS NULL
       LIMIT 1
       `,
     )
@@ -689,7 +726,7 @@ export async function updateTicket(
       `
       UPDATE tickets
       SET title = ?1, note = ?2, lane = ?3, sort_order = ?4, updated_at = ?5
-      WHERE id = ?6 AND owner_id = ?7
+      WHERE id = ?6 AND owner_id = ?7 AND deleted_at IS NULL
       `,
     )
     .bind(title, note, lane, sortOrder, Date.now(), ticketId, ownerId)
@@ -713,7 +750,7 @@ export async function moveTicket(
       `
       UPDATE tickets
       SET lane = ?1, sort_order = ?2, updated_at = ?3
-      WHERE id = ?4 AND owner_id = ?5
+      WHERE id = ?4 AND owner_id = ?5 AND deleted_at IS NULL
       `,
     )
     .bind(lane, sortOrder, Date.now(), ticketId, ownerId)
@@ -722,8 +759,98 @@ export async function moveTicket(
 }
 
 export async function deleteTicket(db: D1Database, ownerId: string, ticketId: number): Promise<boolean> {
+  const deletedAt = Date.now()
   const result = await db
-    .prepare('DELETE FROM tickets WHERE id = ?1 AND owner_id = ?2')
+    .prepare(
+      `
+      UPDATE tickets
+      SET deleted_at = ?3, purge_after = ?4, updated_at = ?3
+      WHERE id = ?1 AND owner_id = ?2 AND deleted_at IS NULL
+      `,
+    )
+    .bind(ticketId, ownerId, deletedAt, deletedAt + TICKET_TRASH_RETENTION_MS)
+    .run()
+  return result.meta.changes > 0
+}
+
+export async function purgeExpiredTickets(
+  db: D1Database,
+  ownerId: string,
+  now = Date.now(),
+): Promise<number> {
+  const result = await db
+    .prepare('DELETE FROM tickets WHERE owner_id = ?1 AND deleted_at IS NOT NULL AND purge_after <= ?2')
+    .bind(ownerId, now)
+    .run()
+  return result.meta.changes
+}
+
+export async function listTrashedTickets(db: D1Database, ownerId: string): Promise<TrashedTicketRow[]> {
+  await purgeExpiredTickets(db, ownerId)
+  const result = await db
+    .prepare(
+      `
+      SELECT id, owner_id, title, note, lane, sort_order, created_at, updated_at, deleted_at, purge_after
+      FROM tickets
+      WHERE owner_id = ?1 AND deleted_at IS NOT NULL
+      ORDER BY deleted_at DESC, id DESC
+      `,
+    )
+    .bind(ownerId)
+    .all<TrashedTicketRow>()
+  return result.results
+}
+
+export async function restoreTicket(db: D1Database, ownerId: string, ticketId: number): Promise<boolean> {
+  const now = Date.now()
+  await purgeExpiredTickets(db, ownerId, now)
+  const result = await db
+    .prepare(
+      `
+      UPDATE tickets
+      SET
+        deleted_at = NULL,
+        purge_after = NULL,
+        sort_order = (
+          SELECT COALESCE(MAX(active.sort_order), 0) + 1000
+          FROM tickets AS active
+          WHERE active.owner_id = ?2
+            AND active.lane = tickets.lane
+            AND active.deleted_at IS NULL
+        ),
+        updated_at = ?3
+      WHERE id = ?1
+        AND owner_id = ?2
+        AND deleted_at IS NOT NULL
+        AND (
+          SELECT COUNT(*)
+          FROM tickets AS active
+          WHERE active.owner_id = ?2 AND active.deleted_at IS NULL
+        ) < ?4
+      `,
+    )
+    .bind(ticketId, ownerId, now, MAX_TICKETS_PER_USER)
+    .run()
+
+  if (result.meta.changes > 0) return true
+
+  const trashed = await db
+    .prepare('SELECT id FROM tickets WHERE id = ?1 AND owner_id = ?2 AND deleted_at IS NOT NULL LIMIT 1')
+    .bind(ticketId, ownerId)
+    .first<{ id: number }>()
+  if (trashed) {
+    throw new Error(`활성 작업 티켓은 사용자당 최대 ${MAX_TICKETS_PER_USER}개까지 둘 수 있습니다.`)
+  }
+  return false
+}
+
+export async function permanentlyDeleteTicket(
+  db: D1Database,
+  ownerId: string,
+  ticketId: number,
+): Promise<boolean> {
+  const result = await db
+    .prepare('DELETE FROM tickets WHERE id = ?1 AND owner_id = ?2 AND deleted_at IS NOT NULL')
     .bind(ticketId, ownerId)
     .run()
   return result.meta.changes > 0
@@ -739,7 +866,7 @@ export async function reorderTickets(
   if (new Set(incoming).size !== incoming.length) throw new Error('중복된 티켓 ID가 있습니다.')
 
   const existingResult = await db
-    .prepare('SELECT id FROM tickets WHERE owner_id = ?1 ORDER BY id')
+    .prepare('SELECT id FROM tickets WHERE owner_id = ?1 AND deleted_at IS NULL ORDER BY id')
     .bind(ownerId)
     .all<{ id: number }>()
   const existing = existingResult.results.map((row) => row.id).sort((a, b) => a - b)
@@ -758,7 +885,7 @@ export async function reorderTickets(
           `
           UPDATE tickets
           SET lane = ?1, sort_order = ?2, updated_at = ?3
-          WHERE id = ?4 AND owner_id = ?5
+          WHERE id = ?4 AND owner_id = ?5 AND deleted_at IS NULL
           `,
         )
         .bind(lane, (index + 1) * 1000, now, id, ownerId),

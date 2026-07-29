@@ -1,6 +1,6 @@
-import type { CurrentUser, DeployInfo, TicketLane, TicketRow } from '../types'
+import type { CurrentUser, DeployInfo, TicketLane, TicketRow, TrashedTicketRow } from '../types'
 import { CsrfInput, EmptyState } from './components'
-import { laneLabel } from './format'
+import { formatDateTime, laneLabel } from './format'
 import { AppLayout } from './layout'
 
 interface TicketPageProps {
@@ -91,7 +91,8 @@ export function TicketsPage({
   csrfToken,
   notice = null,
   tickets,
-}: TicketPageProps & { tickets: TicketRow[] }) {
+  creationRequestId,
+}: TicketPageProps & { tickets: TicketRow[]; creationRequestId: string }) {
   const byLane = Object.fromEntries(lanes.map((lane) => [lane, tickets.filter((ticket) => ticket.lane === lane)])) as Record<
     TicketLane,
     TicketRow[]
@@ -115,6 +116,9 @@ export function TicketsPage({
           <h2>내 작업</h2>
           <p>이 페이지의 티켓은 현재 로그인한 본인에게만 보입니다. 카드를 끌어 상태와 순서를 바꿀 수 있습니다.</p>
         </div>
+        <a class="button button-secondary button-compact" href="/tickets/trash">
+          휴지통
+        </a>
       </section>
 
       {tickets.length === 0 ? (
@@ -138,8 +142,9 @@ export function TicketsPage({
       </section>
 
       <dialog id="ticket-create-dialog" class="ticket-dialog">
-        <form action="/tickets" method="post" class="stack-form">
+        <form action="/tickets" method="post" class="stack-form" data-prevent-double-submit>
           <CsrfInput token={csrfToken} />
+          <input type="hidden" name="creation_request_id" value={creationRequestId} />
           <div class="dialog-header">
             <h2>티켓 추가</h2>
             <button type="button" class="icon-button" aria-label="닫기" data-dialog-close>
@@ -207,7 +212,13 @@ export function TicketsPage({
             </button>
           </div>
         </form>
-        <form action="/tickets/0/delete" method="post" class="dialog-delete-form" data-ticket-delete-form data-confirm="티켓을 삭제할까요?">
+        <form
+          action="/tickets/0/delete"
+          method="post"
+          class="dialog-delete-form"
+          data-ticket-delete-form
+          data-confirm="티켓을 휴지통으로 이동할까요?"
+        >
           <CsrfInput token={csrfToken} />
           <button type="submit" class="button button-danger button-full">
             티켓 삭제
@@ -226,10 +237,12 @@ export function TicketFormPage({
   mode,
   ticket,
   error,
+  creationRequestId,
 }: TicketPageProps & {
   mode: 'create' | 'edit'
   ticket?: TicketRow
   error?: string | null
+  creationRequestId?: string
 }) {
   const isEdit = mode === 'edit'
   const heading = isEdit ? '티켓 수정' : '티켓 추가'
@@ -248,8 +261,14 @@ export function TicketFormPage({
     >
       <section class="form-card">
         {error ? <div class="notice notice-error">{error}</div> : null}
-        <form action={action} method="post" class="stack-form">
+        <form
+          action={action}
+          method="post"
+          class="stack-form"
+          data-prevent-double-submit={isEdit ? undefined : true}
+        >
           <CsrfInput token={csrfToken} />
+          {!isEdit ? <input type="hidden" name="creation_request_id" value={creationRequestId} /> : null}
           <label>
             <span>제목</span>
             <input
@@ -288,7 +307,12 @@ export function TicketFormPage({
           </div>
         </form>
         {isEdit && ticket ? (
-          <form action={`/tickets/${ticket.id}/delete`} method="post" class="separate-danger-form" data-confirm="티켓을 삭제할까요?">
+          <form
+            action={`/tickets/${ticket.id}/delete`}
+            method="post"
+            class="separate-danger-form"
+            data-confirm="티켓을 휴지통으로 이동할까요?"
+          >
             <CsrfInput token={csrfToken} />
             <button class="button button-danger" type="submit">
               티켓 삭제
@@ -296,6 +320,82 @@ export function TicketFormPage({
           </form>
         ) : null}
       </section>
+    </AppLayout>
+  )
+}
+
+export function TicketTrashPage({
+  appName,
+  deployInfo,
+  user,
+  csrfToken,
+  notice = null,
+  tickets,
+}: TicketPageProps & { tickets: TrashedTicketRow[] }) {
+  return (
+    <AppLayout
+      appName={appName}
+      deployInfo={deployInfo}
+      documentTitle="티켓 휴지통"
+      topbarTitle="티켓 휴지통"
+      user={user}
+      csrfToken={csrfToken}
+      activeNav="tickets"
+      backHref="/tickets"
+      notice={notice}
+    >
+      <section class="page-heading">
+        <div>
+          <p class="eyebrow">14일 보관</p>
+          <h2>티켓 휴지통</h2>
+          <p>삭제한 티켓은 14일 동안 복원할 수 있으며, 보관 기한이 지나면 자동으로 영구 삭제됩니다.</p>
+        </div>
+        <a class="button button-secondary button-compact" href="/tickets">
+          작업 보드
+        </a>
+      </section>
+
+      {tickets.length === 0 ? (
+        <EmptyState title="휴지통이 비어 있습니다" description="삭제한 티켓이 여기에 14일 동안 보관됩니다." />
+      ) : (
+        <section class="ticket-trash-list" aria-label="삭제한 티켓">
+          {tickets.map((ticket) => (
+            <article class="ticket-trash-card" key={ticket.id}>
+              <div class="ticket-trash-content">
+                <div class="ticket-trash-heading">
+                  <strong>{ticket.title}</strong>
+                  <span>{laneLabel(ticket.lane)}</span>
+                </div>
+                {ticket.note ? <p class="ticket-note">{ticket.note}</p> : null}
+                <p class="ticket-trash-meta">
+                  삭제 <time datetime={new Date(ticket.deleted_at).toISOString()}>{formatDateTime(ticket.deleted_at)}</time>
+                  <span aria-hidden="true"> · </span>
+                  영구 삭제 예정{' '}
+                  <time datetime={new Date(ticket.purge_after).toISOString()}>{formatDateTime(ticket.purge_after)}</time>
+                </p>
+              </div>
+              <div class="ticket-trash-actions">
+                <form action={`/tickets/${ticket.id}/restore`} method="post">
+                  <CsrfInput token={csrfToken} />
+                  <button class="button button-secondary button-small" type="submit">
+                    복원
+                  </button>
+                </form>
+                <form
+                  action={`/tickets/${ticket.id}/purge`}
+                  method="post"
+                  data-confirm="이 티켓을 영구 삭제할까요? 이 작업은 되돌릴 수 없습니다."
+                >
+                  <CsrfInput token={csrfToken} />
+                  <button class="button button-danger button-small" type="submit">
+                    영구 삭제
+                  </button>
+                </form>
+              </div>
+            </article>
+          ))}
+        </section>
+      )}
     </AppLayout>
   )
 }

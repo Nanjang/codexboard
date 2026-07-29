@@ -152,6 +152,13 @@ export interface TicketRow {
   sort_order: number
   created_at: number
   updated_at: number
+  deleted_at: number | null
+  purge_after: number | null
+}
+
+export interface TrashedTicketRow extends TicketRow {
+  deleted_at: number
+  purge_after: number
 }
 
 export interface MemoRow {

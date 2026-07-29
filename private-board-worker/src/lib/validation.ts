@@ -72,6 +72,16 @@ export function ticketLane(value: FormDataEntryValue | string | null): 'todo' | 
   throw new ValidationError('작업 상태가 올바르지 않습니다.')
 }
 
+export function ticketCreationRequestId(value: FormDataEntryValue | null): string {
+  if (
+    typeof value !== 'string'
+    || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(value)
+  ) {
+    throw new ValidationError('티켓 생성 요청값이 올바르지 않습니다. 페이지를 새로고침한 뒤 다시 시도하세요.')
+  }
+  return value.toLowerCase()
+}
+
 export function boardSlug(value: string): BoardSlug {
   if (value === 'free' || value === 'development' || value === 'news' || value === 'inquiry') return value
   throw new ValidationError('존재하지 않는 게시판입니다.')

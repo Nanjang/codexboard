@@ -50,13 +50,16 @@ import {
   listPosts,
   listRecentPostsByBoardSlug,
   listTickets,
+  listTrashedTickets,
   MAX_MEMO_PATTERNS_PER_USER,
   MAX_RSS_WIDGETS_PER_USER,
   moveTicket,
+  permanentlyDeleteTicket,
   markPrivateImageCopied,
   markPrivateImageReady,
   reorderDashboardWidgets,
   reorderTickets,
+  restoreTicket,
   removeDashboardWidget,
   saveBookmarkDashboardIcon,
   setImageStorageEnabled,
@@ -122,6 +125,7 @@ import {
   rssUrl,
   singleLine,
   ticketLane,
+  ticketCreationRequestId,
   validateMemoUrlTemplate,
   ValidationError,
 } from './lib/validation'
@@ -146,7 +150,7 @@ import { PrivacyPage, TermsPage } from './views/legal'
 import { LoginPage } from './views/login'
 import { PrivateImagesPage } from './views/images'
 import { MemoBoardPage, MemoSettingsPage, type MemoPatternDraft } from './views/memos'
-import { TicketFormPage, TicketsPage } from './views/tickets'
+import { TicketFormPage, TicketsPage, TicketTrashPage } from './views/tickets'
 
 const app = new Hono<AppEnv>()
 const MAX_REQUEST_BYTES = 64 * 1024
@@ -312,6 +316,8 @@ function draftTicket(ownerId: string, title: string, note: string, lane: TicketL
     sort_order: 0,
     created_at: 0,
     updated_at: 0,
+    deleted_at: null,
+    purge_after: null,
   }
 }
 
@@ -1355,6 +1361,7 @@ app.get('/tickets', async (c) => {
       csrfToken={auth.csrfToken}
       notice={noticeFromRequest(c)}
       tickets={tickets}
+      creationRequestId={crypto.randomUUID()}
     />,
   )
 })
@@ -1362,7 +1369,13 @@ app.get('/tickets', async (c) => {
 app.get('/tickets/new', (c) => {
   const auth = requireActiveAuth(c)
   return c.html(
-    <TicketFormPage {...viewMeta(c)} user={auth.user} csrfToken={auth.csrfToken} mode="create" />,
+    <TicketFormPage
+      {...viewMeta(c)}
+      user={auth.user}
+      csrfToken={auth.csrfToken}
+      mode="create"
+      creationRequestId={crypto.randomUUID()}
+    />,
   )
 })
 
@@ -1373,11 +1386,13 @@ app.post('/tickets', async (c) => {
   const rawTitle = typeof form.get('title') === 'string' ? String(form.get('title')) : ''
   const rawNote = typeof form.get('note') === 'string' ? String(form.get('note')) : ''
   let rawLane: TicketLane = 'todo'
+  let creationRequestId: string = crypto.randomUUID()
   try {
     rawLane = ticketLane(form.get('lane'))
+    creationRequestId = ticketCreationRequestId(form.get('creation_request_id'))
     const title = singleLine(form.get('title'), '제목', 120)
     const note = multiline(form.get('note'), '메모', 4000, false)
-    await createTicket(c.env.DB, auth.user.id, title, note, rawLane)
+    await createTicket(c.env.DB, auth.user.id, title, note, rawLane, creationRequestId)
     return redirectWithNotice(c, '/tickets', 'ticket-created')
   } catch (error) {
     if (!(error instanceof ValidationError)) throw error
@@ -1388,11 +1403,26 @@ app.post('/tickets', async (c) => {
         csrfToken={auth.csrfToken}
         mode="create"
         ticket={draftTicket(auth.user.id, rawTitle, rawNote, rawLane)}
+        creationRequestId={creationRequestId}
         error={error.message}
       />,
       400,
     )
   }
+})
+
+app.get('/tickets/trash', async (c) => {
+  const auth = requireActiveAuth(c)
+  const tickets = await listTrashedTickets(c.env.DB, auth.user.id)
+  return c.html(
+    <TicketTrashPage
+      {...viewMeta(c)}
+      user={auth.user}
+      csrfToken={auth.csrfToken}
+      notice={noticeFromRequest(c)}
+      tickets={tickets}
+    />,
+  )
 })
 
 app.get('/tickets/:id/edit', async (c) => {
@@ -1463,6 +1493,26 @@ app.post('/tickets/:id/delete', async (c) => {
   const deleted = await deleteTicket(c.env.DB, auth.user.id, ticketId)
   if (!deleted) throw new HTTPException(404, { message: '티켓을 찾을 수 없습니다.' })
   return redirectWithNotice(c, '/tickets', 'ticket-deleted')
+})
+
+app.post('/tickets/:id/restore', async (c) => {
+  const auth = requireActiveAuth(c)
+  await enforceWriteRateLimit(c, 'ticket')
+  const ticketId = positiveInteger(c.req.param('id'), '티켓 ID')
+  await readForm(c)
+  const restored = await restoreTicket(c.env.DB, auth.user.id, ticketId)
+  if (!restored) throw new HTTPException(404, { message: '복원할 티켓을 찾을 수 없습니다.' })
+  return redirectWithNotice(c, '/tickets/trash', 'ticket-restored')
+})
+
+app.post('/tickets/:id/purge', async (c) => {
+  const auth = requireActiveAuth(c)
+  await enforceWriteRateLimit(c, 'ticket')
+  const ticketId = positiveInteger(c.req.param('id'), '티켓 ID')
+  await readForm(c)
+  const deleted = await permanentlyDeleteTicket(c.env.DB, auth.user.id, ticketId)
+  if (!deleted) throw new HTTPException(404, { message: '영구 삭제할 티켓을 찾을 수 없습니다.' })
+  return redirectWithNotice(c, '/tickets/trash', 'ticket-purged')
 })
 
 app.put('/api/tickets/order', async (c) => {

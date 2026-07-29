@@ -10,6 +10,7 @@ import type {
   PostListRow,
   PrivateImageRow,
   TicketRow,
+  TrashedTicketRow,
 } from '../src/types'
 import type { ThemeLibrary } from '../src/lib/themes'
 import { BUILTIN_THEMES } from '../src/lib/themes'
@@ -22,7 +23,9 @@ import { GuestHomePage } from '../src/views/home'
 import { LoginPage } from '../src/views/login'
 import { PrivateImagesPage } from '../src/views/images'
 import { composeMemoUrl, MemoBoardPage, MemoSettingsPage } from '../src/views/memos'
-import { TicketsPage } from '../src/views/tickets'
+import { TicketsPage, TicketTrashPage } from '../src/views/tickets'
+
+const ticketCreationRequestId = 'f47ac10b-58cc-4372-a567-0e02b2c3d479'
 
 const user: CurrentUser = {
   id: 'user-1',
@@ -55,6 +58,8 @@ const ticket: TicketRow = {
   sort_order: 1000,
   created_at: 1,
   updated_at: 1,
+  deleted_at: null,
+  purge_after: null,
 }
 
 const board: BoardRow = {
@@ -395,6 +400,7 @@ describe('핵심 화면', () => {
         user,
         csrfToken: 'csrf-test',
         tickets: [ticket],
+        creationRequestId: ticketCreationRequestId,
       }),
     )
     expect(html).toContain('topbar-title">내 작업')
@@ -472,12 +478,52 @@ describe('핵심 화면', () => {
         user: { ...user, themeOrphanNoticePending: true },
         csrfToken: 'csrf-test',
         tickets: [],
+        creationRequestId: ticketCreationRequestId,
       }),
     )
 
     expect(html).toContain('data-auto-dialog')
     expect(html).toContain('공유 테마가 삭제되었습니다')
     expect(html).toContain('기본 테마로 자동 변경했습니다')
+  })
+
+  it('티켓 생성 폼에는 멱등성 요청값과 이중 제출 방지 표시가 있다', async () => {
+    const html = String(
+      await TicketsPage({
+        appName: 'Private Board',
+        deployInfo,
+        user,
+        csrfToken: 'csrf-test',
+        tickets: [ticket],
+        creationRequestId: ticketCreationRequestId,
+      }),
+    )
+
+    expect(html).toContain(`name="creation_request_id" value="${ticketCreationRequestId}"`)
+    expect(html).toContain('data-prevent-double-submit')
+    expect(html).toContain('href="/tickets/trash"')
+  })
+
+  it('티켓 휴지통은 복원 기한과 영구 삭제 동작을 표시한다', async () => {
+    const trashedTicket: TrashedTicketRow = {
+      ...ticket,
+      deleted_at: Date.UTC(2026, 6, 26, 0, 0),
+      purge_after: Date.UTC(2026, 7, 9, 0, 0),
+    }
+    const html = String(
+      await TicketTrashPage({
+        appName: 'Private Board',
+        deployInfo,
+        user,
+        csrfToken: 'csrf-test',
+        tickets: [trashedTicket],
+      }),
+    )
+
+    expect(html).toContain('14일 동안 복원')
+    expect(html).toContain('action="/tickets/1/restore"')
+    expect(html).toContain('action="/tickets/1/purge"')
+    expect(html).toContain('이 작업은 되돌릴 수 없습니다')
   })
 
   it('개인 메모는 상세 페이지 없이 값과 조합된 링크를 목록에 표시한다', async () => {

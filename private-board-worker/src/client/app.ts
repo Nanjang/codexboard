@@ -156,6 +156,35 @@ function setupConfirmations(): void {
   })
 }
 
+function setupDoubleSubmitPrevention(): void {
+  const resetForms = (): void => {
+    document.querySelectorAll<HTMLFormElement>('form[data-prevent-double-submit]').forEach((form) => {
+      delete form.dataset.submitting
+      form.removeAttribute('aria-busy')
+      form.querySelectorAll<HTMLButtonElement | HTMLInputElement>('[type="submit"]').forEach((control) => {
+        control.disabled = false
+      })
+    })
+  }
+
+  resetForms()
+  window.addEventListener('pageshow', resetForms)
+  document.addEventListener('submit', (event) => {
+    const form = event.target
+    if (!(form instanceof HTMLFormElement) || !form.hasAttribute('data-prevent-double-submit')) return
+    if (event.defaultPrevented || form.dataset.submitting === 'true') {
+      event.preventDefault()
+      return
+    }
+
+    form.dataset.submitting = 'true'
+    form.setAttribute('aria-busy', 'true')
+    form.querySelectorAll<HTMLButtonElement | HTMLInputElement>('[type="submit"]').forEach((control) => {
+      control.disabled = true
+    })
+  })
+}
+
 function setupNotices(): void {
   document.querySelectorAll<HTMLElement>('[data-dismissible]').forEach((notice) => {
     notice.querySelector<HTMLElement>('[data-dismiss]')?.addEventListener('click', () => notice.remove())
@@ -568,6 +597,7 @@ function initialize(): void {
   setupDialogs()
   setupTicketEditing()
   setupConfirmations()
+  setupDoubleSubmitPrevention()
   setupNotices()
   setupTicketBoard()
   setupDashboardEditing()

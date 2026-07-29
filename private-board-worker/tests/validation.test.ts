@@ -9,6 +9,7 @@ import {
   positiveInteger,
   rssUrl,
   singleLine,
+  ticketCreationRequestId,
   ticketLane,
   validateMemoUrlTemplate,
   ValidationError,
@@ -42,6 +43,14 @@ describe('입력 검증', () => {
     expect(ticketLane('doing')).toBe('doing')
     expect(() => boardSlug('admin')).toThrow(ValidationError)
     expect(() => ticketLane('archived')).toThrow(ValidationError)
+  })
+
+  it('티켓 생성 요청값은 UUID v4만 허용한다', () => {
+    expect(ticketCreationRequestId('F47AC10B-58CC-4372-A567-0E02B2C3D479')).toBe(
+      'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+    )
+    expect(() => ticketCreationRequestId('reused-key')).toThrow(ValidationError)
+    expect(() => ticketCreationRequestId(null)).toThrow(ValidationError)
   })
 
   it('북마크는 안전한 http 또는 https URL만 허용한다', () => {
