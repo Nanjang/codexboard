@@ -146,11 +146,12 @@ npx wrangler secret list --config wrangler.jsonc
 이미 Worker가 만들어진 뒤에는 값을 명령 인수에 넣지 말고 `wrangler secret put`의 입력 프롬프트를 사용합니다.
 
 ```bash
-npx wrangler secret put BASE_URL --config wrangler.jsonc
 npx wrangler secret put GOOGLE_CLIENT_ID --config wrangler.jsonc
 npx wrangler secret put GOOGLE_CLIENT_SECRET --config wrangler.jsonc
 npx wrangler secret put SESSION_SECRET --config wrangler.jsonc
 ```
+
+`BASE_URL`은 Cloudflare Dashboard의 Worker **Variables and Secrets**에서 일반 평문 변수로 설정합니다. 저장소의 Wrangler 템플릿에는 넣지 않으며, Actions 배포의 `--keep-vars`가 기존 값을 유지합니다.
 
 선택 설정도 공개 평문 설정 대신 Worker Secret으로 관리할 수 있습니다.
 
@@ -177,7 +178,7 @@ npx wrangler secret put TURNSTILE_SECRET_KEY --config wrangler.jsonc
 
 Cloudflare Dashboard의 Worker 설정에서 Custom Domain을 연결합니다. 연결 후 다음 값을 같은 도메인으로 맞춥니다.
 
-1. Cloudflare Worker Secret `BASE_URL`
+1. Cloudflare Worker 일반 변수 `BASE_URL`
 2. Google 승인된 리디렉션 URI
 3. Google 동의 화면의 홈페이지·정책 URL
 

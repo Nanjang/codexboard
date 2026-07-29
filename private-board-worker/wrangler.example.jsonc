@@ -8,7 +8,6 @@
 
   "vars": {
     "APP_NAME": "Private Board",
-    "BASE_URL": "https://private-board-worker.blender3dkim.workers.dev",
     "REGISTRATION_MODE": "open",
     "R2_ACCOUNT_ID": "__R2_ACCOUNT_ID__",
     "R2_BUCKET_NAME": "__R2_BUCKET_NAME__",
