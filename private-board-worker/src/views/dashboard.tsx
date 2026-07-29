@@ -498,15 +498,14 @@ export function DashboardPage({
               <h3 id="dashboard-quick-links-title">내 북마크</h3>
             </div>
             <div class="dashboard-section-actions">
-              {bookmarkWidgets.length > 1 ? (
-                <small>북마크끼리 순서를 바꿀 수 있습니다.</small>
-              ) : null}
               <button
-                class="button button-secondary button-compact"
+                class="button button-secondary dashboard-bookmark-add-button"
                 type="button"
                 data-dialog-open="bookmark-add-dialog"
+                aria-label="북마크 추가"
+                title="북마크 추가"
               >
-                북마크 추가
+                <span aria-hidden="true">+</span>
               </button>
             </div>
           </div>
