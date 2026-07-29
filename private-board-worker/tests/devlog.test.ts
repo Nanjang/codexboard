@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { devlogExcerpt, plainTextAsHtml, postVisibility } from '../src/lib/devlog'
 import {
   devlogImagePublicUrl,
+  ImageServiceVerificationError,
   imageServiceBindingConfigured,
   imageUploadContentType,
   verifyImageService,
@@ -55,13 +56,69 @@ describe('개발일지 이미지 서비스', () => {
         requestedUrl = new Request(input).url
         return Response.json({ status: 'ok' })
       },
-    } as Fetcher
+    } as unknown as Fetcher
 
     expect(imageServiceBindingConfigured(imageEnv())).toBe(false)
     expect(imageServiceBindingConfigured(imageEnv(fetcher))).toBe(true)
     await expect(verifyImageService(imageEnv(fetcher))).resolves.toBeUndefined()
     expect(requestedUrl).toBe('http://localhost:8085/health')
     await expect(verifyImageService(imageEnv())).rejects.toThrow('VPC Service ID')
+  })
+
+  it('VPC 상태 확인 실패 과정을 토큰 없이 진단 정보로 남긴다', async () => {
+    const fetcher = {
+      async fetch() {
+        throw new Error('ProxyError: connection_refused')
+      },
+    } as unknown as Fetcher
+
+    let failure: unknown
+    try {
+      await verifyImageService(imageEnv(fetcher))
+    } catch (error) {
+      failure = error
+    }
+
+    expect(failure).toBeInstanceOf(ImageServiceVerificationError)
+    const diagnostics = (failure as ImageServiceVerificationError).diagnostics
+    expect(diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: 'VPC 바인딩 확인', value: expect.stringContaining('성공') }),
+        expect.objectContaining({ label: 'VPC 요청 전송', value: expect.stringContaining('실패') }),
+        expect.objectContaining({
+          label: 'Cloudflare 런타임 오류',
+          value: expect.stringContaining('connection_refused'),
+        }),
+      ]),
+    )
+    expect(JSON.stringify(diagnostics)).not.toContain('Authorization')
+  })
+
+  it('VPC가 반환한 오류 상태와 짧은 응답 내용을 진단한다', async () => {
+    const fetcher = {
+      async fetch() {
+        return new Response('upstream unavailable', {
+          status: 502,
+          headers: { 'Content-Type': 'text/plain' },
+        })
+      },
+    } as unknown as Fetcher
+
+    let failure: unknown
+    try {
+      await verifyImageService(imageEnv(fetcher))
+    } catch (error) {
+      failure = error
+    }
+
+    expect(failure).toBeInstanceOf(ImageServiceVerificationError)
+    const diagnostics = (failure as ImageServiceVerificationError).diagnostics
+    expect(diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: 'HTTP 응답 확인', value: expect.stringContaining('502') }),
+        expect.objectContaining({ label: '응답 본문', value: 'upstream unavailable' }),
+      ]),
+    )
   })
 
   it('허용된 이미지 MIME 형식만 통과시킨다', () => {

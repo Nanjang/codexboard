@@ -95,7 +95,7 @@ export function AppErrorPage({
                 </>
               ))}
             </dl>
-            <p>쿠키, 세션 및 CSRF 값은 보안상 표시하지 않습니다.</p>
+            <p>쿠키, 세션, CSRF 및 업로드 토큰 원문은 보안상 표시하지 않습니다.</p>
           </details>
         ) : null}
         <a class="button" href="/boards/free">

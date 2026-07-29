@@ -353,7 +353,7 @@ describe('핵심 화면', () => {
 
     expect(adminHtml).toContain('관리자용 오류 상세')
     expect(adminHtml).toContain('https://board.oc7.workers.dev')
-    expect(adminHtml).toContain('쿠키, 세션 및 CSRF 값은 보안상 표시하지 않습니다.')
+    expect(adminHtml).toContain('쿠키, 세션, CSRF 및 업로드 토큰 원문은 보안상 표시하지 않습니다.')
     expect(userHtml).not.toContain('관리자용 오류 상세')
     expect(userHtml).not.toContain('https://board.oc7.workers.dev')
   })

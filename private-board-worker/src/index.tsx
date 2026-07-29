@@ -92,6 +92,7 @@ import {
   DEVLOG_IMAGE_CACHE_CONTROL,
   DEVLOG_IMAGE_HASH_PATTERN,
   DEVLOG_IMAGE_MAX_BYTES,
+  ImageServiceVerificationError,
   devlogImagePublicUrl,
   imageServiceBindingConfigured,
   imageServiceCredentials,
@@ -249,6 +250,17 @@ function sameOriginAdminDetails(c: AppContext, error: unknown): AdminErrorDetail
     },
     { label: '요청', value: `${details.method} ${details.path}` },
   ]
+}
+
+function imageServiceAdminDetails(c: AppContext, error: unknown): AdminErrorDetail[] | undefined {
+  if (c.get('auth')?.user.role !== 'admin' || !(error instanceof ImageServiceVerificationError)) {
+    return undefined
+  }
+
+  return error.diagnostics.map((detail, index) => ({
+    label: `${index + 1}. ${detail.label}`,
+    value: detail.value,
+  }))
 }
 
 function renderError(
@@ -984,6 +996,7 @@ app.get('/devlogs/u/:authorId/posts/:postId', async (c) => {
     />,
   )
 })
+
 app.get('/devlogs/u/:authorId/posts/:postId/export.md', async (c) => {
   const auth = requireActiveAuth(c)
   const postId = positiveInteger(c.req.param('postId'), '게시글 ID')
@@ -1002,7 +1015,6 @@ app.get('/devlogs/u/:authorId/posts/:postId/export.md', async (c) => {
     },
   })
 })
-
 
 app.get('/boards/development', (c) => c.redirect('/devlogs', 302))
 
@@ -1331,7 +1343,22 @@ app.post('/admin/image-service', async (c) => {
     await decryptSecret(tokenCiphertext, c.env.SESSION_SECRET)
   }
 
-  await verifyImageService(c.env)
+  try {
+    await verifyImageService(c.env)
+  } catch (error) {
+    if (error instanceof ImageServiceVerificationError) {
+      const tokenBytes = rawToken ? new TextEncoder().encode(rawToken).byteLength : null
+      throw new ImageServiceVerificationError(error.message, [
+        {
+          label: '업로드 토큰 검증',
+          value: tokenBytes === null ? '성공 · 기존 암호화 토큰 사용' : `성공 · ${tokenBytes}바이트 입력`,
+        },
+        ...error.diagnostics,
+        { label: '설정 저장', value: '실행하지 않음 · 연결 확인 실패' },
+      ])
+    }
+    throw error
+  }
   await saveImageServiceSettings(c.env.DB, tokenCiphertext, auth.user.id)
   return redirectWithNotice(c, '/admin', 'image-service-saved')
 })
@@ -2106,7 +2133,7 @@ app.notFound((c) => renderError(c, 404, '요청한 페이지 또는 데이터를
 app.onError((error, c) => {
   const status = normalizeStatus(error instanceof HTTPException ? error.status : error instanceof ValidationError ? 400 : 500)
   const incidentCode = status === 500 ? createIncidentCode() : undefined
-  const adminDetails = sameOriginAdminDetails(c, error)
+  const adminDetails = sameOriginAdminDetails(c, error) ?? imageServiceAdminDetails(c, error)
   const message =
     status === 500
       ? '일시적인 오류가 발생했습니다. 잠시 후 다시 시도하세요.'
