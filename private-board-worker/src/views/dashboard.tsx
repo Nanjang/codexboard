@@ -485,9 +485,17 @@ export function DashboardPage({
       notice={notice}
     >
       <section class="page-heading dashboard-heading">
-        <div>
-          <p class="eyebrow">{user.nickname}님의 개인 홈</p>
-          <p>자주 확인하는 정보를 위젯으로 구성하는 나만의 첫 화면입니다.</p>
+        <div class="dashboard-home-intro">
+          <p
+            class="eyebrow dashboard-home-title"
+            tabindex={0}
+            aria-describedby="dashboard-home-description"
+          >
+            {user.nickname}님의 개인 홈
+          </p>
+          <span id="dashboard-home-description" class="dashboard-home-tooltip" role="tooltip">
+            자주 확인하는 정보를 위젯으로 구성하는 나만의 첫 화면입니다.
+          </span>
         </div>
         <div class="dashboard-edit-panel">
           <span class="dashboard-save-status" aria-live="polite" data-dashboard-save-status />
@@ -495,10 +503,11 @@ export function DashboardPage({
             class="button button-secondary button-compact dashboard-edit-toggle"
             type="button"
             aria-pressed="false"
+            aria-label="대시보드 편집"
+            title="대시보드 편집"
             data-dashboard-edit-toggle
           >
             <img class="gear-icon dashboard-edit-icon" src="/assets/gear-tilted.png" alt="" aria-hidden="true" />
-            <span data-dashboard-edit-label>대시보드 편집</span>
           </button>
         </div>
       </section>

@@ -1,10 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  BookmarkIconFetchError,
   bookmarkIconFallback,
   bookmarkIconUrl,
   discoverBookmarkIconUrl,
   fetchBookmarkIcon,
   fetchBookmarkIconUrl,
+  fetchBookmarkIconUrlOrThrow,
   storedBookmarkIcon,
 } from '../src/lib/bookmark-icon'
 
@@ -102,6 +104,41 @@ describe('북마크 사이트 아이콘', () => {
       contentType: 'image/webp',
     })
     expect(fetchMock.mock.calls[0]?.[0]).toBe('https://cdn.example.com/bookmark.webp')
+  })
+
+  it('직접 입력한 아이콘 응답 실패 사유를 안전한 관리자 진단으로 보존한다', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        new Response('<html>access denied</html>', {
+          status: 200,
+          headers: { 'Content-Type': 'text/html; charset=utf-8' },
+        }),
+      ),
+    )
+
+    let captured: unknown
+    try {
+      await fetchBookmarkIconUrlOrThrow(
+        'https://cdn.example.com/private/icon?token=do-not-show',
+      )
+    } catch (error) {
+      captured = error
+    }
+
+    expect(captured).toBeInstanceOf(BookmarkIconFetchError)
+    expect(captured).toMatchObject({
+      details: {
+        stage: '응답 검증',
+        reason: 'unsupported-content-type',
+        requestedUrl: 'https://cdn.example.com/private/icon?[REDACTED]',
+        finalUrl: 'https://cdn.example.com/private/icon?[REDACTED]',
+        status: 200,
+        contentType: 'text/html',
+      },
+    })
+    expect(JSON.stringify(captured)).not.toContain('do-not-show')
+    expect(JSON.stringify(captured)).not.toContain('access denied')
   })
 
   it('자동 조회 시 HTML에 선언된 아이콘의 최종 URL을 반환한다', async () => {

@@ -1022,7 +1022,6 @@ function setupDashboardEditing(): void {
   const root = document.querySelector<HTMLElement>('[data-dashboard]')
   const toggle = document.querySelector<HTMLButtonElement>('[data-dashboard-edit-toggle]')
   if (!root || !toggle) return
-  const toggleLabel = toggle.querySelector<HTMLElement>('[data-dashboard-edit-label]')
 
   const sortables = Array.from(
     root.querySelectorAll<HTMLElement>('[data-dashboard-sortable]'),
@@ -1050,7 +1049,9 @@ function setupDashboardEditing(): void {
     root.classList.toggle('is-editing', editing)
     sortables.forEach((sortable) => sortable.option('disabled', !editing))
     toggle.setAttribute('aria-pressed', String(editing))
-    if (toggleLabel) toggleLabel.textContent = editing ? '편집 완료' : '대시보드 편집'
+    const toggleLabel = editing ? '대시보드 편집 완료' : '대시보드 편집'
+    toggle.setAttribute('aria-label', toggleLabel)
+    toggle.setAttribute('title', toggleLabel)
     setDashboardStatus(editing ? '같은 종류 안에서 끌거나 화살표로 순서를 바꾸세요.' : '')
   })
 

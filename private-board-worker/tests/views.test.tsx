@@ -280,7 +280,12 @@ describe('핵심 화면', () => {
       }),
     )
 
-    expect(html).toContain('<p class="eyebrow">테스트회원님의 개인 홈</p>')
+    expect(html).toContain('class="eyebrow dashboard-home-title"')
+    expect(html).toContain('테스트회원님의 개인 홈')
+    expect(html).toContain('aria-describedby="dashboard-home-description"')
+    expect(html).toContain('id="dashboard-home-description"')
+    expect(html).toContain('role="tooltip"')
+    expect(html).toContain('자주 확인하는 정보를 위젯으로 구성하는 나만의 첫 화면입니다.')
     expect(html).toContain('자유게시판 요약')
     expect(html).toContain('내 문서')
     expect(html).toContain('https://example.com/docs')
@@ -323,7 +328,10 @@ describe('핵심 화면', () => {
     expect(html).toContain('data-dashboard-edit-toggle')
     expect(html).toContain('class="gear-icon dashboard-edit-icon"')
     expect(html).toContain('src="/assets/gear-tilted.png"')
-    expect(html).toContain('data-dashboard-edit-label')
+    expect(html).toContain('aria-label="대시보드 편집"')
+    expect(html).toContain('title="대시보드 편집"')
+    expect(html).not.toContain('data-dashboard-edit-label')
+    expect(html).not.toContain('>대시보드 편집</span>')
     expect(html).toContain('data-dashboard-save-status')
     expect(html).toContain('data-dashboard-widget-id="1"')
     expect(html).toContain('data-dashboard-widget-id="2"')
@@ -375,6 +383,33 @@ describe('핵심 화면', () => {
     expect(adminHtml).toContain('쿠키, 세션, CSRF 및 업로드 토큰 원문은 보안상 표시하지 않습니다.')
     expect(userHtml).not.toContain('관리자용 오류 상세')
     expect(userHtml).not.toContain('https://board.oc7.workers.dev')
+  })
+
+  it('북마크 아이콘 실패 사유는 관리자 오류 화면에만 표시한다', async () => {
+    const props = {
+      appName: 'Private Board',
+      deployInfo,
+      title: '요청을 확인해 주세요',
+      message: '아이콘 URL에서 지원하는 이미지를 가져오지 못했습니다.',
+      status: 400,
+      csrfToken: 'csrf-test',
+      adminDetails: [
+        { label: '실패 단계', value: '응답 검증' },
+        { label: '실패 사유', value: '지원하지 않는 Content-Type' },
+        { label: 'HTTP 상태', value: '200' },
+        { label: 'Content-Type', value: 'text/html' },
+      ],
+    }
+    const adminHtml = String(await AppErrorPage({ ...props, user: adminUser }))
+    const userHtml = String(await AppErrorPage({ ...props, user }))
+
+    expect(adminHtml).toContain('관리자용 오류 상세')
+    expect(adminHtml).toContain('지원하지 않는 Content-Type')
+    expect(adminHtml).toContain('text/html')
+    expect(userHtml).toContain(props.message)
+    expect(userHtml).not.toContain('관리자용 오류 상세')
+    expect(userHtml).not.toContain('지원하지 않는 Content-Type')
+    expect(userHtml).not.toContain('text/html')
   })
 
   it('자유게시판 목록은 제목, 댓글 수, 닉네임, 작성 시간, 조회수 순서로 표시한다', async () => {

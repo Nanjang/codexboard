@@ -624,6 +624,51 @@ button {
   flex: 0 0 auto;
 }
 
+.dashboard-home-intro {
+  position: relative;
+}
+
+.dashboard-home-title {
+  width: fit-content;
+  cursor: help;
+  outline: none;
+}
+
+.dashboard-home-title:focus-visible {
+  border-radius: 4px;
+  box-shadow: 0 0 0 3px var(--primary-soft);
+  outline: 1px solid var(--primary);
+}
+
+.dashboard-home-tooltip {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 8px);
+  left: 0;
+  width: max-content;
+  max-width: min(360px, calc(100vw - 44px));
+  padding: 8px 10px;
+  transform: translateY(-4px);
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  opacity: 0;
+  color: var(--text);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  pointer-events: none;
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease;
+}
+
+.dashboard-home-title:hover + .dashboard-home-tooltip,
+.dashboard-home-title:focus-visible + .dashboard-home-tooltip {
+  transform: translateY(0);
+  opacity: 1;
+}
+
 .gear-icon {
   display: block;
   width: 20px;
@@ -632,7 +677,10 @@ button {
 }
 
 .dashboard-edit-toggle {
-  gap: 7px;
+  width: 38px;
+  min-height: 38px;
+  padding: 0;
+  justify-content: center;
 }
 
 .dashboard-edit-icon {

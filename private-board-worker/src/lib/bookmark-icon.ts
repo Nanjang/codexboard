@@ -4,6 +4,7 @@ import {
   bookmarkIconPalette,
   DEFAULT_BOOKMARK_ICON_COLOR,
 } from './bookmark-icon-palette'
+import { ValidationError } from './validation'
 
 const ICON_FETCH_TIMEOUT_MS = 3_000
 const ICON_MAX_BYTES = 128 * 1024
@@ -60,13 +61,84 @@ export function bookmarkIconUrl(bookmarkUrl: string): string {
   return normalizeRssUrl(icon.toString())
 }
 
-async function readIconBytes(response: Response): Promise<Uint8Array | null> {
-  const contentLength = Number(response.headers.get('content-length'))
-  if (Number.isFinite(contentLength) && contentLength > ICON_MAX_BYTES) {
-    await response.body?.cancel()
-    return null
+export interface BookmarkIconData {
+  bytes: Uint8Array
+  contentType: string
+}
+
+interface FetchedBookmarkIcon {
+  icon: BookmarkIconData
+  url: string
+}
+
+export type BookmarkIconFailureReason =
+  | 'timeout'
+  | 'network'
+  | 'redirect-location-missing'
+  | 'redirect-limit'
+  | 'redirect-url-rejected'
+  | 'http-status'
+  | 'missing-content-type'
+  | 'unsupported-content-type'
+  | 'content-length-limit'
+  | 'missing-body'
+  | 'body-size-limit'
+  | 'empty-body'
+
+export interface BookmarkIconFetchDetails {
+  stage: '아이콘 요청' | '리다이렉트 검증' | '응답 검증' | '본문 읽기'
+  reason: BookmarkIconFailureReason
+  requestedUrl: string
+  finalUrl: string
+  status: number | null
+  contentType: string | null
+  contentLength: number | null
+  redirectCount: number
+  bytesRead: number | null
+}
+
+export class BookmarkIconFetchError extends ValidationError {
+  readonly details: BookmarkIconFetchDetails
+
+  constructor(details: BookmarkIconFetchDetails) {
+    super('아이콘 URL에서 지원하는 이미지(PNG, JPG, WebP, GIF, ICO)를 가져오지 못했습니다.')
+    this.name = 'BookmarkIconFetchError'
+    this.details = details
   }
-  if (!response.body) return null
+}
+
+interface IconReadResult {
+  bytes: Uint8Array | null
+  failure: Extract<
+    BookmarkIconFailureReason,
+    'content-length-limit' | 'missing-body' | 'body-size-limit' | 'empty-body'
+  > | null
+  bytesRead: number | null
+}
+
+function safeDiagnosticUrl(value: string): string {
+  try {
+    const url = new URL(value)
+    const queryMarker = url.search ? '?[REDACTED]' : ''
+    return `${url.protocol}//${url.host}${url.pathname}${queryMarker}`.slice(0, 300)
+  } catch {
+    return '(URL 해석 실패)'
+  }
+}
+
+function safeContentType(value: string | null): string | null {
+  if (!value) return null
+  return value.replace(/[\r\n]/gu, '').slice(0, 100)
+}
+
+async function readIconBytesDetailed(response: Response): Promise<IconReadResult> {
+  const contentLengthHeader = response.headers.get('content-length')
+  const contentLength = contentLengthHeader === null ? null : Number(contentLengthHeader)
+  if (contentLength !== null && Number.isFinite(contentLength) && contentLength > ICON_MAX_BYTES) {
+    await response.body?.cancel()
+    return { bytes: null, failure: 'content-length-limit', bytesRead: 0 }
+  }
+  if (!response.body) return { bytes: null, failure: 'missing-body', bytesRead: 0 }
 
   const reader = response.body.getReader()
   const chunks: Uint8Array[] = []
@@ -79,7 +151,7 @@ async function readIconBytes(response: Response): Promise<Uint8Array | null> {
       size += chunk.value.byteLength
       if (size > ICON_MAX_BYTES) {
         await reader.cancel()
-        return null
+        return { bytes: null, failure: 'body-size-limit', bytesRead: size }
       }
       chunks.push(chunk.value)
     }
@@ -87,27 +159,20 @@ async function readIconBytes(response: Response): Promise<Uint8Array | null> {
     reader.releaseLock()
   }
 
-  if (size === 0) return null
+  if (size === 0) return { bytes: null, failure: 'empty-body', bytesRead: 0 }
   const bytes = new Uint8Array(size)
   let offset = 0
   for (const chunk of chunks) {
     bytes.set(chunk, offset)
     offset += chunk.byteLength
   }
-  return bytes
+  return { bytes, failure: null, bytesRead: size }
 }
 
-export interface BookmarkIconData {
-  bytes: Uint8Array
-  contentType: string
-}
-
-interface FetchedBookmarkIcon {
-  icon: BookmarkIconData
-  url: string
-}
-
-async function fetchIconAt(iconUrl: string): Promise<FetchedBookmarkIcon | null> {
+async function fetchIconAt(
+  iconUrl: string,
+  onFailure?: (details: BookmarkIconFetchDetails) => void,
+): Promise<FetchedBookmarkIcon | null> {
   let currentUrl = iconUrl
   for (let redirectCount = 0; redirectCount <= ICON_MAX_REDIRECTS; redirectCount += 1) {
     const controller = new AbortController()
@@ -130,10 +195,34 @@ async function fetchIconAt(iconUrl: string): Promise<FetchedBookmarkIcon | null>
       if (response.status >= 300 && response.status < 400) {
         const location = response.headers.get('location')
         await response.body?.cancel()
-        if (!location || redirectCount === ICON_MAX_REDIRECTS) return null
+        if (!location || redirectCount === ICON_MAX_REDIRECTS) {
+          onFailure?.({
+            stage: '리다이렉트 검증',
+            reason: location ? 'redirect-limit' : 'redirect-location-missing',
+            requestedUrl: safeDiagnosticUrl(iconUrl),
+            finalUrl: safeDiagnosticUrl(currentUrl),
+            status: response.status,
+            contentType: safeContentType(response.headers.get('content-type')),
+            contentLength: null,
+            redirectCount,
+            bytesRead: null,
+          })
+          return null
+        }
         try {
           currentUrl = normalizeRssUrl(new URL(location, currentUrl).toString())
         } catch {
+          onFailure?.({
+            stage: '리다이렉트 검증',
+            reason: 'redirect-url-rejected',
+            requestedUrl: safeDiagnosticUrl(iconUrl),
+            finalUrl: safeDiagnosticUrl(currentUrl),
+            status: response.status,
+            contentType: safeContentType(response.headers.get('content-type')),
+            contentLength: null,
+            redirectCount,
+            bytesRead: null,
+          })
           return null
         }
         continue
@@ -142,17 +231,58 @@ async function fetchIconAt(iconUrl: string): Promise<FetchedBookmarkIcon | null>
       const contentType = response.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase()
       if (!response.ok || !contentType || !ACCEPTED_ICON_TYPES.has(contentType)) {
         await response.body?.cancel()
+        onFailure?.({
+          stage: '응답 검증',
+          reason: !response.ok
+            ? 'http-status'
+            : contentType
+              ? 'unsupported-content-type'
+              : 'missing-content-type',
+          requestedUrl: safeDiagnosticUrl(iconUrl),
+          finalUrl: safeDiagnosticUrl(currentUrl),
+          status: response.status,
+          contentType: safeContentType(contentType ?? null),
+          contentLength: null,
+          redirectCount,
+          bytesRead: null,
+        })
         return null
       }
 
-      const bytes = await readIconBytes(response)
-      if (!bytes) return null
+      const readResult = await readIconBytesDetailed(response)
+      if (!readResult.bytes) {
+        const contentLengthHeader = response.headers.get('content-length')
+        const contentLength = contentLengthHeader === null ? null : Number(contentLengthHeader)
+        onFailure?.({
+          stage: '본문 읽기',
+          reason: readResult.failure ?? 'empty-body',
+          requestedUrl: safeDiagnosticUrl(iconUrl),
+          finalUrl: safeDiagnosticUrl(currentUrl),
+          status: response.status,
+          contentType: safeContentType(contentType),
+          contentLength: contentLength !== null && Number.isFinite(contentLength) ? contentLength : null,
+          redirectCount,
+          bytesRead: readResult.bytesRead,
+        })
+        return null
+      }
       const outputType = contentType === 'application/octet-stream' ? 'image/x-icon' : contentType
       return {
-        icon: { bytes, contentType: outputType },
+        icon: { bytes: readResult.bytes, contentType: outputType },
         url: currentUrl,
       }
     } catch {
+      onFailure?.({
+        stage: '아이콘 요청',
+        reason: controller.signal.aborted ? 'timeout' : 'network',
+        requestedUrl: safeDiagnosticUrl(iconUrl),
+        finalUrl: safeDiagnosticUrl(currentUrl),
+        status: null,
+        contentType: null,
+        contentLength: null,
+        redirectCount,
+        bytesRead: null,
+      })
       return null
     } finally {
       clearTimeout(timeout)
@@ -168,6 +298,28 @@ export async function fetchBookmarkIconUrl(iconUrl: string): Promise<BookmarkIco
   } catch {
     return null
   }
+}
+
+export async function fetchBookmarkIconUrlOrThrow(iconUrl: string): Promise<BookmarkIconData> {
+  let failure: BookmarkIconFetchDetails | null = null
+  const normalizedUrl = normalizeRssUrl(iconUrl)
+  const fetched = await fetchIconAt(normalizedUrl, (details) => {
+    failure = details
+  })
+  if (fetched) return fetched.icon
+  throw new BookmarkIconFetchError(
+    failure ?? {
+      stage: '아이콘 요청',
+      reason: 'network',
+      requestedUrl: safeDiagnosticUrl(normalizedUrl),
+      finalUrl: safeDiagnosticUrl(normalizedUrl),
+      status: null,
+      contentType: null,
+      contentLength: null,
+      redirectCount: 0,
+      bytesRead: null,
+    },
+  )
 }
 
 async function readPageHtml(response: Response): Promise<string | null> {

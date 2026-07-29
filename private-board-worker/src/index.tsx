@@ -80,10 +80,12 @@ import {
 } from './lib/db'
 import { safeEqual } from './lib/crypto'
 import {
+  BookmarkIconFetchError,
   bookmarkIconFallback,
   discoverBookmarkIconUrl,
-  fetchBookmarkIconUrl,
+  fetchBookmarkIconUrlOrThrow,
   storedBookmarkIcon,
+  type BookmarkIconData,
 } from './lib/bookmark-icon'
 import { normalizeBookmarkIconColor } from './lib/bookmark-icon-palette'
 import { getAppName, getDeployInfo, turnstileEnabled } from './lib/env'
@@ -289,6 +291,46 @@ function requestProcessAdminDetails(c: AppContext, error: unknown): AdminErrorDe
     return undefined
   }
   return error.diagnostics
+}
+
+function bookmarkIconAdminDetails(c: AppContext, error: unknown): AdminErrorDetail[] | undefined {
+  if (c.get('auth')?.user.role !== 'admin' || !(error instanceof BookmarkIconFetchError)) {
+    return undefined
+  }
+
+  const reasonLabels: Record<BookmarkIconFetchError['details']['reason'], string> = {
+    timeout: '3초 안에 응답하지 않음',
+    network: '네트워크 요청 실패',
+    'redirect-location-missing': '리다이렉트 위치 헤더 없음',
+    'redirect-limit': '리다이렉트 허용 횟수 초과',
+    'redirect-url-rejected': '리다이렉트 URL이 안전하지 않음',
+    'http-status': '아이콘 서버가 실패 상태로 응답',
+    'missing-content-type': 'Content-Type 헤더 없음',
+    'unsupported-content-type': '지원하지 않는 Content-Type',
+    'content-length-limit': 'Content-Length가 128KiB 제한 초과',
+    'missing-body': '응답 본문 없음',
+    'body-size-limit': '응답 본문이 128KiB 제한 초과',
+    'empty-body': '응답 본문이 비어 있음',
+  }
+  const details = error.details
+  const output: AdminErrorDetail[] = [
+    { label: '실패 단계', value: details.stage },
+    { label: '실패 사유', value: reasonLabels[details.reason] },
+    { label: '요청 아이콘 URL', value: details.requestedUrl },
+  ]
+  if (details.finalUrl !== details.requestedUrl) {
+    output.push({ label: '최종 요청 URL', value: details.finalUrl })
+  }
+  if (details.status !== null) output.push({ label: 'HTTP 상태', value: String(details.status) })
+  if (details.contentType !== null) output.push({ label: 'Content-Type', value: details.contentType })
+  if (details.contentLength !== null) {
+    output.push({ label: 'Content-Length', value: `${details.contentLength} bytes` })
+  }
+  if (details.bytesRead !== null) output.push({ label: '읽은 크기', value: `${details.bytesRead} bytes` })
+  if (details.redirectCount > 0) {
+    output.push({ label: '리다이렉트 횟수', value: String(details.redirectCount) })
+  }
+  return output
 }
 
 function renderError(
@@ -929,19 +971,14 @@ app.get('/api/dashboard/bookmark-icon-url', async (c) => {
 async function bookmarkIconSelection(form: FormData): Promise<{
   iconUrl: string | null
   iconColor: BookmarkIconColor
-  icon: Awaited<ReturnType<typeof fetchBookmarkIconUrl>>
+  icon: BookmarkIconData | null
 }> {
   const mode = bookmarkIconMode(form.get('iconMode'))
   const iconColor = bookmarkIconColor(form.get('iconColor'))
   if (mode === 'default') return { iconUrl: null, iconColor, icon: null }
 
   const iconUrl = manualBookmarkIconUrl(form.get('iconUrl'))
-  const icon = await fetchBookmarkIconUrl(iconUrl)
-  if (!icon) {
-    throw new ValidationError(
-      '아이콘 URL에서 지원하는 이미지(PNG, JPG, WebP, GIF, ICO)를 가져오지 못했습니다.',
-    )
-  }
+  const icon = await fetchBookmarkIconUrlOrThrow(iconUrl)
   return { iconUrl, iconColor, icon }
 }
 
@@ -2346,7 +2383,8 @@ app.onError((error, c) => {
   const adminDetails =
     sameOriginAdminDetails(c, error) ??
     imageServiceAdminDetails(c, error) ??
-    requestProcessAdminDetails(c, error)
+    requestProcessAdminDetails(c, error) ??
+    bookmarkIconAdminDetails(c, error)
   const loggedError = error instanceof RequestProcessError ? error.originalError : error
   const message =
     status === 500
