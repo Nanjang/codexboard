@@ -88,6 +88,7 @@ import { getAppName, getDeployInfo, turnstileEnabled } from './lib/env'
 import { acceptsJson, noticeFromRequest, redirectWithNotice } from './lib/http'
 import { postVisibility, sanitizeDevlogHtml } from './lib/devlog'
 import { devlogMarkdownDocument, devlogMarkdownFilename } from './lib/devlog-markdown'
+import { RequestProcessError, type RequestProcessDiagnostic } from './lib/request-diagnostics'
 import {
   DEVLOG_IMAGE_CACHE_CONTROL,
   DEVLOG_IMAGE_HASH_PATTERN,
@@ -261,6 +262,13 @@ function imageServiceAdminDetails(c: AppContext, error: unknown): AdminErrorDeta
     label: `${index + 1}. ${detail.label}`,
     value: detail.value,
   }))
+}
+
+function requestProcessAdminDetails(c: AppContext, error: unknown): AdminErrorDetail[] | undefined {
+  if (c.get('auth')?.user.role !== 'admin' || !(error instanceof RequestProcessError)) {
+    return undefined
+  }
+  return error.diagnostics
 }
 
 function renderError(
@@ -1165,54 +1173,105 @@ app.get('/posts/:id/edit', async (c) => {
 
 app.post('/posts/:id/update', async (c) => {
   const auth = requireActiveAuth(c)
-  await enforceWriteRateLimit(c, 'post')
-  const postId = positiveInteger(c.req.param('id'), '게시글 ID')
-  const post = await getPost(c.env.DB, postId)
-  if (!post) throw new HTTPException(404, { message: '게시글을 찾을 수 없습니다.' })
-  if (!canManageResource(auth.user, post.author_id)) throw new HTTPException(403, { message: '수정 권한이 없습니다.' })
-  const board = await getBoardBySlug(c.env.DB, boardSlug(post.board_slug))
-  if (!board) throw new HTTPException(404, { message: '게시판을 찾을 수 없습니다.' })
+  const diagnostics: RequestProcessDiagnostic[] = [
+    { label: '1. 로그인 및 계정 확인', value: `성공 · ${auth.user.role} 계정` },
+  ]
+  let activeStep = '쓰기 요청 제한 확인'
+  let activeStepStartedAt = Date.now()
+  const completeStep = (label: string, value: string): void => {
+    diagnostics.push({ label: `${diagnostics.length + 1}. ${label}`, value: `성공 · ${value}` })
+  }
 
-  const form = await readForm(c)
-  const rawTitle = typeof form.get('title') === 'string' ? String(form.get('title')) : ''
-  const rawBody = typeof form.get('body') === 'string' ? String(form.get('body')) : ''
-  const isDevlog = board.slug === 'development'
-  let safeDraftBody = isDevlog ? post.body : rawBody
-  let visibility = post.visibility
   try {
-    const title = singleLine(form.get('title'), '제목', 120)
-    if (title.length < 2) throw new ValidationError('제목은 2자 이상이어야 합니다.')
-    const body = isDevlog
-      ? await sanitizeDevlogHtml(form.get('body'))
-      : multiline(form.get('body'), '내용', 20000)
-    safeDraftBody = body
-    visibility = isDevlog ? postVisibility(form.get('visibility')) : 'private'
-    const changed = await updatePost(c.env.DB, postId, title, body, isDevlog ? 'rich' : 'plain', visibility)
-    if (!changed) throw new HTTPException(404, { message: '게시글을 찾을 수 없습니다.' })
-    const destination = isDevlog ? `/devlogs/u/${post.author_id}/posts/${postId}` : `/posts/${postId}`
-    return redirectWithNotice(c, destination, 'post-updated')
-  } catch (error) {
-    if (!(error instanceof ValidationError)) throw error
-    const imageService = isDevlog ? await getImageServiceSettings(c.env.DB) : null
-    return c.html(
-      <PostFormPage
-        {...viewMeta(c)}
-        user={auth.user}
-        csrfToken={auth.csrfToken}
-        board={board}
-        mode="edit"
-        post={{
-          ...post,
-          title: rawTitle,
-          body: safeDraftBody,
-          body_format: isDevlog ? 'rich' : 'plain',
-          visibility,
-        }}
-        imageServiceEnabled={imageService?.enabled === true && imageServiceBindingConfigured(c.env)}
-        error={error.message}
-      />,
-      400,
+    await enforceWriteRateLimit(c, 'post')
+    completeStep(activeStep, '통과')
+
+    activeStep = '게시글 조회'
+    activeStepStartedAt = Date.now()
+    const postId = positiveInteger(c.req.param('id'), '게시글 ID')
+    const post = await getPost(c.env.DB, postId)
+    if (!post) throw new HTTPException(404, { message: '게시글을 찾을 수 없습니다.' })
+    completeStep(activeStep, `게시글 ${postId}`)
+
+    activeStep = '수정 권한 확인'
+    activeStepStartedAt = Date.now()
+    if (!canManageResource(auth.user, post.author_id)) {
+      throw new HTTPException(403, { message: '수정 권한이 없습니다.' })
+    }
+    completeStep(activeStep, '통과')
+
+    activeStep = '게시판 조회'
+    activeStepStartedAt = Date.now()
+    const board = await getBoardBySlug(c.env.DB, boardSlug(post.board_slug))
+    if (!board) throw new HTTPException(404, { message: '게시판을 찾을 수 없습니다.' })
+    completeStep(activeStep, board.slug)
+
+    activeStep = '폼 및 CSRF 확인'
+    activeStepStartedAt = Date.now()
+    const form = await readForm(c)
+    const rawTitle = typeof form.get('title') === 'string' ? String(form.get('title')) : ''
+    const rawBody = typeof form.get('body') === 'string' ? String(form.get('body')) : ''
+    const hasImage = /<img\b/iu.test(rawBody)
+    completeStep(
+      activeStep,
+      `제목 ${rawTitle.length}자 · 본문 ${rawBody.length}자 · 이미지 ${hasImage ? '포함' : '없음'}`,
     )
+
+    const isDevlog = board.slug === 'development'
+    let safeDraftBody = isDevlog ? post.body : rawBody
+    let visibility = post.visibility
+    try {
+      activeStep = isDevlog ? '이미지 포함 HTML 정제' : '본문 검증'
+      activeStepStartedAt = Date.now()
+      const title = singleLine(form.get('title'), '제목', 120)
+      if (title.length < 2) throw new ValidationError('제목은 2자 이상이어야 합니다.')
+      const body = isDevlog
+        ? await sanitizeDevlogHtml(form.get('body'))
+        : multiline(form.get('body'), '내용', 20000)
+      safeDraftBody = body
+      visibility = isDevlog ? postVisibility(form.get('visibility')) : 'private'
+      completeStep(activeStep, `${body.length}자 · ${isDevlog ? 'rich HTML' : 'plain text'}`)
+
+      activeStep = 'D1 게시글 저장'
+      activeStepStartedAt = Date.now()
+      const changed = await updatePost(c.env.DB, postId, title, body, isDevlog ? 'rich' : 'plain', visibility)
+      if (!changed) throw new HTTPException(404, { message: '게시글을 찾을 수 없습니다.' })
+      completeStep(activeStep, '변경사항 반영')
+
+      activeStep = '이동 응답 생성'
+      activeStepStartedAt = Date.now()
+      const destination = isDevlog ? `/devlogs/u/${post.author_id}/posts/${postId}` : `/posts/${postId}`
+      const response = redirectWithNotice(c, destination, 'post-updated')
+      completeStep(activeStep, destination)
+      return response
+    } catch (error) {
+      if (!(error instanceof ValidationError)) throw error
+      const imageService = isDevlog ? await getImageServiceSettings(c.env.DB) : null
+      return c.html(
+        <PostFormPage
+          {...viewMeta(c)}
+          user={auth.user}
+          csrfToken={auth.csrfToken}
+          board={board}
+          mode="edit"
+          post={{
+            ...post,
+            title: rawTitle,
+            body: safeDraftBody,
+            body_format: isDevlog ? 'rich' : 'plain',
+            visibility,
+          }}
+          imageServiceEnabled={imageService?.enabled === true && imageServiceBindingConfigured(c.env)}
+          error={error.message}
+        />,
+        400,
+      )
+    }
+  } catch (error) {
+    if (error instanceof HTTPException || error instanceof ValidationError || error instanceof RequestProcessError) {
+      throw error
+    }
+    throw new RequestProcessError(diagnostics, activeStep, activeStepStartedAt, error)
   }
 })
 
@@ -2133,7 +2192,11 @@ app.notFound((c) => renderError(c, 404, '요청한 페이지 또는 데이터를
 app.onError((error, c) => {
   const status = normalizeStatus(error instanceof HTTPException ? error.status : error instanceof ValidationError ? 400 : 500)
   const incidentCode = status === 500 ? createIncidentCode() : undefined
-  const adminDetails = sameOriginAdminDetails(c, error) ?? imageServiceAdminDetails(c, error)
+  const adminDetails =
+    sameOriginAdminDetails(c, error) ??
+    imageServiceAdminDetails(c, error) ??
+    requestProcessAdminDetails(c, error)
+  const loggedError = error instanceof RequestProcessError ? error.originalError : error
   const message =
     status === 500
       ? '일시적인 오류가 발생했습니다. 잠시 후 다시 시도하세요.'
@@ -2144,8 +2207,8 @@ app.onError((error, c) => {
   if (status === 500) {
     console.error('Unhandled application error', {
       incidentCode,
-      name: error instanceof Error ? error.name : 'UnknownError',
-      message: error instanceof Error ? error.message.slice(0, 200) : 'unknown',
+      name: loggedError instanceof Error ? loggedError.name : 'UnknownError',
+      message: loggedError instanceof Error ? loggedError.message.slice(0, 200) : 'unknown',
       method: c.req.method,
       path: c.req.path,
     })
