@@ -1,0 +1,18 @@
+{
+  "name": "codexboard-raspberry-image-service",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Content-addressed image storage service for CodexBoard on a Raspberry Pi",
+  "type": "module",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env src/server.js",
+    "test": "node --test",
+    "check": "npm test"
+  },
+  "dependencies": {
+    "sharp": "0.35.3"
+  }
+}

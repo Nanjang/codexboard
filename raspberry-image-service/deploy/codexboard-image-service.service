@@ -1,0 +1,32 @@
+[Unit]
+Description=CodexBoard Raspberry Pi image service
+After=network-online.target
+Wants=network-online.target
+RequiresMountsFor=/srv/codexboard-images
+
+[Service]
+Type=simple
+User=codex-images
+Group=codex-images
+WorkingDirectory=/opt/codexboard/raspberry-image-service
+EnvironmentFile=/etc/codexboard-image-service.env
+ExecStart=/usr/bin/node src/server.js
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=20
+UMask=0027
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+ReadWritePaths=/srv/codexboard-images
+
+[Install]
+WantedBy=multi-user.target
