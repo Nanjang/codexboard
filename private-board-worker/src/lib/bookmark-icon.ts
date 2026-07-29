@@ -102,7 +102,12 @@ export interface BookmarkIconData {
   contentType: string
 }
 
-async function fetchIconAt(iconUrl: string): Promise<BookmarkIconData | null> {
+interface FetchedBookmarkIcon {
+  icon: BookmarkIconData
+  url: string
+}
+
+async function fetchIconAt(iconUrl: string): Promise<FetchedBookmarkIcon | null> {
   let currentUrl = iconUrl
   for (let redirectCount = 0; redirectCount <= ICON_MAX_REDIRECTS; redirectCount += 1) {
     const controller = new AbortController()
@@ -143,7 +148,10 @@ async function fetchIconAt(iconUrl: string): Promise<BookmarkIconData | null> {
       const bytes = await readIconBytes(response)
       if (!bytes) return null
       const outputType = contentType === 'application/octet-stream' ? 'image/x-icon' : contentType
-      return { bytes, contentType: outputType }
+      return {
+        icon: { bytes, contentType: outputType },
+        url: currentUrl,
+      }
     } catch {
       return null
     } finally {
@@ -156,7 +164,7 @@ async function fetchIconAt(iconUrl: string): Promise<BookmarkIconData | null> {
 
 export async function fetchBookmarkIconUrl(iconUrl: string): Promise<BookmarkIconData | null> {
   try {
-    return await fetchIconAt(normalizeRssUrl(iconUrl))
+    return (await fetchIconAt(normalizeRssUrl(iconUrl)))?.icon ?? null
   } catch {
     return null
   }
@@ -318,12 +326,14 @@ async function discoverIconUrls(bookmarkUrl: string): Promise<string[]> {
   return []
 }
 
-export async function fetchBookmarkIcon(bookmarkUrl: string): Promise<BookmarkIconData | null> {
+async function resolveBookmarkIcon(bookmarkUrl: string): Promise<FetchedBookmarkIcon | null> {
   let defaultIconUrl: string
   let normalizedBookmarkUrl: string
   try {
     defaultIconUrl = bookmarkIconUrl(bookmarkUrl)
-    normalizedBookmarkUrl = normalizeRssUrl(bookmarkUrl)
+    const pageUrl = new URL(bookmarkUrl)
+    pageUrl.protocol = 'https:'
+    normalizedBookmarkUrl = normalizeRssUrl(pageUrl.toString())
   } catch {
     return null
   }
@@ -339,4 +349,12 @@ export async function fetchBookmarkIcon(bookmarkUrl: string): Promise<BookmarkIc
   }
 
   return null
+}
+
+export async function discoverBookmarkIconUrl(bookmarkUrl: string): Promise<string | null> {
+  return (await resolveBookmarkIcon(bookmarkUrl))?.url ?? null
+}
+
+export async function fetchBookmarkIcon(bookmarkUrl: string): Promise<BookmarkIconData | null> {
+  return (await resolveBookmarkIcon(bookmarkUrl))?.icon ?? null
 }

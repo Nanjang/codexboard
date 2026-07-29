@@ -225,6 +225,57 @@ async function jsonError(response: Response, fallback: string): Promise<Error> {
   return new Error(payload?.error ?? fallback)
 }
 
+function setupBookmarkIconLookup(): void {
+  document.addEventListener('click', (event) => {
+    const target = event.target
+    if (!(target instanceof Element)) return
+    const button = target.closest<HTMLButtonElement>('[data-bookmark-icon-lookup]')
+    const form = button?.closest<HTMLFormElement>('form')
+    if (!button || !form) return
+
+    const bookmarkUrlInput = form.querySelector<HTMLInputElement>('input[name="url"]')
+    const iconUrlInput = form.querySelector<HTMLInputElement>('input[name="iconUrl"]')
+    const iconUrlMode = form.querySelector<HTMLInputElement>(
+      'input[name="iconMode"][value="url"]',
+    )
+    const status = form.querySelector<HTMLElement>('[data-bookmark-icon-lookup-status]')
+    if (!bookmarkUrlInput || !iconUrlInput || !iconUrlMode || !status) return
+
+    if (!bookmarkUrlInput.reportValidity()) return
+    button.disabled = true
+    button.setAttribute('aria-busy', 'true')
+    status.classList.remove('is-error')
+    status.textContent = '사이트 아이콘을 찾는 중…'
+
+    void (async () => {
+      try {
+        const params = new URLSearchParams({ url: bookmarkUrlInput.value })
+        const response = await fetch(`/api/dashboard/bookmark-icon-url?${params.toString()}`, {
+          credentials: 'same-origin',
+          headers: { Accept: 'application/json' },
+        })
+        if (!response.ok) {
+          throw await jsonError(response, '아이콘 URL을 자동으로 찾지 못했습니다.')
+        }
+
+        const payload = (await response.json()) as { iconUrl?: string }
+        if (!payload.iconUrl) throw new Error('아이콘 URL 응답이 올바르지 않습니다.')
+        iconUrlInput.value = payload.iconUrl
+        iconUrlMode.checked = true
+        iconUrlMode.dispatchEvent(new Event('change', { bubbles: true }))
+        status.textContent = '아이콘 URL을 찾았습니다. 저장하면 이 아이콘을 사용합니다.'
+      } catch (error) {
+        status.classList.add('is-error')
+        status.textContent =
+          error instanceof Error ? error.message : '아이콘 URL을 자동으로 찾지 못했습니다.'
+      } finally {
+        button.disabled = false
+        button.removeAttribute('aria-busy')
+      }
+    })()
+  })
+}
+
 function uploadImageFile(
   ticket: ImageUploadTicket,
   file: File,
@@ -617,6 +668,7 @@ function initialize(): void {
   setupConfirmations()
   setupDoubleSubmitPrevention()
   setupNotices()
+  setupBookmarkIconLookup()
   setupTicketBoard()
   setupDashboardEditing()
   setupImageUpload()

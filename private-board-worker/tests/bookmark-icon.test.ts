@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   bookmarkIconFallback,
   bookmarkIconUrl,
+  discoverBookmarkIconUrl,
   fetchBookmarkIcon,
   fetchBookmarkIconUrl,
   storedBookmarkIcon,
@@ -101,6 +102,28 @@ describe('북마크 사이트 아이콘', () => {
       contentType: 'image/webp',
     })
     expect(fetchMock.mock.calls[0]?.[0]).toBe('https://cdn.example.com/bookmark.webp')
+  })
+
+  it('자동 조회 시 HTML에 선언된 아이콘의 최종 URL을 반환한다', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response('not found', { status: 404 }))
+      .mockResolvedValueOnce(
+        new Response(
+          '<html><head><link rel="icon" sizes="32x32" href="/assets/icon.png"></head></html>',
+          { headers: { 'Content-Type': 'text/html' } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(new Uint8Array([1, 2, 3]), {
+          headers: { 'Content-Type': 'image/png' },
+        }),
+      )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const iconUrl = await discoverBookmarkIconUrl('https://example.com/docs')
+
+    expect(iconUrl).toBe('https://example.com/assets/icon.png')
   })
 
   it('기본 아이콘은 선택한 색상으로 같은 모양을 렌더링한다', async () => {

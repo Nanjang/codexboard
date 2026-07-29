@@ -72,6 +72,7 @@ import {
 import { safeEqual } from './lib/crypto'
 import {
   bookmarkIconFallback,
+  discoverBookmarkIconUrl,
   fetchBookmarkIconUrl,
   storedBookmarkIcon,
 } from './lib/bookmark-icon'
@@ -620,6 +621,17 @@ app.get('/dashboard/widgets/:id/icon', async (c) => {
   return widget?.icon_url && widget.icon_content_type && widget.icon_data
     ? storedBookmarkIcon(widget.icon_data, widget.icon_content_type)
     : bookmarkIconFallback(normalizeBookmarkIconColor(widget?.icon_color))
+})
+
+app.get('/api/dashboard/bookmark-icon-url', async (c) => {
+  requireActiveAuth(c)
+  await enforceWriteRateLimit(c, 'dashboard-bookmark-icon')
+  const url = bookmarkUrl(c.req.query('url') ?? null)
+  const iconUrl = await discoverBookmarkIconUrl(url)
+  if (!iconUrl) {
+    return c.json({ error: '이 사이트에서 사용할 수 있는 아이콘 URL을 찾지 못했습니다.' }, 404)
+  }
+  return c.json({ iconUrl })
 })
 
 async function bookmarkIconSelection(form: FormData): Promise<{

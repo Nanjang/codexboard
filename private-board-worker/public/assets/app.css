@@ -1019,7 +1019,7 @@ button {
 }
 
 .bookmark-icon-color-field > span,
-.bookmark-icon-url-field > span {
+.bookmark-icon-url-heading > span {
   font-size: 0.78rem;
   font-weight: 800;
 }
@@ -1092,6 +1092,23 @@ button {
 
 .bookmark-icon-url-field input {
   width: 100%;
+}
+
+.bookmark-icon-url-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.bookmark-icon-lookup-status {
+  min-height: 1.2em;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.bookmark-icon-lookup-status.is-error {
+  color: var(--danger);
 }
 
 .bookmark-icon-settings:has(input[name="iconMode"][value="url"]:checked)

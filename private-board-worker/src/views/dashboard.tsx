@@ -270,8 +270,17 @@ function BookmarkIconFields({ widget }: { widget?: DashboardWidgetRow }) {
         </div>
       </div>
 
-      <label class="bookmark-icon-url-field">
-        <span>아이콘 URL</span>
+      <div class="bookmark-icon-url-field">
+        <div class="bookmark-icon-url-heading">
+          <span>아이콘 URL</span>
+          <button
+            class="button button-secondary button-compact"
+            type="button"
+            data-bookmark-icon-lookup
+          >
+            아이콘 URL 자동 조회
+          </button>
+        </div>
         <input
           type="url"
           name="iconUrl"
@@ -280,7 +289,8 @@ function BookmarkIconFields({ widget }: { widget?: DashboardWidgetRow }) {
           placeholder="https://example.com/icon.png"
           autocomplete="url"
         />
-      </label>
+        <small class="bookmark-icon-lookup-status" data-bookmark-icon-lookup-status aria-live="polite" />
+      </div>
       <p class="bookmark-icon-hint">
         아이콘 URL은 공개 HTTPS PNG, JPG, WebP, GIF 또는 ICO 이미지 주소를 입력해 주세요.
       </p>
