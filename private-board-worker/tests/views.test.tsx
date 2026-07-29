@@ -1099,6 +1099,17 @@ describe('핵심 화면', () => {
         deployInfo,
         user: adminUser,
         csrfToken: 'csrf-test',
+        chart: {
+          range: 'week',
+          periodLabel: '2026. 07. 23. 13:00 ~ 2026. 07. 30. 12:59',
+          bucketLabel: '1시간',
+          peakCount: 3,
+          buckets: Array.from({ length: 168 }, (_, index) => ({
+            startAt: Date.UTC(2026, 6, 23, 4) + index * 3_600_000,
+            label: `7. ${23 + Math.floor(index / 24)}. ${String(index % 24).padStart(2, '0')}시`,
+            count: index === 167 ? 3 : 0,
+          })),
+        },
         logs: {
           items: [log],
           page: 1,
@@ -1113,7 +1124,12 @@ describe('핵심 화면', () => {
     expect(html).toContain('search.example.com/results?q=전체+원문&amp;token=visible-to-admin')
     expect(html).toContain('Visitor Browser/2.0')
     expect(html).toContain('>비회원</td>')
-    expect(html).toContain('href="/admin/visitors?page=2"')
+    expect(html).toContain('유니크 방문자')
+    expect(html).toContain('한 칸 1시간')
+    expect(html).toContain('aria-current="page">주간</a>')
+    expect(html.match(/class="visitor-series-bar/g)?.length).toBe(168)
+    expect(html).not.toContain('style=')
+    expect(html).toContain('href="/admin/visitors?range=week&amp;page=2"')
   })
 
   it('회원 DB 정보와 각 회원의 최근 활동 링크를 표시한다', async () => {

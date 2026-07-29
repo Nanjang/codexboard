@@ -3373,8 +3373,130 @@ button.privacy-toggle.is-on > span {
   min-width: 1180px;
 }
 
+.visitor-series-card {
+  display: grid;
+  gap: 18px;
+  margin-bottom: 22px;
+  padding: clamp(18px, 3vw, 26px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.visitor-series-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.visitor-series-heading h3 {
+  margin: 3px 0 0;
+}
+
+.visitor-series-heading p:last-child {
+  margin: 7px 0 0;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.visitor-series-tabs {
+  display: inline-grid;
+  grid-template-columns: repeat(4, minmax(3.6rem, 1fr));
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+}
+
+.visitor-series-tabs a {
+  padding: 7px 11px;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  font-weight: 750;
+  text-align: center;
+}
+
+.visitor-series-tabs a:hover,
+.visitor-series-tabs a:focus-visible,
+.visitor-series-tabs a.is-active {
+  color: #fff;
+  background: var(--primary);
+}
+
+.visitor-series-figure {
+  margin: 0;
+}
+
+.visitor-series-scroll {
+  overflow-x: auto;
+  padding: 8px 4px 2px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--surface-subtle) 78%, transparent);
+  overscroll-behavior-inline: contain;
+  scrollbar-width: thin;
+}
+
+.visitor-series-chart {
+  display: block;
+  max-width: none;
+}
+
+.visitor-series-axis {
+  stroke: var(--border-strong);
+  stroke-width: 1;
+}
+
+.visitor-series-bar {
+  fill: var(--primary);
+}
+
+.visitor-series-bar.is-empty {
+  fill: var(--border-strong);
+}
+
+.visitor-series-label {
+  fill: var(--text-muted);
+  font-size: 8px;
+}
+
+.visitor-series-figure figcaption {
+  margin-top: 8px;
+  color: var(--text-muted);
+  font-size: 0.74rem;
+}
+
+.visitor-series-empty {
+  color: var(--text) !important;
+  font-weight: 700;
+}
+
+.visitor-series-data summary {
+  width: fit-content;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.visitor-series-data .cache-table-wrap {
+  max-height: 320px;
+  margin-top: 10px;
+}
+
 .visitor-log-table {
   min-width: 1480px;
+}
+
+@media (max-width: 680px) {
+  .visitor-series-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .visitor-series-tabs {
+    width: 100%;
+  }
 }
 
 .visitor-log-wide {

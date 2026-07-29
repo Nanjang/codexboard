@@ -99,10 +99,12 @@ import {
 import { validateDevlogPreviewImageReset } from './lib/devlog-preview'
 import { RequestProcessError, type RequestProcessDiagnostic } from './lib/request-diagnostics'
 import {
+  getVisitorTimeSeries,
   injectVisitorStats,
   listVisitorPageViews,
   recordVisitor,
   shouldTrackVisitor,
+  visitorChartRange,
 } from './lib/visitor-stats'
 import {
   DEVLOG_IMAGE_CACHE_HEADER,
@@ -1693,7 +1695,11 @@ app.get('/admin/members/:memberId/activity', async (c) => {
 
 app.get('/admin/visitors', async (c) => {
   const auth = requireAdminAuth(c)
-  const logs = await listVisitorPageViews(c.env.DB, adminPageNumber(c.req.query('page')))
+  const range = visitorChartRange(c.req.query('range') ?? null)
+  const [logs, chart] = await Promise.all([
+    listVisitorPageViews(c.env.DB, adminPageNumber(c.req.query('page'))),
+    getVisitorTimeSeries(c.env.DB, range),
+  ])
   c.header('Cache-Control', 'private, no-store')
   return c.html(
     <AdminVisitorLogsPage
@@ -1701,6 +1707,7 @@ app.get('/admin/visitors', async (c) => {
       user={auth.user}
       csrfToken={auth.csrfToken}
       logs={logs}
+      chart={chart}
     />,
   )
 })

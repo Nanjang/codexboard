@@ -2,9 +2,12 @@ import { describe, expect, it } from 'vitest'
 import {
   databaseUsagePercent,
   FREE_D1_DATABASE_LIMIT_BYTES,
+  getVisitorTimeSeries,
   koreaVisitDay,
   recordVisitor,
   shouldTrackVisitor,
+  visitorChartRange,
+  visitorChartWindow,
   visitorIp,
 } from '../src/lib/visitor-stats'
 
@@ -101,7 +104,63 @@ class VisitorDatabase implements D1Database {
   }
 }
 
+class ChartStatement extends VisitorStatement {
+  constructor(query: string, private readonly rows: Record<string, unknown>[]) {
+    super(query)
+  }
+
+  override all<T = Record<string, unknown>>(): Promise<D1Result<T>> {
+    return Promise.resolve(d1Result(this.rows as T[]))
+  }
+}
+
+class ChartDatabase extends VisitorDatabase {
+  constructor(private readonly rows: Record<string, unknown>[]) {
+    super()
+  }
+
+  override prepare(query: string): D1PreparedStatement {
+    return new ChartStatement(query, this.rows)
+  }
+}
+
 describe('방문자 통계', () => {
+  it('관리자 시계열 범위와 구간 수를 제한한다', () => {
+    const now = Date.UTC(2026, 6, 30, 3, 27, 45)
+    expect(visitorChartRange('hour')).toBe('hour')
+    expect(visitorChartRange('week')).toBe('week')
+    expect(visitorChartRange('month')).toBe('month')
+    expect(visitorChartRange('invalid')).toBe('day')
+
+    expect(visitorChartWindow('hour', now).bucketCount).toBe(60)
+    expect(visitorChartWindow('hour', now).bucketMs).toBe(60_000)
+    expect(visitorChartWindow('day', now).bucketCount).toBe(24)
+    expect(visitorChartWindow('day', now).bucketMs).toBe(3_600_000)
+    expect(visitorChartWindow('week', now).bucketCount).toBe(168)
+    expect(visitorChartWindow('week', now).bucketMs).toBe(3_600_000)
+    expect(visitorChartWindow('month', now).bucketCount).toBe(30)
+    expect(visitorChartWindow('month', now).bucketMs).toBe(86_400_000)
+  })
+
+  it('시계열에서 조회되지 않은 구간을 0명으로 채운다', async () => {
+    const now = Date.UTC(2026, 6, 30, 3, 27, 45)
+    const chart = await getVisitorTimeSeries(
+      new ChartDatabase([
+        { bucket_index: 0, unique_count: 2 },
+        { bucket_index: 23, unique_count: 5 },
+      ]),
+      'day',
+      now,
+    )
+
+    expect(chart.buckets).toHaveLength(24)
+    expect(chart.buckets[0]?.count).toBe(2)
+    expect(chart.buckets[1]?.count).toBe(0)
+    expect(chart.buckets[23]?.count).toBe(5)
+    expect(chart.peakCount).toBe(5)
+    expect(chart.bucketLabel).toBe('1시간')
+  })
+
   it('한국 시간 날짜 경계를 사용한다', () => {
     expect(koreaVisitDay(Date.UTC(2026, 6, 29, 14, 59, 59))).toBe('2026-07-29')
     expect(koreaVisitDay(Date.UTC(2026, 6, 29, 15, 0, 0))).toBe('2026-07-30')

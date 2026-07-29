@@ -11,8 +11,38 @@ interface VisitorCountRow {
   count: number
 }
 
+interface VisitorChartCountRow {
+  bucket_index: number
+  unique_count: number
+}
+
+interface VisitorDailyChartCountRow {
+  visit_day: string
+  unique_count: number
+}
+
+export type VisitorChartRange = 'hour' | 'day' | 'week' | 'month'
+
+export interface VisitorChartBucket {
+  startAt: number
+  label: string
+  count: number
+}
+
+export interface VisitorTimeSeries {
+  range: VisitorChartRange
+  periodLabel: string
+  bucketLabel: string
+  buckets: VisitorChartBucket[]
+  peakCount: number
+}
+
 export const VISITOR_LOG_PAGE_SIZE = 50
 export const FREE_D1_DATABASE_LIMIT_BYTES = 500_000_000
+const MINUTE_MS = 60_000
+const HOUR_MS = 60 * MINUTE_MS
+const DAY_MS = 24 * HOUR_MS
+const KOREA_OFFSET_MS = 9 * HOUR_MS
 
 const koreaDayFormatter = new Intl.DateTimeFormat('en-CA', {
   timeZone: 'Asia/Seoul',
@@ -21,8 +51,136 @@ const koreaDayFormatter = new Intl.DateTimeFormat('en-CA', {
   day: '2-digit',
 })
 
+const koreaMinuteFormatter = new Intl.DateTimeFormat('ko-KR', {
+  timeZone: 'Asia/Seoul',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+})
+
+const koreaHourFormatter = new Intl.DateTimeFormat('ko-KR', {
+  timeZone: 'Asia/Seoul',
+  month: 'numeric',
+  day: 'numeric',
+  hour: '2-digit',
+  hourCycle: 'h23',
+})
+
+const koreaDateFormatter = new Intl.DateTimeFormat('ko-KR', {
+  timeZone: 'Asia/Seoul',
+  month: 'numeric',
+  day: 'numeric',
+})
+
+const koreaPeriodFormatter = new Intl.DateTimeFormat('ko-KR', {
+  timeZone: 'Asia/Seoul',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+})
+
 export function koreaVisitDay(timestamp: number): string {
   return koreaDayFormatter.format(new Date(timestamp))
+}
+
+export function visitorChartRange(value: string | null): VisitorChartRange {
+  return value === 'hour' || value === 'week' || value === 'month' ? value : 'day'
+}
+
+export function visitorChartWindow(
+  range: VisitorChartRange,
+  now = Date.now(),
+): { startAt: number; endAt: number; bucketMs: number; bucketCount: number } {
+  if (range === 'hour') {
+    const endAt = Math.floor(now / MINUTE_MS) * MINUTE_MS + MINUTE_MS
+    return { startAt: endAt - 60 * MINUTE_MS, endAt, bucketMs: MINUTE_MS, bucketCount: 60 }
+  }
+  if (range === 'month') {
+    const koreaDayStart = Math.floor((now + KOREA_OFFSET_MS) / DAY_MS) * DAY_MS - KOREA_OFFSET_MS
+    const endAt = koreaDayStart + DAY_MS
+    return { startAt: endAt - 30 * DAY_MS, endAt, bucketMs: DAY_MS, bucketCount: 30 }
+  }
+
+  const bucketCount = range === 'week' ? 168 : 24
+  const endAt = Math.floor(now / HOUR_MS) * HOUR_MS + HOUR_MS
+  return { startAt: endAt - bucketCount * HOUR_MS, endAt, bucketMs: HOUR_MS, bucketCount }
+}
+
+function visitorBucketLabel(range: VisitorChartRange, startAt: number): string {
+  if (range === 'hour') return koreaMinuteFormatter.format(new Date(startAt))
+  if (range === 'month') return koreaDateFormatter.format(new Date(startAt))
+  return koreaHourFormatter.format(new Date(startAt))
+}
+
+export async function getVisitorTimeSeries(
+  db: D1Database,
+  range: VisitorChartRange,
+  now = Date.now(),
+): Promise<VisitorTimeSeries> {
+  const window = visitorChartWindow(range, now)
+  const counts = new Map<number, number>()
+
+  if (range === 'month') {
+    const result = await db
+      .prepare(
+        `
+        SELECT visit_day, unique_count
+        FROM visitor_daily_counts
+        WHERE visit_day >= ?1 AND visit_day <= ?2
+        ORDER BY visit_day
+        `,
+      )
+      .bind(koreaVisitDay(window.startAt), koreaVisitDay(window.endAt - 1))
+      .all<VisitorDailyChartCountRow>()
+    const dayIndexes = new Map<string, number>()
+    for (let index = 0; index < window.bucketCount; index += 1) {
+      dayIndexes.set(koreaVisitDay(window.startAt + index * DAY_MS), index)
+    }
+    for (const row of result.results) {
+      const index = dayIndexes.get(row.visit_day)
+      if (index !== undefined) counts.set(index, row.unique_count)
+    }
+  } else {
+    const result = await db
+      .prepare(
+        `
+        SELECT
+          CAST((visited_at - ?1) / ?2 AS INTEGER) AS bucket_index,
+          COUNT(DISTINCT ip_address) AS unique_count
+        FROM visitor_page_views
+        WHERE visited_at >= ?1 AND visited_at < ?3
+        GROUP BY bucket_index
+        ORDER BY bucket_index
+        `,
+      )
+      .bind(window.startAt, window.bucketMs, window.endAt)
+      .all<VisitorChartCountRow>()
+    for (const row of result.results) {
+      if (row.bucket_index >= 0 && row.bucket_index < window.bucketCount) {
+        counts.set(row.bucket_index, row.unique_count)
+      }
+    }
+  }
+
+  const buckets = Array.from({ length: window.bucketCount }, (_, index) => {
+    const startAt = window.startAt + index * window.bucketMs
+    return {
+      startAt,
+      label: visitorBucketLabel(range, startAt),
+      count: counts.get(index) ?? 0,
+    }
+  })
+
+  return {
+    range,
+    periodLabel: `${koreaPeriodFormatter.format(new Date(window.startAt))} ~ ${koreaPeriodFormatter.format(new Date(window.endAt - 1))}`,
+    bucketLabel: range === 'hour' ? '1분' : range === 'month' ? '1일' : '1시간',
+    buckets,
+    peakCount: Math.max(0, ...buckets.map((bucket) => bucket.count)),
+  }
 }
 
 export function visitorIp(request: Request): string | null {
