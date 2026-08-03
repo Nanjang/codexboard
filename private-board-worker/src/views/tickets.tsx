@@ -13,22 +13,7 @@ interface TicketPageProps {
 
 const lanes: TicketLane[] = ['todo', 'doing', 'done']
 
-function previousLane(lane: TicketLane): TicketLane | null {
-  if (lane === 'doing') return 'todo'
-  if (lane === 'done') return 'doing'
-  return null
-}
-
-function nextLane(lane: TicketLane): TicketLane | null {
-  if (lane === 'todo') return 'doing'
-  if (lane === 'doing') return 'done'
-  return null
-}
-
-function TicketCard({ ticket, csrfToken }: { ticket: TicketRow; csrfToken: string }) {
-  const left = previousLane(ticket.lane)
-  const right = nextLane(ticket.lane)
-
+function TicketCard({ ticket }: { ticket: TicketRow }) {
   return (
     <article
       class="ticket-card"
@@ -51,35 +36,6 @@ function TicketCard({ ticket, csrfToken }: { ticket: TicketRow; csrfToken: strin
         </button>
       </div>
       {ticket.note ? <p class="ticket-note">{ticket.note}</p> : <p class="ticket-note ticket-note-empty">메모 없음</p>}
-      <footer class="ticket-card-footer">
-        <div class="ticket-move-actions" aria-label="작업 상태 이동">
-          {left ? (
-            <form action={`/tickets/${ticket.id}/move`} method="post">
-              <CsrfInput token={csrfToken} />
-              <input type="hidden" name="lane" value={left} />
-              <button class="icon-button icon-button-small" type="submit" aria-label={`${laneLabel(left)}로 이동`}>
-                ←
-              </button>
-            </form>
-          ) : (
-            <span class="icon-spacer"></span>
-          )}
-          {right ? (
-            <form action={`/tickets/${ticket.id}/move`} method="post">
-              <CsrfInput token={csrfToken} />
-              <input type="hidden" name="lane" value={right} />
-              <button class="icon-button icon-button-small" type="submit" aria-label={`${laneLabel(right)}로 이동`}>
-                →
-              </button>
-            </form>
-          ) : (
-            <span class="icon-spacer"></span>
-          )}
-        </div>
-        <a class="text-button" href={`/tickets/${ticket.id}/edit`} data-ticket-edit>
-          열기
-        </a>
-      </footer>
     </article>
   )
 }
@@ -134,7 +90,7 @@ export function TicketsPage({
             </header>
             <div class="ticket-lane-list" data-lane-list={lane}>
               {byLane[lane].map((ticket) => (
-                <TicketCard key={ticket.id} ticket={ticket} csrfToken={csrfToken} />
+                <TicketCard key={ticket.id} ticket={ticket} />
               ))}
             </div>
           </section>

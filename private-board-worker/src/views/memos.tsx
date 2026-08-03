@@ -53,6 +53,28 @@ export function composeMemoUrl(
   }
 }
 
+function MemoValueDialog({ memo }: { memo: MemoRow }) {
+  const dialogId = `memo-value-dialog-${memo.id}`
+  const titleId = `${dialogId}-title`
+
+  return (
+    <dialog id={dialogId} class="ticket-dialog memo-value-dialog" aria-labelledby={titleId}>
+      <div class="memo-value-dialog-content">
+        <div class="dialog-header">
+          <div>
+            <span class="eyebrow">메모 값</span>
+            <h2 id={titleId}>{memo.memo}</h2>
+          </div>
+          <button type="button" class="icon-button" aria-label="닫기" data-dialog-close>
+            ×
+          </button>
+        </div>
+        <p class="memo-value-dialog-value">{memo.value}</p>
+      </div>
+    </dialog>
+  )
+}
+
 export function MemoBoardPage({
   appName,
   deployInfo,
@@ -140,10 +162,13 @@ export function MemoBoardPage({
             />
           </label>
           <label>
-            <span>패턴</span>
+            <span>타입</span>
             <select name="patternId">
               <option value="none" selected={draftPatternId === 'none'}>
                 없음
+              </option>
+              <option value="link" selected={draftPatternId === 'link'}>
+                링크 (입력한 URL 그대로)
               </option>
               <option value="auto" selected={draftPatternId === 'auto'}>
                 자동 (숫자/문자 판별)
@@ -180,9 +205,17 @@ export function MemoBoardPage({
                 ? { prefix: item.pattern_prefix, suffix: item.pattern_suffix }
                 : null
             const targetUrl =
-              item.link_mode === 'none' ? null : composeMemoUrl(item.value, settings, customPattern)
+              item.link_mode === 'none'
+                ? null
+                : item.link_mode === 'link'
+                  ? item.value
+                  : composeMemoUrl(item.value, settings, customPattern)
             const kindLabel =
-              item.link_mode === 'none' ? '없음' : item.pattern_name ?? (numeric ? '숫자' : '문자')
+              item.link_mode === 'none'
+                ? '없음'
+                : item.link_mode === 'link'
+                  ? '링크'
+                  : item.pattern_name ?? (numeric ? '숫자' : '문자')
             return (
               <article class="memo-row" key={item.id}>
                 <div class="memo-copy">
@@ -190,10 +223,32 @@ export function MemoBoardPage({
                   <time datetime={new Date(item.created_at).toISOString()}>{formatDateTime(item.created_at)}</time>
                 </div>
                 <div class="memo-value-wrap">
-                  <span class={`memo-kind ${item.pattern_name ? 'memo-kind-custom' : numeric ? 'memo-kind-number' : ''}`}>
+                  <span
+                    class={`memo-kind ${
+                      item.link_mode === 'link'
+                        ? 'memo-kind-link'
+                        : item.pattern_name
+                          ? 'memo-kind-custom'
+                          : numeric
+                            ? 'memo-kind-number'
+                            : ''
+                    }`}
+                  >
                     {kindLabel}
                   </span>
-                  {targetUrl ? (
+                  {item.link_mode === 'none' ? (
+                    <button
+                      type="button"
+                      class="memo-value-disabled memo-value-dialog-trigger"
+                      data-dialog-open={`memo-value-dialog-${item.id}`}
+                      aria-controls={`memo-value-dialog-${item.id}`}
+                      aria-haspopup="dialog"
+                      aria-label={`전체 값 보기: ${item.memo}`}
+                      title="전체 값 보기"
+                    >
+                      {item.value}
+                    </button>
+                  ) : targetUrl ? (
                     <a class="memo-value-link" href={targetUrl} rel="noopener noreferrer" title={targetUrl}>
                       <span>{item.value}</span>
                       <span aria-hidden="true">↗</span>
@@ -201,7 +256,7 @@ export function MemoBoardPage({
                   ) : (
                     <span
                       class="memo-value-disabled"
-                      title={item.link_mode === 'none' ? undefined : '이 값 유형의 URL을 먼저 설정하세요.'}
+                      title="이 값 유형의 URL을 먼저 설정하세요."
                     >
                       {item.value}
                     </span>
@@ -213,6 +268,7 @@ export function MemoBoardPage({
                     삭제
                   </button>
                 </form>
+                {item.link_mode === 'none' ? <MemoValueDialog memo={item} /> : null}
               </article>
             )
           })}

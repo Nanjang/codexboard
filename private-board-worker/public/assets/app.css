@@ -1686,15 +1686,12 @@ select:focus {
   box-shadow: var(--shadow-sm);
 }
 
-.ticket-card-top,
-.ticket-card-footer,
-.ticket-move-actions {
+.ticket-card-top {
   display: flex;
   align-items: center;
 }
 
-.ticket-card-top,
-.ticket-card-footer {
+.ticket-card-top {
   justify-content: space-between;
   gap: 10px;
 }
@@ -1746,11 +1743,6 @@ select:focus {
 .ticket-note-empty {
   font-style: italic;
   opacity: 0.7;
-}
-
-.ticket-card-footer {
-  padding-top: 10px;
-  border-top: 1px solid var(--border);
 }
 
 .ticket-trash-list {
@@ -1815,18 +1807,6 @@ select:focus {
 
 .ticket-trash-actions form {
   margin: 0;
-}
-
-.ticket-move-actions {
-  gap: 5px;
-}
-
-.ticket-move-actions form {
-  display: inline-flex;
-}
-
-.icon-spacer {
-  width: 32px;
 }
 
 .ticket-ghost {
@@ -2798,6 +2778,11 @@ button.privacy-toggle.is-on > span {
   background: #f2ebff;
 }
 
+.memo-kind-link {
+  color: #17603a;
+  background: var(--success-soft);
+}
+
 .memo-value-link,
 .memo-value-disabled {
   overflow: hidden;
@@ -2828,6 +2813,53 @@ button.privacy-toggle.is-on > span {
 
 .memo-value-disabled {
   color: var(--text-muted);
+}
+
+.memo-value-dialog-trigger {
+  display: block;
+  width: 100%;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--text-muted);
+  text-align: left;
+  cursor: pointer;
+}
+
+.memo-value-dialog-trigger:hover {
+  color: var(--text);
+  text-decoration: underline;
+}
+
+.memo-value-dialog {
+  width: min(680px, calc(100vw - 24px));
+}
+
+.memo-value-dialog-content {
+  display: grid;
+  gap: 18px;
+  padding: 22px;
+}
+
+.memo-value-dialog-content h2 {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 1.15rem;
+}
+
+.memo-value-dialog-value {
+  max-height: min(52vh, 420px);
+  margin: 0;
+  overflow: auto;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-muted);
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 
 .memo-settings-card {

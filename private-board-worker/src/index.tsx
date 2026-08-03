@@ -105,7 +105,7 @@ import {
   devlogMarkdownFilename,
 } from './lib/devlog-markdown'
 import { validateDevlogPreviewImageReset } from './lib/devlog-preview'
-import { RequestProcessError, type RequestProcessDiagnostic } from './lib/request-diagnostics'
+import { RequestProcessError, safeRuntimeReason, type RequestProcessDiagnostic } from './lib/request-diagnostics'
 import {
   applyAccountD1StorageUsage,
   getVisitorTimeSeries,
@@ -175,6 +175,7 @@ import {
   bookmarkIconMode,
   bookmarkUrl,
   manualBookmarkIconUrl,
+  memoLinkUrl,
   multiline,
   nickname,
   optionalSingleLine,
@@ -356,6 +357,19 @@ function bookmarkIconAdminDetails(c: AppContext, error: unknown): AdminErrorDeta
     output.push({ label: '리다이렉트 횟수', value: String(details.redirectCount) })
   }
   return output
+}
+
+function genericAdminDetails(c: AppContext, error: unknown, status: ErrorStatus): AdminErrorDetail[] | undefined {
+  if (status !== 500 || c.get('auth')?.user.role !== 'admin') return undefined
+  const loggedError = error instanceof RequestProcessError ? error.originalError : error
+  return [
+    {
+      label: '오류 유형',
+      value: loggedError instanceof Error ? loggedError.name : 'UnknownError',
+    },
+    { label: '상세 사유', value: safeRuntimeReason(loggedError) },
+    { label: '요청', value: `${c.req.method} ${c.req.path}` },
+  ]
 }
 
 function renderError(
@@ -602,6 +616,7 @@ function selectedMemoPattern(value: FormDataEntryValue | null): {
   if (value === null || value === '' || value === 'none') {
     return { linkMode: 'none', patternId: null }
   }
+  if (value === 'link') return { linkMode: 'link', patternId: null }
   if (value === 'auto') return { linkMode: 'auto', patternId: null }
   if (typeof value !== 'string') throw new ValidationError('메모 패턴 형식이 올바르지 않습니다.')
   return { linkMode: 'custom', patternId: positiveInteger(value, '메모 패턴 ID') }
@@ -2095,8 +2110,8 @@ app.post('/memos', async (c) => {
 
   try {
     const memo = singleLine(form.get('memo'), '메모', 240)
-    const value = singleLine(form.get('value'), '값', 500)
     const { linkMode, patternId } = selectedMemoPattern(form.get('patternId'))
+    const value = linkMode === 'link' ? memoLinkUrl(form.get('value')) : singleLine(form.get('value'), '값', 500)
     if (patternId !== null) {
       const pattern = await getMemoUrlPattern(c.env.DB, auth.user.id, patternId)
       if (!pattern) throw new ValidationError('선택한 메모 패턴을 찾을 수 없습니다.')
@@ -2630,7 +2645,8 @@ app.onError((error, c) => {
     sameOriginAdminDetails(c, error) ??
     imageServiceAdminDetails(c, error) ??
     requestProcessAdminDetails(c, error) ??
-    bookmarkIconAdminDetails(c, error)
+    bookmarkIconAdminDetails(c, error) ??
+    genericAdminDetails(c, error, status)
   const loggedError = error instanceof RequestProcessError ? error.originalError : error
   const message =
     status === 500

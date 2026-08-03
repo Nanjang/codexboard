@@ -3,6 +3,7 @@ import {
   boardSlug,
   bookmarkUrl,
   isNumericMemoValue,
+  memoLinkUrl,
   multiline,
   nickname,
   optionalSingleLine,
@@ -57,6 +58,12 @@ describe('입력 검증', () => {
     expect(bookmarkUrl('https://example.com/docs')).toBe('https://example.com/docs')
     expect(() => bookmarkUrl('javascript:alert(1)')).toThrow(ValidationError)
     expect(() => bookmarkUrl('https://user:password@example.com/')).toThrow(ValidationError)
+  })
+
+  it('링크 타입 메모는 안전한 http 또는 https URL만 허용한다', () => {
+    expect(memoLinkUrl('https://example.com/direct-link')).toBe('https://example.com/direct-link')
+    expect(() => memoLinkUrl('javascript:alert(1)')).toThrow(ValidationError)
+    expect(() => memoLinkUrl('/relative/path')).toThrow(ValidationError)
   })
 
   it('RSS는 공개 HTTPS 주소만 허용한다', () => {

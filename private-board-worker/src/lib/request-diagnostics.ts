@@ -3,7 +3,7 @@ export interface RequestProcessDiagnostic {
   value: string
 }
 
-function safeRuntimeReason(error: unknown): string {
+export function safeRuntimeReason(error: unknown): string {
   const raw =
     error instanceof Error
       ? `${error.name}: ${error.message}`

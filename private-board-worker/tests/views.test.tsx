@@ -247,6 +247,19 @@ const memos: MemoRow[] = [
     created_at: 4,
     updated_at: 4,
   },
+  {
+    id: 5,
+    owner_id: user.id,
+    memo: '직접 링크',
+    value: 'https://example.com/direct-link',
+    link_mode: 'link',
+    pattern_id: null,
+    pattern_name: null,
+    pattern_prefix: null,
+    pattern_suffix: null,
+    created_at: 5,
+    updated_at: 5,
+  },
 ]
 
 const privateImages: PrivateImageRow[] = [
@@ -961,6 +974,10 @@ describe('핵심 화면', () => {
     expect(html).toContain(`name="creation_request_id" value="${ticketCreationRequestId}"`)
     expect(html).toContain('data-prevent-double-submit')
     expect(html).toContain('href="/tickets/trash"')
+    expect(html).toContain('aria-label="문서 검토 수정"')
+    expect(html).not.toContain('>열기</a>')
+    expect(html).not.toContain('ticket-card-footer')
+    expect(html).not.toContain('ticket-move-actions')
   })
 
   it('티켓 휴지통은 복원 기한과 영구 삭제 동작을 표시한다', async () => {
@@ -1004,6 +1021,8 @@ describe('핵심 화면', () => {
     expect(html).toContain('https://example.com/items/00123?from=memo')
     expect(html).toContain('https://example.com/search?q=%ED%95%9C%EA%B8%80%20%EB%8B%A8%EC%96%B4&amp;from=memo')
     expect(html).toContain('https://shop.example.com/products/ABC-42?ref=memo')
+    expect(html).toContain('href="https://example.com/direct-link"')
+    expect(html).toContain('>링크</span>')
     expect(html).toMatch(/<option value="none" selected[^>]*>없음<\/option>/u)
     expect(html).toContain('자동 (숫자/문자 판별)')
     const bodyOnlyMemoMarker = html.indexOf('링크 없는 메모')
@@ -1013,6 +1032,10 @@ describe('핵심 화면', () => {
     expect(bodyOnlyMemo).toContain('본문만 저장')
     expect(bodyOnlyMemo).toContain('없음')
     expect(bodyOnlyMemo).not.toContain('memo-value-link')
+    expect(bodyOnlyMemo).toContain('memo-value-dialog-trigger')
+    expect(bodyOnlyMemo).toContain('data-dialog-open="memo-value-dialog-4"')
+    expect(html).toContain('id="memo-value-dialog-4"')
+    expect(html).toContain('class="memo-value-dialog-value">본문만 저장')
     expect(html).toContain('상품 상세')
     expect(html).toContain('action="/memos/1/delete"')
     expect(html).not.toContain('/memos/1"')

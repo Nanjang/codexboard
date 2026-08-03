@@ -304,7 +304,7 @@ export interface MemoRow {
   updated_at: number
 }
 
-export type MemoLinkMode = 'none' | 'auto' | 'custom'
+export type MemoLinkMode = 'none' | 'link' | 'auto' | 'custom'
 
 export interface MemoUrlSettings {
   numeric_prefix: string

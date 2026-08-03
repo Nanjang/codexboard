@@ -103,6 +103,25 @@ export function bookmarkUrl(value: FormDataEntryValue | null): string {
   return url.toString()
 }
 
+export function memoLinkUrl(value: FormDataEntryValue | null): string {
+  if (typeof value !== 'string') throw new ValidationError('링크 URL을 입력하세요.')
+  const normalized = value.trim()
+  if (normalized.length < 1 || normalized.length > 500) {
+    throw new ValidationError('링크 URL은 500자 이하로 입력하세요.')
+  }
+
+  let url: URL
+  try {
+    url = new URL(normalized)
+  } catch {
+    throw new ValidationError('올바른 링크 URL을 입력하세요.')
+  }
+  if (!['http:', 'https:'].includes(url.protocol) || !url.hostname || url.username || url.password) {
+    throw new ValidationError('링크 타입은 사용자 정보가 없는 http 또는 https URL만 지원합니다.')
+  }
+  return normalized
+}
+
 export function bookmarkIconMode(value: FormDataEntryValue | null): 'default' | 'url' {
   if (value === 'default' || value === 'url') return value
   throw new ValidationError('아이콘 사용 방식을 선택해 주세요.')
