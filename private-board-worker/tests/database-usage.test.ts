@@ -84,20 +84,19 @@ describe('D1 usage statistics', () => {
         }
       }
       return {
-        bind: (...tableNames: string[]) => ({
-          all: async () => ({
-            success: true,
-            meta: { size_after: 4096 },
-            results: tableNames.map((tableName) => ({
-              table_name: tableName,
-              row_count: tableName === 'posts' ? 7 : 2,
-            })),
-          }),
-        }),
+        bind: () => ({}),
       }
     })
+    const batch = vi.fn(async (statements: unknown[]) =>
+      statements.map((_, index) => ({
+        success: true,
+        meta: { size_after: 4096 },
+        results: [{ row_count: index === 0 ? 7 : 2 }],
+      })),
+    )
     const database = {
       prepare,
+      batch,
     } as unknown as D1Database
 
     const result = await getDatabaseUsageStats(database, baseEnv)
@@ -109,6 +108,7 @@ describe('D1 usage statistics', () => {
       { name: 'users', rowCount: 2 },
     ])
     expect(result.accountStatus).toBe('not-configured')
-    expect(prepare).toHaveBeenCalledTimes(2)
+    expect(prepare).toHaveBeenCalledTimes(3)
+    expect(batch).toHaveBeenCalledOnce()
   })
 })

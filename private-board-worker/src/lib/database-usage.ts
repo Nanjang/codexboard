@@ -30,13 +30,12 @@ const ACCOUNT_STORAGE_QUERY = `
   }
 `
 
-interface TableUsageRow {
-  table_name: string
-  row_count: number
-}
-
 interface TableNameRow {
   name: string
+}
+
+interface TableCountRow {
+  row_count?: unknown
 }
 
 interface AccountStorageGroup {
@@ -105,6 +104,28 @@ function percent(usedBytes: number, limitBytes: number): number {
 
 function quoteSqlIdentifier(value: string): string {
   return `"${value.replaceAll('"', '""')}"`
+}
+
+const TABLE_COUNT_BATCH_SIZE = 50
+
+async function countTables(db: D1Database, tableNames: string[]): Promise<DatabaseTableUsage[]> {
+  const tables: DatabaseTableUsage[] = []
+  for (let offset = 0; offset < tableNames.length; offset += TABLE_COUNT_BATCH_SIZE) {
+    const chunk = tableNames.slice(offset, offset + TABLE_COUNT_BATCH_SIZE)
+    const results = await db.batch(
+      chunk.map((tableName) =>
+        db.prepare(`SELECT COUNT(*) AS row_count FROM ${quoteSqlIdentifier(tableName)}`).bind(),
+      ),
+    )
+    chunk.forEach((tableName, index) => {
+      const row = results[index]?.results?.[0] as TableCountRow | undefined
+      tables.push({
+        name: tableName,
+        rowCount: Math.max(0, Number(row?.row_count) || 0),
+      })
+    })
+  }
+  return tables
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -261,26 +282,9 @@ export async function getDatabaseUsageStats(db: D1Database, env: Bindings): Prom
   const tableNames = tableNamesResult.results
     .map((row) => (typeof row.name === 'string' ? row.name : ''))
     .filter(Boolean)
-  const tableUsageQuery = tableNames.length
-    ? tableNames
-        .map(
-          (tableName) =>
-            `SELECT ? AS table_name, COUNT(*) AS row_count FROM ${quoteSqlIdentifier(tableName)}`,
-        )
-        .join(' UNION ALL ')
-    : null
-  const tableResult = tableUsageQuery
-    ? await db.prepare(tableUsageQuery).bind(...tableNames).all<TableUsageRow>()
-    : null
-  const tables = (tableResult?.results ?? []).map((row) => ({
-    name: row.table_name,
-    rowCount: Math.max(0, Number(row.row_count) || 0),
-  }))
+  const tables = await countTables(db, tableNames)
   tables.sort((left, right) => right.rowCount - left.rowCount || left.name.localeCompare(right.name))
-  const databaseSizeBytes = Math.max(
-    0,
-    Number(tableResult?.meta.size_after ?? tableNamesResult.meta.size_after) || 0,
-  )
+  const databaseSizeBytes = Math.max(0, Number(tableNamesResult.meta.size_after) || 0)
   const databaseLimit = databaseLimitBytes(env)
 
   return {
