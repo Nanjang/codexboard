@@ -10,7 +10,10 @@ const ACCOUNT_USAGE_CACHE_TTL_SECONDS = 300
 const TABLE_NAMES_QUERY = `
   SELECT name
   FROM sqlite_schema
-  WHERE type = 'table' AND name NOT LIKE 'sqlite_%'
+  WHERE type = 'table'
+    AND name NOT LIKE 'sqlite_%'
+    AND name NOT LIKE 'd1_%'
+    AND name NOT LIKE '_cf_%'
   ORDER BY name ASC
 `
 
