@@ -7,37 +7,11 @@ const DEFAULT_D1_DATABASE_LIMIT_BYTES = FREE_D1_DATABASE_LIMIT_BYTES
 const DEFAULT_D1_ACCOUNT_LIMIT_BYTES = FREE_D1_ACCOUNT_LIMIT_BYTES
 const ACCOUNT_USAGE_CACHE_TTL_SECONDS = 300
 
-const TABLE_USAGE_QUERY = `
-  SELECT table_name, row_count
-  FROM (
-    SELECT 'users' AS table_name, COUNT(*) AS row_count FROM users
-    UNION ALL SELECT 'auth_accounts', COUNT(*) FROM auth_accounts
-    UNION ALL SELECT 'sessions', COUNT(*) FROM sessions
-    UNION ALL SELECT 'boards', COUNT(*) FROM boards
-    UNION ALL SELECT 'posts', COUNT(*) FROM posts
-    UNION ALL SELECT 'comments', COUNT(*) FROM comments
-    UNION ALL SELECT 'tickets', COUNT(*) FROM tickets
-    UNION ALL SELECT 'user_dashboards', COUNT(*) FROM user_dashboards
-    UNION ALL SELECT 'dashboard_widgets', COUNT(*) FROM dashboard_widgets
-    UNION ALL SELECT 'rss_feed_cache', COUNT(*) FROM rss_feed_cache
-    UNION ALL SELECT 'user_memo_settings', COUNT(*) FROM user_memo_settings
-    UNION ALL SELECT 'private_memos', COUNT(*) FROM private_memos
-    UNION ALL SELECT 'memo_url_patterns', COUNT(*) FROM memo_url_patterns
-    UNION ALL SELECT 'private_images', COUNT(*) FROM private_images
-    UNION ALL SELECT 'custom_themes', COUNT(*) FROM custom_themes
-    UNION ALL SELECT 'user_shared_themes', COUNT(*) FROM user_shared_themes
-    UNION ALL SELECT 'user_theme_preferences', COUNT(*) FROM user_theme_preferences
-    UNION ALL SELECT 'image_service_settings', COUNT(*) FROM image_service_settings
-    UNION ALL SELECT 'devlog_image_cache_requests', COUNT(*) FROM devlog_image_cache_requests
-    UNION ALL SELECT 'devlog_image_cache_file_stats', COUNT(*) FROM devlog_image_cache_file_stats
-    UNION ALL SELECT 'visitor_page_views', COUNT(*) FROM visitor_page_views
-    UNION ALL SELECT 'visitor_daily_uniques', COUNT(*) FROM visitor_daily_uniques
-    UNION ALL SELECT 'visitor_daily_counts', COUNT(*) FROM visitor_daily_counts
-    UNION ALL SELECT 'visitor_total_stats', COUNT(*) FROM visitor_total_stats
-    UNION ALL SELECT 'post_image_links', COUNT(*) FROM post_image_links
-    UNION ALL SELECT 'personal_bookmarks', COUNT(*) FROM personal_bookmarks
-  )
-  ORDER BY row_count DESC, table_name ASC
+const TABLE_NAMES_QUERY = `
+  SELECT name
+  FROM sqlite_schema
+  WHERE type = 'table' AND name NOT LIKE 'sqlite_%'
+  ORDER BY name ASC
 `
 
 const ACCOUNT_STORAGE_QUERY = `
@@ -59,6 +33,10 @@ const ACCOUNT_STORAGE_QUERY = `
 interface TableUsageRow {
   table_name: string
   row_count: number
+}
+
+interface TableNameRow {
+  name: string
 }
 
 interface AccountStorageGroup {
@@ -123,6 +101,10 @@ function accountLimitBytes(env: Bindings): number {
 
 function percent(usedBytes: number, limitBytes: number): number {
   return (usedBytes / limitBytes) * 100
+}
+
+function quoteSqlIdentifier(value: string): string {
+  return `"${value.replaceAll('"', '""')}"`
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -272,15 +254,33 @@ export async function getAccountD1Storage(env: Bindings): Promise<AccountD1Stora
 }
 
 export async function getDatabaseUsageStats(db: D1Database, env: Bindings): Promise<DatabaseUsageStats> {
-  const [tableResult, accountResult] = await Promise.all([
-    db.prepare(TABLE_USAGE_QUERY).all<TableUsageRow>(),
+  const [tableNamesResult, accountResult] = await Promise.all([
+    db.prepare(TABLE_NAMES_QUERY).all<TableNameRow>(),
     getAccountD1Storage(env),
   ])
-  const tables = tableResult.results.map((row) => ({
+  const tableNames = tableNamesResult.results
+    .map((row) => (typeof row.name === 'string' ? row.name : ''))
+    .filter(Boolean)
+  const tableUsageQuery = tableNames.length
+    ? tableNames
+        .map(
+          (tableName) =>
+            `SELECT ? AS table_name, COUNT(*) AS row_count FROM ${quoteSqlIdentifier(tableName)}`,
+        )
+        .join(' UNION ALL ')
+    : null
+  const tableResult = tableUsageQuery
+    ? await db.prepare(tableUsageQuery).bind(...tableNames).all<TableUsageRow>()
+    : null
+  const tables = (tableResult?.results ?? []).map((row) => ({
     name: row.table_name,
     rowCount: Math.max(0, Number(row.row_count) || 0),
   }))
-  const databaseSizeBytes = Math.max(0, Number(tableResult.meta.size_after) || 0)
+  tables.sort((left, right) => right.rowCount - left.rowCount || left.name.localeCompare(right.name))
+  const databaseSizeBytes = Math.max(
+    0,
+    Number(tableResult?.meta.size_after ?? tableNamesResult.meta.size_after) || 0,
+  )
   const databaseLimit = databaseLimitBytes(env)
 
   return {

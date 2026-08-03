@@ -73,17 +73,31 @@ describe('D1 usage statistics', () => {
   })
 
   it('returns current database size and table row counts together', async () => {
-    const database = {
-      prepare: () => ({
-        all: async () => ({
-          success: true,
-          meta: { size_after: 4096 },
-          results: [
-            { table_name: 'posts', row_count: 7 },
-            { table_name: 'users', row_count: 2 },
-          ],
+    const prepare = vi.fn((query: string) => {
+      if (query.includes('sqlite_schema')) {
+        return {
+          all: async () => ({
+            success: true,
+            meta: { size_after: 4096 },
+            results: [{ name: 'posts' }, { name: 'users' }],
+          }),
+        }
+      }
+      return {
+        bind: (...tableNames: string[]) => ({
+          all: async () => ({
+            success: true,
+            meta: { size_after: 4096 },
+            results: tableNames.map((tableName) => ({
+              table_name: tableName,
+              row_count: tableName === 'posts' ? 7 : 2,
+            })),
+          }),
         }),
-      }),
+      }
+    })
+    const database = {
+      prepare,
     } as unknown as D1Database
 
     const result = await getDatabaseUsageStats(database, baseEnv)
@@ -95,5 +109,6 @@ describe('D1 usage statistics', () => {
       { name: 'users', rowCount: 2 },
     ])
     expect(result.accountStatus).toBe('not-configured')
+    expect(prepare).toHaveBeenCalledTimes(2)
   })
 })
