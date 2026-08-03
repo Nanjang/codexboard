@@ -17,6 +17,7 @@ import {
 import {
   addBookmarkDashboardWidget,
   addFreeBoardDashboardWidget,
+  addPersonalBookmark,
   addRssDashboardWidget,
   canManageResource,
   createComment,
@@ -28,6 +29,7 @@ import {
   deleteComment,
   deleteMemo,
   deleteMemoUrlPattern,
+  deletePersonalBookmark,
   deletePrivateImageRecord,
   deletePost,
   deleteTicket,
@@ -53,6 +55,7 @@ import {
   listComments,
   listMemoUrlPatterns,
   listMemos,
+  listPersonalBookmarks,
   listPrivateImages,
   listPosts,
   listRecentPostsByBoardSlug,
@@ -61,9 +64,12 @@ import {
   MAX_MEMO_PATTERNS_PER_USER,
   MAX_RSS_WIDGETS_PER_USER,
   moveTicket,
+  movePersonalBookmarkToPreviousPage,
+  personalBookmarkPageForId,
   permanentlyDeleteTicket,
   markPrivateImageCopied,
   reorderDashboardWidgets,
+  reorderPersonalBookmarksPage,
   reorderTickets,
   replacePostImageLinks,
   restoreTicket,
@@ -74,11 +80,13 @@ import {
   updateComment,
   updateBookmarkDashboardWidget,
   updateMemoUrlPattern,
+  updatePersonalBookmark,
   upsertMemoUrlSettings,
   updatePost,
   updateTicket,
 } from './lib/db'
 import { safeEqual } from './lib/crypto'
+import { getAccountD1Storage, getDatabaseUsageStats } from './lib/database-usage'
 import {
   BookmarkIconFetchError,
   bookmarkIconFallback,
@@ -99,6 +107,7 @@ import {
 import { validateDevlogPreviewImageReset } from './lib/devlog-preview'
 import { RequestProcessError, type RequestProcessDiagnostic } from './lib/request-diagnostics'
 import {
+  applyAccountD1StorageUsage,
   getVisitorTimeSeries,
   injectVisitorStats,
   listVisitorPageViews,
@@ -127,6 +136,11 @@ import {
 } from './lib/image-service'
 import { decryptSecret, encryptSecret } from './lib/secret-box'
 import { creationRequestId } from './lib/idempotency'
+import {
+  PERSONAL_BOOKMARK_FORM_MAX_BYTES,
+  personalBookmarkIcon,
+  storedPersonalBookmarkIcon,
+} from './lib/personal-bookmarks'
 import { loadRssFeed, RssFeedError } from './lib/rss'
 import {
   acknowledgeThemeOrphanNotice,
@@ -207,6 +221,7 @@ import { PrivacyPage, TermsPage } from './views/legal'
 import { LoginPage } from './views/login'
 import { PrivateImagesPage } from './views/images'
 import { MemoBoardPage, MemoSettingsPage, type MemoPatternDraft } from './views/memos'
+import { PersonalBookmarksPage } from './views/personal-bookmarks'
 import { TicketFormPage, TicketsPage, TicketTrashPage } from './views/tickets'
 import {
   DEVLOG_IMAGE_FILENAME_PATTERN,
@@ -644,19 +659,36 @@ const personalImageBodyLimit = bodyLimit({
   maxSize: MAX_IMAGE_BYTES,
   onError: (c) => c.json({ error: '이미지는 최대 5MiB까지 업로드할 수 있습니다.' }, 413),
 })
+const personalBookmarkBodyLimit = bodyLimit({
+  maxSize: PERSONAL_BOOKMARK_FORM_MAX_BYTES,
+  onError: (c) =>
+    c.html(
+      <PublicErrorPage
+        {...viewMeta(c)}
+        title="아이콘 이미지가 너무 큽니다"
+        message="개인 북마크 아이콘은 최대 128KiB까지 업로드할 수 있습니다."
+        status={413}
+      />,
+      413,
+    ),
+})
 app.use('*', async (c, next) => {
   await next()
 
   if (!shouldTrackVisitor(c.req.raw, c.res)) return
   try {
-    const stats = await recordVisitor(
+    let stats = await recordVisitor(
       c.env.DB,
       c.req.raw,
       c.env.SESSION_SECRET,
       c.get('auth')?.user.id ?? null,
       c.res.status,
     )
-    if (stats) c.res = injectVisitorStats(c.res, stats)
+    if (stats) {
+      const accountStorage = await getAccountD1Storage(c.env)
+      if (accountStorage.usage) stats = applyAccountD1StorageUsage(stats, accountStorage.usage)
+      c.res = injectVisitorStats(c.res, stats)
+    }
   } catch (error) {
     console.error('Visitor stats failed', {
       name: error instanceof Error ? error.name : 'UnknownError',
@@ -667,6 +699,15 @@ app.use('*', async (c, next) => {
 app.use('*', async (c, next) => {
   if (c.req.path === '/api/devlog/images') return devlogImageBodyLimit(c, next)
   if (c.req.path === '/api/images') return personalImageBodyLimit(c, next)
+  if (
+    c.req.method === 'POST'
+    && (
+      c.req.path === '/personal-bookmarks'
+      || /^\/personal-bookmarks\/[1-9][0-9]*\/update$/u.test(c.req.path)
+    )
+  ) {
+    return personalBookmarkBodyLimit(c, next)
+  }
   return standardBodyLimit(c, next)
 })
 app.use('*', securityMiddleware)
@@ -1141,6 +1182,152 @@ app.put('/api/dashboard/widgets/order', async (c) => {
 
   await reorderDashboardWidgets(c.env.DB, auth.user.id, widgetIds)
   return c.json({ ok: true })
+})
+
+app.get('/personal-bookmarks', async (c) => {
+  const auth = requireActiveAuth(c)
+  const page = adminPageNumber(c.req.query('page'))
+  const bookmarks = await listPersonalBookmarks(c.env.DB, auth.user.id, page)
+  if (bookmarks.totalPages > 0 && page > bookmarks.totalPages) {
+    return c.redirect(`/personal-bookmarks?page=${bookmarks.totalPages}`, 303)
+  }
+
+  return c.html(
+    <PersonalBookmarksPage
+      {...viewMeta(c)}
+      user={auth.user}
+      csrfToken={auth.csrfToken}
+      notice={noticeFromRequest(c)}
+      bookmarks={bookmarks}
+      creationRequestId={crypto.randomUUID()}
+    />,
+  )
+})
+
+app.get('/personal-bookmarks/:id/icon', async (c) => {
+  const auth = requireActiveAuth(c)
+  const bookmarkId = positiveInteger(c.req.param('id'), '개인 북마크 ID')
+  const bookmark = await c.env.DB
+    .prepare(
+      `
+      SELECT icon_content_type, icon_data
+      FROM personal_bookmarks
+      WHERE id = ?1 AND user_id = ?2
+      LIMIT 1
+      `,
+    )
+    .bind(bookmarkId, auth.user.id)
+    .first<{ icon_content_type: string; icon_data: number[] }>()
+  if (!bookmark) throw new HTTPException(404, { message: '개인 북마크를 찾을 수 없습니다.' })
+  return storedPersonalBookmarkIcon(bookmark.icon_data, bookmark.icon_content_type)
+})
+
+app.post('/personal-bookmarks', async (c) => {
+  const auth = requireActiveAuth(c)
+  await enforceWriteRateLimit(c, 'personal-bookmark')
+  const form = await readForm(c)
+  const content = singleLine(form.get('content'), '내용', 240)
+  const url = bookmarkUrl(form.get('url'))
+  const icon = await personalBookmarkIcon(form.get('icon'), true)
+  const requestId = creationRequestId(form.get('creation_request_id'))
+  if (!icon) throw new ValidationError('아이콘 이미지를 업로드해 주세요.')
+
+  const bookmarkId = await addPersonalBookmark(
+    c.env.DB,
+    auth.user.id,
+    content,
+    url,
+    icon,
+    requestId,
+  )
+  const page = (await personalBookmarkPageForId(c.env.DB, auth.user.id, bookmarkId)) ?? 1
+  return c.redirect(
+    `/personal-bookmarks?page=${page}&notice=personal-bookmark-added#personal-bookmark-${bookmarkId}`,
+    303,
+  )
+})
+
+app.post('/personal-bookmarks/:id/update', async (c) => {
+  const auth = requireActiveAuth(c)
+  await enforceWriteRateLimit(c, 'personal-bookmark')
+  const form = await readForm(c)
+  const bookmarkId = positiveInteger(c.req.param('id'), '개인 북마크 ID')
+  const content = singleLine(form.get('content'), '내용', 240)
+  const url = bookmarkUrl(form.get('url'))
+  const icon = await personalBookmarkIcon(form.get('icon'), false)
+  const updated = await updatePersonalBookmark(
+    c.env.DB,
+    auth.user.id,
+    bookmarkId,
+    content,
+    url,
+    icon,
+  )
+  if (!updated) throw new HTTPException(404, { message: '개인 북마크를 찾을 수 없습니다.' })
+
+  const page = (await personalBookmarkPageForId(c.env.DB, auth.user.id, bookmarkId)) ?? 1
+  return c.redirect(
+    `/personal-bookmarks?page=${page}&notice=personal-bookmark-updated#personal-bookmark-${bookmarkId}`,
+    303,
+  )
+})
+
+app.post('/personal-bookmarks/:id/delete', async (c) => {
+  const auth = requireActiveAuth(c)
+  await enforceWriteRateLimit(c, 'personal-bookmark')
+  const form = await readForm(c)
+  const bookmarkId = positiveInteger(c.req.param('id'), '개인 북마크 ID')
+  const pageValue = form.get('page')
+  const page = typeof pageValue === 'string' ? positiveInteger(pageValue, '페이지') : 1
+  const deleted = await deletePersonalBookmark(c.env.DB, auth.user.id, bookmarkId)
+  if (!deleted) throw new HTTPException(404, { message: '개인 북마크를 찾을 수 없습니다.' })
+  return redirectWithNotice(c, `/personal-bookmarks?page=${page}`, 'personal-bookmark-deleted')
+})
+
+app.put('/api/personal-bookmarks/order', async (c) => {
+  const auth = requireActiveAuth(c)
+  await enforceWriteRateLimit(c, 'personal-bookmark-order')
+  assertCsrf(c, c.req.header('X-CSRF-Token'))
+  const payload = (await c.req.json().catch(() => null)) as Record<string, unknown> | null
+  const page = payload?.page
+  const value = payload?.bookmarkIds
+  if (typeof page !== 'number' || !Number.isSafeInteger(page) || page < 1) {
+    throw new ValidationError('페이지 정보가 올바르지 않습니다.')
+  }
+  if (!Array.isArray(value)) {
+    throw new ValidationError('개인 북마크 순서 데이터가 올바르지 않습니다.')
+  }
+  const bookmarkIds = value.map((id) => {
+    if (typeof id !== 'number' || !Number.isSafeInteger(id) || id <= 0) {
+      throw new ValidationError('개인 북마크 ID가 올바르지 않습니다.')
+    }
+    return id
+  })
+  await reorderPersonalBookmarksPage(c.env.DB, auth.user.id, page, bookmarkIds)
+  return c.json({ ok: true })
+})
+
+app.put('/api/personal-bookmarks/previous-page', async (c) => {
+  const auth = requireActiveAuth(c)
+  await enforceWriteRateLimit(c, 'personal-bookmark-order')
+  assertCsrf(c, c.req.header('X-CSRF-Token'))
+  const payload = (await c.req.json().catch(() => null)) as Record<string, unknown> | null
+  const page = payload?.page
+  const bookmarkId = payload?.bookmarkId
+  if (typeof page !== 'number' || !Number.isSafeInteger(page) || page <= 1) {
+    throw new ValidationError('앞 페이지 이동 정보가 올바르지 않습니다.')
+  }
+  if (typeof bookmarkId !== 'number' || !Number.isSafeInteger(bookmarkId) || bookmarkId <= 0) {
+    throw new ValidationError('개인 북마크 ID가 올바르지 않습니다.')
+  }
+
+  const targetPage = await movePersonalBookmarkToPreviousPage(
+    c.env.DB,
+    auth.user.id,
+    page,
+    bookmarkId,
+  )
+  return c.json({ ok: true, page: targetPage, bookmarkId })
 })
 
 app.get('/devlogs', async (c) => {
@@ -1646,7 +1833,10 @@ app.post('/comments/:id/delete', async (c) => {
 
 app.get('/admin', async (c) => {
   const auth = requireAdminAuth(c)
-  const imageService = await getImageServiceSettings(c.env.DB)
+  const [imageService, databaseUsage] = await Promise.all([
+    getImageServiceSettings(c.env.DB),
+    getDatabaseUsageStats(c.env.DB, c.env),
+  ])
   return c.html(
     <AdminPage
       {...viewMeta(c)}
@@ -1654,6 +1844,7 @@ app.get('/admin', async (c) => {
       csrfToken={auth.csrfToken}
       imageServiceBound={imageServiceBindingConfigured(c.env)}
       imageService={imageService}
+      databaseUsage={databaseUsage}
       notice={noticeFromRequest(c)}
     />,
   )

@@ -39,6 +39,11 @@ export interface Bindings {
   TURNSTILE_SITE_KEY?: string
   TURNSTILE_SECRET_KEY?: string
   CONTACT_EMAIL?: string
+  CLOUDFLARE_ACCOUNT_ID?: string
+  CLOUDFLARE_API_TOKEN?: string
+  D1_DATABASE_ID?: string
+  D1_DATABASE_STORAGE_LIMIT_BYTES?: string
+  D1_ACCOUNT_STORAGE_LIMIT_BYTES?: string
 }
 
 export interface DeployInfo {
@@ -224,6 +229,17 @@ export interface DashboardWidgetRow {
   icon_color: BookmarkIconColor
   sort_order: number
   created_at: number
+}
+
+export interface PersonalBookmarkRow {
+  id: number
+  user_id: string
+  content: string
+  url: string
+  icon_content_type: string
+  sort_order: number
+  created_at: number
+  updated_at: number
 }
 
 export interface RssItem {

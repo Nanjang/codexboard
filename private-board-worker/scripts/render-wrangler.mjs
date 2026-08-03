@@ -8,6 +8,7 @@ const imageVaultVpcServiceId = process.env.IMAGE_VAULT_VPC_SERVICE_ID?.trim() ??
 
 const values = {
   __D1_DATABASE_ID__: process.env.D1_DATABASE_ID ?? '',
+  __CLOUDFLARE_ACCOUNT_ID__: process.env.CLOUDFLARE_ACCOUNT_ID ?? '',
   __WORKER_NAME__: process.env.WORKER_NAME ?? 'private-board-worker',
   __D1_DATABASE_NAME__: process.env.D1_DATABASE_NAME ?? 'private-board-db',
   __AUTH_RATE_LIMIT_NAMESPACE__: process.env.AUTH_RATE_LIMIT_NAMESPACE ?? '41001',

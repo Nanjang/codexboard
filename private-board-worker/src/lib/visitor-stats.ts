@@ -1,11 +1,19 @@
 import { hmacSha256Base64Url } from './crypto'
+import {
+  FREE_D1_DATABASE_LIMIT_BYTES,
+  type AccountD1StorageUsage,
+} from './database-usage'
 import type { PaginatedResult, VisitorPageViewRow } from '../types'
+
+export { FREE_D1_DATABASE_LIMIT_BYTES } from './database-usage'
 
 export interface VisitorStats {
   today: number
   total: number
   databaseUsagePercent: number
   databaseUsedMegabytes: number
+  databaseUsageScope?: 'database' | 'account'
+  databaseLimitMegabytes?: number
 }
 
 interface VisitorCountRow {
@@ -39,7 +47,6 @@ export interface VisitorTimeSeries {
 }
 
 export const VISITOR_LOG_PAGE_SIZE = 50
-export const FREE_D1_DATABASE_LIMIT_BYTES = 500_000_000
 const MINUTE_MS = 60_000
 const HOUR_MS = 60 * MINUTE_MS
 const DAY_MS = 24 * HOUR_MS
@@ -210,6 +217,19 @@ export function databaseUsedMegabytes(sizeBytes: number): number {
   return Math.ceil(sizeBytes / 1_000_000)
 }
 
+export function applyAccountD1StorageUsage(
+  stats: VisitorStats,
+  usage: AccountD1StorageUsage,
+): VisitorStats {
+  return {
+    ...stats,
+    databaseUsagePercent: usage.percent,
+    databaseUsedMegabytes: databaseUsedMegabytes(usage.usedBytes),
+    databaseUsageScope: 'account',
+    databaseLimitMegabytes: usage.limitBytes / 1_000_000,
+  }
+}
+
 export async function recordVisitor(
   db: D1Database,
   request: Request,
@@ -302,10 +322,11 @@ export function injectVisitorStats(response: Response, stats: VisitorStats): Res
     })
     .on('[data-database-usage-tooltip]', {
       element(element) {
-        element.setAttribute(
-          'title',
-          `사용량 ${stats.databaseUsedMegabytes}/${FREE_D1_DATABASE_LIMIT_BYTES / 1_000_000} MB`,
-        )
+        const label = stats.databaseUsageScope === 'account'
+          ? '계정 전체 D1 사용량'
+          : '현재 D1 데이터베이스 사용량'
+        const limitMegabytes = stats.databaseLimitMegabytes ?? FREE_D1_DATABASE_LIMIT_BYTES / 1_000_000
+        element.setAttribute('title', `${label} ${stats.databaseUsedMegabytes}/${limitMegabytes} MB`)
       },
     })
     .transform(response)

@@ -77,6 +77,7 @@ jobs:
       - name: Render Wrangler configuration
         run: npm run config:render
         env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           D1_DATABASE_ID: ${{ vars.D1_DATABASE_ID }}
           WORKER_NAME: ${{ vars.WORKER_NAME }}
           D1_DATABASE_NAME: ${{ vars.D1_DATABASE_NAME }}

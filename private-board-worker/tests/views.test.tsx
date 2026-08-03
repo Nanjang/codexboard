@@ -11,6 +11,7 @@ import type {
   MemoRow,
   MemoUrlPatternRow,
   MemoUrlSettings,
+  PersonalBookmarkRow,
   PostListRow,
   PostDetailRow,
   PrivateImageRow,
@@ -33,6 +34,7 @@ import { GuestHomePage } from '../src/views/home'
 import { DevlogImageCacheFilesPage, DevlogImageCacheRequestsPage } from '../src/views/image-cache'
 import { LoginPage } from '../src/views/login'
 import { PrivateImagesPage } from '../src/views/images'
+import { PersonalBookmarksPage } from '../src/views/personal-bookmarks'
 import { composeMemoUrl, MemoBoardPage, MemoSettingsPage } from '../src/views/memos'
 import { TicketsPage, TicketTrashPage } from '../src/views/tickets'
 
@@ -131,6 +133,17 @@ const dashboardWidgets: DashboardWidgetRow[] = [
     created_at: 1,
   },
 ]
+
+const personalBookmark: PersonalBookmarkRow = {
+  id: 41,
+  user_id: user.id,
+  content: '배포 체크리스트',
+  url: 'https://example.com/deploy',
+  icon_content_type: 'image/png',
+  sort_order: 101000,
+  created_at: 1,
+  updated_at: 1,
+}
 
 const themeLibrary: ThemeLibrary = {
   builtins: [...BUILTIN_THEMES],
@@ -268,6 +281,44 @@ const privateImages: PrivateImageRow[] = [
 ]
 
 describe('핵심 화면', () => {
+  it('개인 북마크를 한 줄 메모장 목록과 페이지 이동 영역으로 표시한다', async () => {
+    const html = String(
+      await PersonalBookmarksPage({
+        appName: 'Private Board',
+        deployInfo,
+        user,
+        csrfToken: 'csrf-test',
+        bookmarks: {
+          items: [personalBookmark],
+          page: 2,
+          pageSize: 100,
+          totalItems: 101,
+          totalPages: 2,
+        },
+        creationRequestId: ticketCreationRequestId,
+      }),
+    )
+
+    expect(html).toContain('개인 북마크')
+    expect(html).toContain('나만 보는 링크 메모장')
+    expect(html).toContain('data-personal-bookmarks')
+    expect(html).toContain('data-page="2"')
+    expect(html).toContain('data-personal-bookmark-list')
+    expect(html).toContain('data-personal-bookmark-id="41"')
+    expect(html).toContain('id="personal-bookmark-41"')
+    expect(html).toContain('배포 체크리스트')
+    expect(html).toContain('href="https://example.com/deploy"')
+    expect(html).toContain('src="/personal-bookmarks/41/icon"')
+    expect(html).toContain('personal-bookmark-drag-handle')
+    expect(html).toContain('앞 페이지로 보내기')
+    expect(html).toContain('data-personal-bookmark-previous-drop')
+    expect(html).toContain('2 / 2페이지')
+    expect(html).toContain('href="/personal-bookmarks?page=1"')
+    expect(html).toContain('enctype="multipart/form-data"')
+    expect(html).toContain('accept="image/png,image/jpeg,image/webp,image/gif,image/avif"')
+    expect(html).not.toContain('아이콘 URL')
+  })
+
   it('개인 대시보드에 자유게시판 요약, 북마크, 위젯 추가 슬롯을 표시한다', async () => {
     const html = String(
       await DashboardPage({
@@ -815,6 +866,7 @@ describe('핵심 화면', () => {
     expect(html).toContain('티켓 추가')
     expect(html).toContain('자유게시판')
     expect(html).toContain('문의')
+    expect(html).toContain('개인 북마크')
     expect(html).toContain('문서 검토')
     expect(html).not.toContain('개인 이미지 저장')
     expect(html).not.toContain('관리자 설정')

@@ -9,6 +9,7 @@ type ActiveNav =
   | 'news'
   | 'inquiry'
   | 'memos'
+  | 'personal-bookmarks'
   | 'images'
   | 'tickets'
   | 'account'
@@ -138,6 +139,12 @@ export function AppLayout({
               </a>
               <a href="/memos" aria-current={activeNav === 'memos' ? 'page' : undefined}>
                 내 메모
+              </a>
+              <a
+                href="/personal-bookmarks"
+                aria-current={activeNav === 'personal-bookmarks' ? 'page' : undefined}
+              >
+                개인 북마크
               </a>
               {user.imageStorageEnabled === true ? (
                 <a href="/images" aria-current={activeNav === 'images' ? 'page' : undefined}>

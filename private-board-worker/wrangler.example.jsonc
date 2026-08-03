@@ -28,7 +28,11 @@
 
   "vars": {
     "APP_NAME": "Private Board",
-    "REGISTRATION_MODE": "open"
+    "REGISTRATION_MODE": "open",
+    "CLOUDFLARE_ACCOUNT_ID": "__CLOUDFLARE_ACCOUNT_ID__",
+    "D1_DATABASE_ID": "__D1_DATABASE_ID__",
+    "D1_DATABASE_STORAGE_LIMIT_BYTES": "500000000",
+    "D1_ACCOUNT_STORAGE_LIMIT_BYTES": "5000000000"
   },
 
   "secrets": {

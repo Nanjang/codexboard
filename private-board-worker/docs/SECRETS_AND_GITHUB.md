@@ -130,6 +130,16 @@ git push -u origin main
 
 이미 실제 비밀값을 파일에 입력했다면 `git add .` 직후 `npm run security:check`와 staged diff를 다시 확인합니다. 어떤 비밀값이 한 번이라도 원격 저장소에 push되었다면 파일 삭제만 하지 말고 해당 발급처에서 먼저 폐기·재발급하세요.
 
+## D1 계정 전체 저장 용량 집계
+
+관리자 설정과 페이지 하단의 D1 사용량 표시에서 계정 전체 데이터베이스 저장량을 보려면 Cloudflare GraphQL Analytics API를 사용할 수 있습니다. Worker에 계정 ID와 `Account Analytics Read` 권한만 가진 별도 API Token을 추가하세요.
+
+```bash
+npx wrangler secret put CLOUDFLARE_API_TOKEN --config wrangler.jsonc
+```
+
+`CLOUDFLARE_ACCOUNT_ID`는 일반 변수로 배포하고, `D1_ACCOUNT_STORAGE_LIMIT_BYTES`는 플랜에 맞춰 설정합니다. 기본값은 Workers Free 기준 5,000,000,000바이트입니다. 계정 전체 집계를 설정하지 않아도 현재 연결된 DB의 `meta.size_after`와 테이블별 행 수는 관리자 화면에서 확인할 수 있습니다.
+
 ## GitHub Actions
 
 `main` 브랜치에 `private-board-worker/**` 또는 workflow 변경을 push하면 검사, D1 마이그레이션, Worker 배포가 자동으로 실행됩니다. Pull Request에서는 검사만 실행하고 배포 Secret을 사용하지 않습니다.

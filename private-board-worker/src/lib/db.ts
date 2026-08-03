@@ -16,6 +16,7 @@ import type {
   MemoUrlPatternRow,
   MemoUrlSettings,
   PaginatedResult,
+  PersonalBookmarkRow,
   PrivateImageRow,
   PostDetailRow,
   PostBodyFormat,
@@ -27,6 +28,11 @@ import type {
   TrashedTicketRow,
 } from '../types'
 import { firstDevlogImageSource } from './devlog-preview'
+import {
+  moveToPreviousPageOrder,
+  PERSONAL_BOOKMARKS_PER_PAGE,
+  type PersonalBookmarkIconData,
+} from './personal-bookmarks'
 
 export const POSTS_PER_PAGE = 20
 export const DASHBOARD_POSTS_LIMIT = 5
@@ -813,6 +819,263 @@ export async function reorderDashboardWidgets(
   )
 
   await db.batch(statements)
+}
+
+export async function listPersonalBookmarks(
+  db: D1Database,
+  userId: string,
+  page: number,
+): Promise<PaginatedResult<PersonalBookmarkRow>> {
+  const total = await db
+    .prepare('SELECT COUNT(*) AS count FROM personal_bookmarks WHERE user_id = ?1')
+    .bind(userId)
+    .first<{ count: number }>()
+  const totalItems = Number(total?.count ?? 0)
+  const totalPages = Math.ceil(totalItems / PERSONAL_BOOKMARKS_PER_PAGE)
+  const offset = (page - 1) * PERSONAL_BOOKMARKS_PER_PAGE
+  const result = await db
+    .prepare(
+      `
+      SELECT id, user_id, content, url, icon_content_type, sort_order, created_at, updated_at
+      FROM personal_bookmarks
+      WHERE user_id = ?1
+      ORDER BY sort_order, id
+      LIMIT ?2 OFFSET ?3
+      `,
+    )
+    .bind(userId, PERSONAL_BOOKMARKS_PER_PAGE, offset)
+    .all<PersonalBookmarkRow>()
+
+  return {
+    items: result.results,
+    page,
+    pageSize: PERSONAL_BOOKMARKS_PER_PAGE,
+    totalItems,
+    totalPages,
+  }
+}
+
+export async function addPersonalBookmark(
+  db: D1Database,
+  userId: string,
+  content: string,
+  url: string,
+  icon: PersonalBookmarkIconData,
+  requestId: string,
+): Promise<number> {
+  const now = Date.now()
+  const order = await db
+    .prepare('SELECT COALESCE(MAX(sort_order), 0) + 1000 AS next_order FROM personal_bookmarks WHERE user_id = ?1')
+    .bind(userId)
+    .first<{ next_order: number }>()
+  const result = await db
+    .prepare(
+      `
+      INSERT INTO personal_bookmarks (
+        user_id,
+        content,
+        url,
+        icon_content_type,
+        icon_data,
+        sort_order,
+        create_request_id,
+        created_at,
+        updated_at
+      )
+      VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?8)
+      ON CONFLICT DO NOTHING
+      `,
+    )
+    .bind(
+      userId,
+      content,
+      url,
+      icon.contentType,
+      icon.bytes,
+      order?.next_order ?? 1000,
+      requestId,
+      now,
+    )
+    .run()
+
+  if (result.meta.changes > 0 && result.meta.last_row_id) return result.meta.last_row_id
+
+  const existing = await db
+    .prepare(
+      `
+      SELECT id
+      FROM personal_bookmarks
+      WHERE user_id = ?1 AND create_request_id = ?2
+      LIMIT 1
+      `,
+    )
+    .bind(userId, requestId)
+    .first<{ id: number }>()
+  if (existing) return existing.id
+  throw new Error('개인 북마크를 추가할 수 없습니다.')
+}
+
+export async function personalBookmarkPageForId(
+  db: D1Database,
+  userId: string,
+  bookmarkId: number,
+): Promise<number | null> {
+  const row = await db
+    .prepare(
+      `
+      SELECT (
+        SELECT COUNT(*)
+        FROM personal_bookmarks p
+        WHERE p.user_id = target.user_id
+          AND (
+            p.sort_order < target.sort_order
+            OR (p.sort_order = target.sort_order AND p.id <= target.id)
+          )
+      ) AS position
+      FROM personal_bookmarks target
+      WHERE target.id = ?1 AND target.user_id = ?2
+      LIMIT 1
+      `,
+    )
+    .bind(bookmarkId, userId)
+    .first<{ position: number }>()
+  if (!row) return null
+  return Math.ceil(Number(row.position) / PERSONAL_BOOKMARKS_PER_PAGE)
+}
+
+export async function updatePersonalBookmark(
+  db: D1Database,
+  userId: string,
+  bookmarkId: number,
+  content: string,
+  url: string,
+  icon: PersonalBookmarkIconData | null,
+): Promise<boolean> {
+  const statement = icon
+    ? db
+        .prepare(
+          `
+          UPDATE personal_bookmarks
+          SET content = ?1,
+              url = ?2,
+              icon_content_type = ?3,
+              icon_data = ?4,
+              updated_at = ?5
+          WHERE id = ?6 AND user_id = ?7
+          `,
+        )
+        .bind(content, url, icon.contentType, icon.bytes, Date.now(), bookmarkId, userId)
+    : db
+        .prepare(
+          `
+          UPDATE personal_bookmarks
+          SET content = ?1, url = ?2, updated_at = ?3
+          WHERE id = ?4 AND user_id = ?5
+          `,
+        )
+        .bind(content, url, Date.now(), bookmarkId, userId)
+  const result = await statement.run()
+  return result.meta.changes > 0
+}
+
+export async function deletePersonalBookmark(
+  db: D1Database,
+  userId: string,
+  bookmarkId: number,
+): Promise<boolean> {
+  const result = await db
+    .prepare('DELETE FROM personal_bookmarks WHERE id = ?1 AND user_id = ?2')
+    .bind(bookmarkId, userId)
+    .run()
+  return result.meta.changes > 0
+}
+
+export async function reorderPersonalBookmarksPage(
+  db: D1Database,
+  userId: string,
+  page: number,
+  bookmarkIds: number[],
+): Promise<void> {
+  if (new Set(bookmarkIds).size !== bookmarkIds.length) {
+    throw new Error('중복된 개인 북마크 ID가 있습니다.')
+  }
+
+  const offset = (page - 1) * PERSONAL_BOOKMARKS_PER_PAGE
+  const existingResult = await db
+    .prepare(
+      `
+      SELECT id
+      FROM personal_bookmarks
+      WHERE user_id = ?1
+      ORDER BY sort_order, id
+      LIMIT ?2 OFFSET ?3
+      `,
+    )
+    .bind(userId, PERSONAL_BOOKMARKS_PER_PAGE, offset)
+    .all<{ id: number }>()
+  const existing = existingResult.results.map((row) => row.id).sort((a, b) => a - b)
+  const incoming = [...bookmarkIds].sort((a, b) => a - b)
+  if (existing.length !== incoming.length || existing.some((id, index) => id !== incoming[index])) {
+    throw new Error('개인 북마크 목록이 최신 상태가 아닙니다. 페이지를 새로고침하세요.')
+  }
+  if (bookmarkIds.length === 0) return
+
+  const now = Date.now()
+  await db.batch(
+    bookmarkIds.map((id, index) =>
+      db
+        .prepare(
+          `
+          UPDATE personal_bookmarks
+          SET sort_order = ?1, updated_at = ?2
+          WHERE id = ?3 AND user_id = ?4
+          `,
+        )
+        .bind((offset + index + 1) * 1000, now, id, userId),
+    ),
+  )
+}
+
+export async function movePersonalBookmarkToPreviousPage(
+  db: D1Database,
+  userId: string,
+  page: number,
+  bookmarkId: number,
+): Promise<number> {
+  if (page <= 1) throw new Error('첫 페이지에서는 앞 페이지로 보낼 수 없습니다.')
+
+  const offset = (page - 2) * PERSONAL_BOOKMARKS_PER_PAGE
+  const result = await db
+    .prepare(
+      `
+      SELECT id
+      FROM personal_bookmarks
+      WHERE user_id = ?1
+      ORDER BY sort_order, id
+      LIMIT ?2 OFFSET ?3
+      `,
+    )
+    .bind(userId, PERSONAL_BOOKMARKS_PER_PAGE * 2, offset)
+    .all<{ id: number }>()
+  const reordered = moveToPreviousPageOrder(
+    result.results.map((row) => row.id),
+    bookmarkId,
+  )
+  const now = Date.now()
+  await db.batch(
+    reordered.map((id, index) =>
+      db
+        .prepare(
+          `
+          UPDATE personal_bookmarks
+          SET sort_order = ?1, updated_at = ?2
+          WHERE id = ?3 AND user_id = ?4
+          `,
+        )
+        .bind((offset + index + 1) * 1000, now, id, userId),
+    ),
+  )
+  return page - 1
 }
 
 export async function getPost(db: D1Database, postId: number): Promise<PostDetailRow | null> {

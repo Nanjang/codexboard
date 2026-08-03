@@ -3174,6 +3174,132 @@ button.privacy-toggle.is-on > span {
   max-width: 760px;
 }
 
+.admin-database-usage {
+  max-width: 900px;
+  margin-bottom: 18px;
+}
+
+.admin-database-card {
+  display: grid;
+  gap: 18px;
+}
+
+.admin-database-card > p,
+.admin-database-card h3,
+.admin-database-card h4,
+.admin-database-card .form-hint {
+  margin: 0;
+}
+
+.admin-database-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--border);
+}
+
+.admin-database-summary > div {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+  background: var(--surface);
+}
+
+.admin-database-summary dt {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.admin-database-summary dd {
+  margin: 0;
+  font-size: 1.02rem;
+  font-weight: 800;
+}
+
+.admin-database-progress,
+.admin-account-usage {
+  display: grid;
+  gap: 8px;
+}
+
+.admin-database-progress {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.admin-database-progress progress,
+.admin-account-usage progress {
+  width: 100%;
+  height: 10px;
+  accent-color: var(--primary);
+}
+
+.admin-database-progress span,
+.admin-account-usage-heading strong {
+  color: var(--primary);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.admin-account-usage {
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
+}
+
+.admin-account-usage-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.admin-account-usage-heading h4 {
+  margin-top: 3px;
+  font-size: 1rem;
+}
+
+.admin-account-usage-heading p,
+.admin-account-usage > p,
+.admin-account-usage small {
+  margin: 0;
+}
+
+.admin-account-usage > p,
+.admin-account-usage small {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.admin-database-table-wrap {
+  max-height: 420px;
+  overflow: auto;
+}
+
+.admin-database-table th:first-child {
+  min-width: 230px;
+}
+
+.admin-database-table tbody th {
+  color: var(--text);
+  font-weight: 700;
+  text-align: left;
+}
+
+.admin-database-table tbody th small {
+  display: block;
+  margin-top: 3px;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 400;
+}
+
 .admin-feature-card {
   display: grid;
   gap: 18px;
@@ -3648,6 +3774,10 @@ button.privacy-toggle.is-on > span {
   }
 
   .admin-member-summary {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .admin-database-summary {
     grid-template-columns: 1fr 1fr;
   }
 
@@ -4510,5 +4640,298 @@ button.privacy-toggle.is-on > span {
   .editor-status-row {
     align-items: flex-start;
     flex-direction: column;
+  }
+}
+
+.personal-bookmark-heading {
+  align-items: flex-end;
+}
+
+.personal-bookmark-heading-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-height: 42px;
+}
+
+.personal-bookmark-heading-actions [data-personal-bookmark-save-status] {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.personal-bookmark-root {
+  position: relative;
+}
+
+.personal-bookmark-root.is-saving {
+  opacity: 0.72;
+  pointer-events: none;
+}
+
+.personal-bookmark-paper {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background:
+    linear-gradient(
+      90deg,
+      transparent 0,
+      transparent 47px,
+      color-mix(in srgb, #ef6f6c 40%, transparent) 47px,
+      color-mix(in srgb, #ef6f6c 40%, transparent) 48px,
+      transparent 48px
+    ),
+    color-mix(in srgb, var(--surface) 95%, #fffbea);
+  box-shadow: var(--shadow-sm);
+}
+
+.personal-bookmark-row {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) auto;
+  align-items: center;
+  min-height: 54px;
+  padding: 0 10px 0 8px;
+  border-bottom: 1px solid color-mix(in srgb, var(--primary) 16%, var(--border));
+  transition:
+    background 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.personal-bookmark-row:last-child {
+  border-bottom: 0;
+}
+
+.personal-bookmark-row:hover {
+  background: color-mix(in srgb, var(--primary-soft) 42%, transparent);
+}
+
+.personal-bookmark-row:focus,
+.personal-bookmark-row.is-focused {
+  outline: 0;
+  background: color-mix(in srgb, var(--primary-soft) 72%, var(--surface));
+  box-shadow: inset 4px 0 0 var(--primary);
+}
+
+.personal-bookmark-link {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 11px;
+  padding: 9px 12px 9px 4px;
+  text-decoration: none;
+}
+
+.personal-bookmark-link img {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  border-radius: 7px;
+  object-fit: cover;
+  background: var(--surface-muted);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--border) 72%, transparent);
+}
+
+.personal-bookmark-link span:nth-child(2) {
+  overflow: hidden;
+  flex: 1 1 auto;
+  font-size: 0.94rem;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.personal-bookmark-link span:last-child {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.personal-bookmark-drag-handle {
+  display: none;
+  place-items: center;
+  width: 32px;
+  height: 38px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: grab;
+  font-size: 1.15rem;
+  touch-action: none;
+}
+
+.personal-bookmark-drag-handle:active {
+  cursor: grabbing;
+}
+
+.personal-bookmark-root.is-editing .personal-bookmark-drag-handle {
+  display: grid;
+}
+
+.personal-bookmark-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.personal-bookmark-row-actions form {
+  display: flex;
+}
+
+.personal-bookmark-row-actions .icon-button-small {
+  width: 34px;
+  height: 34px;
+}
+
+.personal-bookmark-ghost {
+  opacity: 0.35;
+}
+
+.personal-bookmark-chosen {
+  background: var(--primary-soft);
+}
+
+.personal-bookmark-drag {
+  box-shadow: var(--shadow-md);
+}
+
+.personal-bookmark-previous-drop {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  min-height: 82px;
+  margin-bottom: 14px;
+  padding: 14px;
+  border: 2px dashed color-mix(in srgb, var(--primary) 54%, var(--border));
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--primary-soft) 56%, var(--surface));
+  color: var(--primary);
+  text-align: center;
+}
+
+.personal-bookmark-root.is-editing .personal-bookmark-previous-drop {
+  display: flex;
+}
+
+.personal-bookmark-previous-drop > span {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.personal-bookmark-previous-drop > .personal-bookmark-row {
+  width: min(100%, 720px);
+  margin-top: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.personal-bookmark-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 18px;
+  color: var(--text-muted);
+  font-size: 0.84rem;
+}
+
+.personal-bookmark-pagination > div {
+  display: flex;
+  gap: 8px;
+}
+
+.personal-bookmark-dialog {
+  width: min(92vw, 620px);
+}
+
+.personal-bookmark-dialog-content {
+  display: grid;
+  gap: 18px;
+  padding: 24px;
+}
+
+.personal-bookmark-fields {
+  display: grid;
+  gap: 14px;
+}
+
+.personal-bookmark-fields label {
+  display: grid;
+  gap: 6px;
+}
+
+.personal-bookmark-fields label > span {
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.personal-bookmark-fields input {
+  width: 100%;
+}
+
+.personal-bookmark-fields input[type="file"] {
+  padding: 9px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.personal-bookmark-fields small {
+  color: var(--text-muted);
+}
+
+.personal-bookmark-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+@media (max-width: 680px) {
+  .personal-bookmark-heading {
+    align-items: stretch;
+  }
+
+  .personal-bookmark-heading-actions {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .personal-bookmark-heading-actions [data-personal-bookmark-save-status] {
+    width: 100%;
+  }
+
+  .personal-bookmark-paper {
+    margin-right: -10px;
+    margin-left: -10px;
+    border-right: 0;
+    border-left: 0;
+    border-radius: 0;
+  }
+
+  .personal-bookmark-row {
+    grid-template-columns: 34px minmax(0, 1fr) auto;
+    padding-right: 5px;
+    padding-left: 4px;
+  }
+
+  .personal-bookmark-link {
+    gap: 8px;
+    padding-right: 5px;
+  }
+
+  .personal-bookmark-row-actions {
+    gap: 0;
+  }
+
+  .personal-bookmark-pagination {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .personal-bookmark-pagination > div .button {
+    flex: 1 1 auto;
   }
 }

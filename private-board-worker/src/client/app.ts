@@ -1083,6 +1083,205 @@ function setupDashboardEditing(): void {
   })
 }
 
+function personalBookmarkIds(list: HTMLElement): number[] {
+  return Array.from(
+    list.querySelectorAll<HTMLElement>(':scope > [data-personal-bookmark-id]'),
+  )
+    .map((item) => Number.parseInt(item.dataset.personalBookmarkId ?? '', 10))
+    .filter(Number.isSafeInteger)
+}
+
+function setPersonalBookmarkStatus(message: string): void {
+  const status = document.querySelector<HTMLElement>('[data-personal-bookmark-save-status]')
+  if (status) status.textContent = message
+}
+
+async function savePersonalBookmarkOrder(root: HTMLElement, list: HTMLElement): Promise<void> {
+  if (root.dataset.saving === 'true') {
+    root.dataset.pendingSave = 'true'
+    return
+  }
+
+  root.dataset.saving = 'true'
+  root.classList.add('is-saving')
+  root.setAttribute('aria-busy', 'true')
+  setPersonalBookmarkStatus('순서 저장 중…')
+  let failed = false
+
+  try {
+    const response = await fetch('/api/personal-bookmarks/order', {
+      method: 'PUT',
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        'X-CSRF-Token': csrfToken(),
+      },
+      body: JSON.stringify({
+        page: Number.parseInt(root.dataset.page ?? '1', 10),
+        bookmarkIds: personalBookmarkIds(list),
+      }),
+    })
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => null)) as { error?: string } | null
+      throw new Error(payload?.error ?? '개인 북마크 순서를 저장하지 못했습니다.')
+    }
+    setPersonalBookmarkStatus('순서를 저장했습니다.')
+  } catch (error) {
+    failed = true
+    window.alert(error instanceof Error ? error.message : '개인 북마크 순서를 저장하지 못했습니다.')
+    window.location.reload()
+  } finally {
+    delete root.dataset.saving
+    root.classList.remove('is-saving')
+    root.removeAttribute('aria-busy')
+    if (!failed && root.dataset.pendingSave === 'true') {
+      delete root.dataset.pendingSave
+      void savePersonalBookmarkOrder(root, list)
+    }
+  }
+}
+
+async function movePersonalBookmarkToPreviousPage(
+  root: HTMLElement,
+  bookmarkId: number,
+): Promise<void> {
+  root.classList.add('is-saving')
+  root.setAttribute('aria-busy', 'true')
+  setPersonalBookmarkStatus('앞 페이지로 이동 중…')
+  try {
+    const response = await fetch('/api/personal-bookmarks/previous-page', {
+      method: 'PUT',
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        'X-CSRF-Token': csrfToken(),
+      },
+      body: JSON.stringify({
+        page: Number.parseInt(root.dataset.page ?? '1', 10),
+        bookmarkId,
+      }),
+    })
+    const payload = (await response.json().catch(() => null)) as {
+      error?: string
+      page?: number
+      bookmarkId?: number
+    } | null
+    if (!response.ok || !payload?.page || payload.bookmarkId !== bookmarkId) {
+      throw new Error(payload?.error ?? '앞 페이지로 이동하지 못했습니다.')
+    }
+    window.location.assign(
+      `/personal-bookmarks?page=${payload.page}#personal-bookmark-${bookmarkId}`,
+    )
+  } catch (error) {
+    window.alert(error instanceof Error ? error.message : '앞 페이지로 이동하지 못했습니다.')
+    window.location.reload()
+  }
+}
+
+function focusPersonalBookmarkFromHash(): void {
+  const match = window.location.hash.match(/^#personal-bookmark-([1-9][0-9]*)$/u)
+  if (!match) return
+  const item = document.getElementById(`personal-bookmark-${match[1] ?? ''}`)
+  if (!(item instanceof HTMLElement)) return
+  item.focus({ preventScroll: true })
+  item.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  item.classList.add('is-focused')
+  window.setTimeout(() => item.classList.remove('is-focused'), 2400)
+}
+
+function setupPersonalBookmarks(): void {
+  const root = document.querySelector<HTMLElement>('[data-personal-bookmarks]')
+  const list = root?.querySelector<HTMLElement>('[data-personal-bookmark-list]')
+  const toggle = document.querySelector<HTMLButtonElement>('[data-personal-bookmark-edit-toggle]')
+  if (!root) return
+
+  focusPersonalBookmarkFromHash()
+  if (!list || !toggle) return
+
+  const groupName = `personal-bookmarks-page-${root.dataset.page ?? '1'}`
+  const sortable = Sortable.create(list, {
+    group: { name: groupName, pull: true, put: true },
+    animation: 150,
+    handle: '.personal-bookmark-drag-handle',
+    draggable: '[data-personal-bookmark-id]',
+    ghostClass: 'personal-bookmark-ghost',
+    chosenClass: 'personal-bookmark-chosen',
+    dragClass: 'personal-bookmark-drag',
+    fallbackOnBody: true,
+    swapThreshold: 0.65,
+    disabled: true,
+    onEnd: (event) => {
+      if (event.to === list && event.oldIndex !== event.newIndex) {
+        void savePersonalBookmarkOrder(root, list)
+      }
+    },
+  })
+
+  const previousDrop = root.querySelector<HTMLElement>('[data-personal-bookmark-previous-drop]')
+  const previousSortable = previousDrop
+    ? Sortable.create(previousDrop, {
+        group: { name: groupName, pull: false, put: true },
+        draggable: '[data-personal-bookmark-id]',
+        disabled: true,
+        onAdd: (event) => {
+          const item = event.item as HTMLElement
+          const bookmarkId = Number.parseInt(item.dataset.personalBookmarkId ?? '', 10)
+          if (Number.isSafeInteger(bookmarkId)) {
+            void movePersonalBookmarkToPreviousPage(root, bookmarkId)
+          } else {
+            window.location.reload()
+          }
+        },
+      })
+    : null
+
+  toggle.addEventListener('click', () => {
+    const editing = !root.classList.contains('is-editing')
+    root.classList.toggle('is-editing', editing)
+    sortable.option('disabled', !editing)
+    previousSortable?.option('disabled', !editing)
+    toggle.setAttribute('aria-pressed', String(editing))
+    toggle.textContent = editing ? '편집 완료' : '순서 편집'
+    setPersonalBookmarkStatus(
+      editing
+        ? '핸들을 끌어 순서를 바꾸세요. 2페이지부터는 위 영역에 놓아 앞 페이지로 보낼 수 있습니다.'
+        : '',
+    )
+  })
+
+  list.addEventListener('keydown', (event) => {
+    if (!root.classList.contains('is-editing') || !event.altKey) return
+    const target = event.target
+    if (!(target instanceof Element)) return
+    const item = target.closest<HTMLElement>('[data-personal-bookmark-id]')
+    if (!item) return
+
+    if (event.key === 'PageUp' && previousDrop) {
+      event.preventDefault()
+      const bookmarkId = Number.parseInt(item.dataset.personalBookmarkId ?? '', 10)
+      if (Number.isSafeInteger(bookmarkId)) {
+        void movePersonalBookmarkToPreviousPage(root, bookmarkId)
+      }
+      return
+    }
+
+    const items = Array.from(
+      list.querySelectorAll<HTMLElement>(':scope > [data-personal-bookmark-id]'),
+    )
+    const index = items.indexOf(item)
+    const direction = event.key === 'ArrowUp' ? -1 : event.key === 'ArrowDown' ? 1 : 0
+    const sibling = direction === 0 ? undefined : items[index + direction]
+    if (!sibling) return
+    event.preventDefault()
+    if (direction === -1) list.insertBefore(item, sibling)
+    else list.insertBefore(sibling, item)
+    item.querySelector<HTMLElement>('.personal-bookmark-drag-handle')?.focus()
+    void savePersonalBookmarkOrder(root, list)
+  })
+}
+
 function initialize(): void {
   setupMenu()
   setupDialogs()
@@ -1096,6 +1295,7 @@ function initialize(): void {
   setupBookmarkIconLookup()
   setupTicketBoard()
   setupDashboardEditing()
+  setupPersonalBookmarks()
   setupImageUpload()
   setupImageCopies()
   setupValueCopies()
