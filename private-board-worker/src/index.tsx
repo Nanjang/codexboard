@@ -200,7 +200,7 @@ import type {
   TicketLane,
   TicketRow,
 } from './types'
-import { AdminPage } from './views/admin'
+import { AdminDatabasePage, AdminPage } from './views/admin'
 import { AdminMemberActivityPage, AdminMembersPage } from './views/admin-members'
 import { AdminVisitorLogsPage } from './views/admin-visitors'
 import { AccountPage } from './views/account'
@@ -1861,6 +1861,19 @@ app.get('/admin', async (c) => {
       imageService={imageService}
       databaseUsage={databaseUsage}
       notice={noticeFromRequest(c)}
+    />,
+  )
+})
+
+app.get('/admin/database', async (c) => {
+  const auth = requireAdminAuth(c)
+  const databaseUsage = await getDatabaseUsageStats(c.env.DB, c.env)
+  return c.html(
+    <AdminDatabasePage
+      {...viewMeta(c)}
+      user={auth.user}
+      csrfToken={auth.csrfToken}
+      databaseUsage={databaseUsage}
     />,
   )
 })

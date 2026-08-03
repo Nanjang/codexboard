@@ -1,6 +1,7 @@
 import type { CurrentUser, DeployInfo, ImageServiceSettings } from '../types'
 import {
   accountStorageStatusMessage,
+  FREE_D1_DATABASE_COUNT_LIMIT,
   type DatabaseUsageStats,
 } from '../lib/database-usage'
 import { CsrfInput } from './components'
@@ -44,6 +45,142 @@ const tableLabels: Record<string, string> = {
   visitor_total_stats: '전체 방문자 집계',
   post_image_links: '게시글 이미지 연결',
   personal_bookmarks: '개인 북마크',
+}
+
+function databaseUsageLine(databaseUsage: DatabaseUsageStats): string {
+  return `${formatBytes(databaseUsage.databaseSizeBytes)} / ${formatBytes(databaseUsage.databaseLimitBytes)} (${formatPercent(databaseUsage.databasePercent)})`
+}
+
+function DatabaseUsageDetails({ databaseUsage }: { databaseUsage: DatabaseUsageStats | null }) {
+  if (!databaseUsage) return <p class="form-hint">DB 사용량을 불러오지 못했습니다.</p>
+
+  return (
+    <>
+      <dl class="admin-database-summary">
+        <div>
+          <dt>현재 DB 저장 크기</dt>
+          <dd>{formatBytes(databaseUsage.databaseSizeBytes)}</dd>
+        </div>
+        <div>
+          <dt>현재 DB 사용량</dt>
+          <dd>{databaseUsageLine(databaseUsage)}</dd>
+        </div>
+        <div>
+          <dt>전체 행 수</dt>
+          <dd>{databaseUsage.totalRows.toLocaleString('ko-KR')}개</dd>
+        </div>
+        <div>
+          <dt>테이블 수</dt>
+          <dd>{databaseUsage.tables.length.toLocaleString('ko-KR')}개</dd>
+        </div>
+      </dl>
+      <div class="admin-database-progress" aria-label="현재 DB 사용률">
+        <progress
+          max="100"
+          value={Math.min(100, Math.max(0, databaseUsage.databasePercent))}
+        ></progress>
+        <span>{formatPercent(databaseUsage.databasePercent)}</span>
+      </div>
+
+      <div class="admin-account-usage">
+        <div class="admin-account-usage-heading">
+          <div>
+            <p class="eyebrow">계정 전체</p>
+            <h4>계정 D1 저장 용량</h4>
+          </div>
+          {databaseUsage.account ? <strong>{formatPercent(databaseUsage.account.percent)}</strong> : null}
+        </div>
+        {databaseUsage.account ? (
+          <>
+            <p>
+              {formatBytes(databaseUsage.account.usedBytes)} 사용 / {formatBytes(databaseUsage.account.limitBytes)} 한도 ·{' '}
+              {databaseUsage.account.databaseCount.toLocaleString('ko-KR')}/{FREE_D1_DATABASE_COUNT_LIMIT}개 데이터베이스
+            </p>
+            <progress
+              max="100"
+              value={Math.min(100, Math.max(0, databaseUsage.account.percent))}
+            ></progress>
+          </>
+        ) : (
+          <p class="form-hint">{accountStorageStatusMessage(databaseUsage.accountStatus)}</p>
+        )}
+      </div>
+
+      <div class="cache-table-wrap admin-database-table-wrap">
+        <table class="cache-table admin-database-table">
+          <thead>
+            <tr>
+              <th scope="col">테이블</th>
+              <th scope="col">행 수</th>
+            </tr>
+          </thead>
+          <tbody>
+            {databaseUsage.tables.map((table) => (
+              <tr key={table.name}>
+                <th scope="row">
+                  {tableLabels[table.name] ?? table.name}
+                  <small><code>{table.name}</code></small>
+                </th>
+                <td>{table.rowCount.toLocaleString('ko-KR')}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p class="form-hint">
+        마지막 확인: {new Date(databaseUsage.measuredAt).toLocaleString('ko-KR')} · 계정 전체 수치는 Cloudflare
+        D1 Analytics에서 최근 저장량을 데이터베이스별로 합산한 값입니다.
+      </p>
+    </>
+  )
+}
+
+export function AdminDatabasePage({
+  appName,
+  deployInfo,
+  user,
+  csrfToken,
+  databaseUsage = null,
+}: {
+  appName: string
+  deployInfo: DeployInfo
+  user: CurrentUser
+  csrfToken: string
+  databaseUsage?: DatabaseUsageStats | null
+}) {
+  return (
+    <AppLayout
+      appName={appName}
+      deployInfo={deployInfo}
+      documentTitle="DB 사용량 상세"
+      topbarTitle="DB 사용량 상세"
+      user={user}
+      csrfToken={csrfToken}
+      activeNav="admin"
+      backHref="/admin"
+    >
+      <section class="page-heading">
+        <div>
+          <p class="eyebrow">D1 · Cloudflare Analytics</p>
+          <h2>DB 사용량 상세</h2>
+          <p>현재 DB와 계정 전체 D1 저장량, 테이블별 행 수를 확인합니다.</p>
+        </div>
+      </section>
+
+      <section class="admin-database-usage" aria-labelledby="admin-database-detail-title">
+        <article class="form-card admin-database-card">
+          <div class="admin-feature-heading">
+            <div>
+              <p class="eyebrow">읽기 전용</p>
+              <h3 id="admin-database-detail-title">저장 용량 상세</h3>
+            </div>
+            <a class="button button-secondary button-compact" href="/admin">관리자 설정</a>
+          </div>
+          <DatabaseUsageDetails databaseUsage={databaseUsage} />
+        </article>
+      </section>
+    </AppLayout>
+  )
 }
 
 export function AdminPage({
@@ -102,104 +239,22 @@ export function AdminPage({
             </div>
             <strong class="feature-status is-enabled">읽기 전용</strong>
           </div>
-          <p>
-            현재 연결된 D1 데이터베이스의 실제 저장 크기와 테이블별 행 수를 보여줍니다. 저장 크기는 테이블과
-            인덱스를 포함한 Cloudflare D1 크기입니다.
-          </p>
+          <p>현재 연결된 D1 데이터베이스의 사용량을 간단히 표시합니다. 저장 크기는 테이블과 인덱스를 포함합니다.</p>
           {databaseUsage ? (
-            <>
-              <dl class="admin-database-summary">
-                <div>
-                  <dt>현재 DB 저장 크기</dt>
-                  <dd>{formatBytes(databaseUsage.databaseSizeBytes)}</dd>
-                </div>
-                <div>
-                  <dt>현재 DB 기준 사용률</dt>
-                  <dd>
-                    {formatPercent(databaseUsage.databasePercent)} / {formatBytes(databaseUsage.databaseLimitBytes)}
-                  </dd>
-                </div>
-                <div>
-                  <dt>전체 행 수</dt>
-                  <dd>{databaseUsage.totalRows.toLocaleString('ko-KR')}개</dd>
-                </div>
-                <div>
-                  <dt>테이블 수</dt>
-                  <dd>{databaseUsage.tables.length.toLocaleString('ko-KR')}개</dd>
-                </div>
-              </dl>
-              <div class="admin-database-progress" aria-label="현재 DB 사용률">
-                <progress
-                  max="100"
-                  value={Math.min(100, Math.max(0, databaseUsage.databasePercent))}
-                ></progress>
-                <span>{formatPercent(databaseUsage.databasePercent)}</span>
+            <dl class="admin-database-summary admin-database-summary-compact">
+              <div>
+                <dt>현재 DB 사용량</dt>
+                <dd>{databaseUsageLine(databaseUsage)}</dd>
               </div>
-
-              <div class="admin-account-usage">
-                <div class="admin-account-usage-heading">
-                  <div>
-                    <p class="eyebrow">계정 전체</p>
-                    <h4>계정 D1 저장 용량</h4>
-                  </div>
-                  {databaseUsage.account ? <strong>{formatPercent(databaseUsage.account.percent)}</strong> : null}
-                </div>
-                {databaseUsage.account ? (
-                  <>
-                    <p>
-                      {formatBytes(databaseUsage.account.usedBytes)} 사용 /{' '}
-                      {formatBytes(databaseUsage.account.limitBytes)} 한도 ·{' '}
-                      {databaseUsage.account.databaseCount.toLocaleString('ko-KR')}개 데이터베이스
-                    </p>
-                    <progress
-                      max="100"
-                      value={Math.min(100, Math.max(0, databaseUsage.account.percent))}
-                    ></progress>
-                    <small>
-                      이 게시판 DB가 계정 전체에서 차지하는 비율:{' '}
-                      {formatPercent(
-                        databaseUsage.account.usedBytes > 0
-                          ? (databaseUsage.databaseSizeBytes / databaseUsage.account.usedBytes) * 100
-                          : 0,
-                      )}
-                    </small>
-                  </>
-                ) : (
-                  <p class="form-hint">
-                    {accountStorageStatusMessage(databaseUsage.accountStatus)}
-                  </p>
-                )}
-              </div>
-
-              <div class="cache-table-wrap admin-database-table-wrap">
-                <table class="cache-table admin-database-table">
-                  <thead>
-                    <tr>
-                      <th scope="col">테이블</th>
-                      <th scope="col">행 수</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {databaseUsage.tables.map((table) => (
-                      <tr key={table.name}>
-                        <th scope="row">
-                          {tableLabels[table.name] ?? table.name}
-                          <small><code>{table.name}</code></small>
-                        </th>
-                        <td>{table.rowCount.toLocaleString('ko-KR')}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <p class="form-hint">
-                마지막 확인: {new Date(databaseUsage.measuredAt).toLocaleString('ko-KR')} · 계정 전체 수치는 Cloudflare
-                D1 Analytics에서 최근 저장량을 데이터베이스별로 합산한 값입니다.
-              </p>
-            </>
+            </dl>
           ) : (
             <p class="form-hint">DB 사용량을 불러오지 못했습니다.</p>
           )}
+          <nav class="admin-feature-links" aria-label="DB 사용량 상세">
+            <a class="button button-secondary" href="/admin/database">
+              자세히 보기
+            </a>
+          </nav>
         </article>
       </section>
 

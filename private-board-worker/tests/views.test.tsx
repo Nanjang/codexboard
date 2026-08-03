@@ -22,7 +22,8 @@ import type {
 import type { ThemeLibrary } from '../src/lib/themes'
 import { BUILTIN_THEMES } from '../src/lib/themes'
 import { AccountPage } from '../src/views/account'
-import { AdminPage } from '../src/views/admin'
+import type { DatabaseUsageStats } from '../src/lib/database-usage'
+import { AdminDatabasePage, AdminPage } from '../src/views/admin'
 import { AdminMemberActivityPage, AdminMembersPage } from '../src/views/admin-members'
 import { AdminVisitorLogsPage } from '../src/views/admin-visitors'
 import { BoardListPage, PostDetailPage, PostFormPage } from '../src/views/boards'
@@ -1124,6 +1125,82 @@ describe('핵심 화면', () => {
     expect(html).toContain('D1 · 조회 전용')
     expect(html).toContain('회원 정보 보기')
     expect(html).toContain('href="/admin/members"')
+  })
+
+  it('관리자 설정에는 DB 사용량 요약만 표시하고 상세 화면으로 연결한다', async () => {
+    const databaseUsage: DatabaseUsageStats = {
+      databaseSizeBytes: 925_700,
+      databaseLimitBytes: 500_000_000,
+      databasePercent: 0.18514,
+      totalRows: 9,
+      tables: [
+        { name: 'posts', rowCount: 7 },
+        { name: 'users', rowCount: 2 },
+      ],
+      measuredAt: Date.UTC(2026, 7, 4),
+      account: {
+        usedBytes: 3_180_000,
+        limitBytes: 5_000_000_000,
+        percent: 0.0636,
+        databaseCount: 4,
+        measuredAt: Date.UTC(2026, 7, 4),
+      },
+      accountStatus: 'available',
+    }
+
+    const html = String(
+      await AdminPage({
+        appName: 'Private Board',
+        deployInfo,
+        user: adminUser,
+        csrfToken: 'csrf-test',
+        databaseUsage,
+      }),
+    )
+
+    expect(html).toContain('925.7 KB / 500.00 MB (0.19%)')
+    expect(html).toContain('href="/admin/database"')
+    expect(html).not.toContain('계정 D1 저장 용량')
+    expect(html).not.toContain('전체 행 수')
+  })
+
+  it('DB 사용량 상세 화면에서 계정 전체와 테이블별 통계를 표시한다', async () => {
+    const databaseUsage: DatabaseUsageStats = {
+      databaseSizeBytes: 925_700,
+      databaseLimitBytes: 500_000_000,
+      databasePercent: 0.18514,
+      totalRows: 9,
+      tables: [
+        { name: 'posts', rowCount: 7 },
+        { name: 'users', rowCount: 2 },
+      ],
+      measuredAt: Date.UTC(2026, 7, 4),
+      account: {
+        usedBytes: 3_180_000,
+        limitBytes: 5_000_000_000,
+        percent: 0.0636,
+        databaseCount: 4,
+        measuredAt: Date.UTC(2026, 7, 4),
+      },
+      accountStatus: 'available',
+    }
+
+    const html = String(
+      await AdminDatabasePage({
+        appName: 'Private Board',
+        deployInfo,
+        user: adminUser,
+        csrfToken: 'csrf-test',
+        databaseUsage,
+      }),
+    )
+
+    expect(html).toContain('DB 사용량 상세')
+    expect(html).toContain('계정 D1 저장 용량')
+    expect(html).toContain('3.18 MB 사용 / 5.00 GB 한도 · 4/10개 데이터베이스')
+    expect(html).toContain('posts')
+    expect(html).not.toContain('이 게시판 DB가 계정 전체에서 차지하는 비율')
+    expect(html).toContain('href="/admin"')
   })
 
   it('공통 푸터에 오늘과 누적 방문자 카운터 자리를 표시한다', async () => {

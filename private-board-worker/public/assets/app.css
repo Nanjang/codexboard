@@ -3234,6 +3234,14 @@ button.privacy-toggle.is-on > span {
   background: var(--border);
 }
 
+.admin-database-summary.admin-database-summary-compact {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.admin-database-summary.admin-database-summary-compact dd {
+  font-size: 1.45rem;
+}
+
 .admin-database-summary > div {
   display: grid;
   gap: 6px;
