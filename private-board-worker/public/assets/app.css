@@ -117,6 +117,76 @@
   padding: 18px 20px 14px;
 }
 
+.weather-chart-layout {
+  align-items: start;
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) 190px;
+}
+
+.weather-chart-plot {
+  min-width: 0;
+}
+
+.weather-hover-zone {
+  cursor: crosshair;
+  pointer-events: all;
+}
+
+.weather-tooltip {
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #c8d4c5);
+  border-radius: 12px;
+  color: var(--text, #1d2a1d);
+  min-height: 132px;
+  padding: 14px;
+  position: sticky;
+  top: 16px;
+}
+
+.weather-tooltip.is-active {
+  border-color: var(--primary, #2457d6);
+  box-shadow: 0 4px 14px rgba(20, 26, 35, 0.08);
+}
+
+.weather-tooltip-empty {
+  color: var(--muted-text, #667466);
+  font-size: 0.85rem;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.weather-tooltip-date {
+  display: block;
+  font-size: 0.95rem;
+  margin-bottom: 12px;
+}
+
+.weather-tooltip-year {
+  border-top: 1px solid var(--border, #c8d4c5);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 9px;
+  padding: 9px 0 0;
+}
+
+.weather-tooltip-year span {
+  color: var(--muted-text, #667466);
+  font-size: 0.78rem;
+}
+
+.weather-tooltip-year strong {
+  font-size: 0.84rem;
+}
+
+.weather-tooltip > small {
+  color: var(--muted-text, #667466);
+  display: block;
+  font-size: 0.75rem;
+  margin-top: 12px;
+}
+
 .weather-chart-legend {
   align-items: center;
   color: var(--muted-text, #667466);
@@ -153,9 +223,13 @@
   stroke: #3e78b5;
 }
 
-.weather-legend-previous {
-  border-top-style: dashed;
-  opacity: 0.5;
+.weather-legend-range {
+  background: #839b88;
+  border-radius: 3px;
+  display: inline-block;
+  height: 10px;
+  opacity: 0.25;
+  width: 22px;
 }
 
 .weather-legend-current {
@@ -204,6 +278,12 @@
 
 .weather-series-current {
   opacity: 1;
+}
+
+.weather-year-range {
+  fill: #839b88;
+  opacity: 0.18;
+  stroke: none;
 }
 
 .weather-today-dot {
@@ -265,6 +345,17 @@
 
   .weather-chart-legend {
     gap: 10px 14px;
+  }
+}
+
+@media (max-width: 760px) {
+  .weather-chart-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .weather-tooltip {
+    min-height: 0;
+    position: static;
   }
 }
 

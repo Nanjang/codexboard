@@ -123,6 +123,76 @@ function setupValueCopies(): void {
   })
 }
 
+function weatherTemperatureLabel(value: string | undefined): string {
+  return value ? `${Number(value).toFixed(1)}℃` : '—'
+}
+
+function weatherDateLabel(date: string): string {
+  const parts = date.split('-')
+  return `${parts[0] ?? ''}년 ${Number(parts[1] ?? 0)}월 ${Number(parts[2] ?? 0)}일`
+}
+
+function resetWeatherTooltip(tooltip: HTMLElement): void {
+  tooltip.classList.remove('is-active')
+  tooltip.replaceChildren()
+  const empty = document.createElement('p')
+  empty.className = 'weather-tooltip-empty'
+  empty.textContent = '그래프의 날짜에 마우스를 올리거나 터치하세요.'
+  tooltip.appendChild(empty)
+}
+
+function updateWeatherTooltip(tooltip: HTMLElement, zone: SVGRectElement): void {
+  const data = zone.dataset
+  tooltip.replaceChildren()
+
+  const title = document.createElement('strong')
+  title.className = 'weather-tooltip-date'
+  title.textContent = weatherDateLabel(data.weatherDate ?? '')
+  tooltip.appendChild(title)
+
+  for (const item of [
+    { year: data.weatherCurrentYear, label: '올해', max: data.weatherCurrentMax, min: data.weatherCurrentMin },
+    { year: data.weatherPreviousYear, label: '작년', max: data.weatherPreviousMax, min: data.weatherPreviousMin },
+  ]) {
+    const section = document.createElement('div')
+    section.className = 'weather-tooltip-year'
+    const heading = document.createElement('span')
+    heading.textContent = `${item.year ?? ''}년 ${item.label}`
+    section.appendChild(heading)
+    const values = document.createElement('strong')
+    values.textContent = `최고 ${weatherTemperatureLabel(item.max)} · 최저 ${weatherTemperatureLabel(item.min)}`
+    section.appendChild(values)
+    tooltip.appendChild(section)
+  }
+
+  if (data.weatherCurrentStatus === 'provisional') {
+    const status = document.createElement('small')
+    status.textContent = '오늘 값은 잠정값입니다.'
+    tooltip.appendChild(status)
+  }
+  tooltip.classList.add('is-active')
+}
+
+function setupWeatherChart(): void {
+  const svg = document.querySelector<SVGSVGElement>('[data-weather-chart]')
+  const tooltip = document.querySelector<HTMLElement>('[data-weather-tooltip]')
+  if (!svg || !tooltip) return
+
+  const show = (target: EventTarget | null): void => {
+    if (!(target instanceof Element)) return
+    const zone = target.closest<SVGRectElement>('[data-weather-zone]')
+    if (zone) updateWeatherTooltip(tooltip, zone)
+  }
+
+  svg.addEventListener('pointerover', (event) => show(event.target))
+  svg.addEventListener('pointermove', (event) => show(event.target))
+  svg.addEventListener('pointerup', (event) => show(event.target))
+  svg.addEventListener('focusin', (event) => show(event.target))
+  svg.addEventListener('pointerleave', (event) => {
+    if (event.pointerType === 'mouse') resetWeatherTooltip(tooltip)
+  })
+}
+
 function setupTicketEditing(): void {
   const dialog = document.querySelector<HTMLDialogElement>('#ticket-edit-dialog')
   const editForm = document.querySelector<HTMLFormElement>('[data-ticket-edit-form]')
@@ -1361,6 +1431,7 @@ function initialize(): void {
   setupImageUpload()
   setupImageCopies()
   setupValueCopies()
+  setupWeatherChart()
 }
 
 if (document.readyState === 'loading') {
