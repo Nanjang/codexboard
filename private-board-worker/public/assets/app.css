@@ -689,6 +689,15 @@ button {
   padding-bottom: 2px;
 }
 
+.dashboard-root:not(.is-editing) .dashboard-bookmark-compact-bar {
+  gap: 6px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
 .dashboard-bookmark-standard-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1048,15 +1057,19 @@ button {
 }
 
 .dashboard-root:not(.is-editing) .bookmark-quick-link.is-compact {
-  width: 52px;
-  flex: 0 0 52px;
+  width: 46px;
+  flex: 0 0 46px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .dashboard-root:not(.is-editing) .bookmark-quick-link.is-compact .bookmark-quick-link-main {
-  width: 52px;
-  min-height: 52px;
+  width: 46px;
+  min-height: 46px;
   justify-content: center;
-  padding: 8px;
+  padding: 4px;
 }
 
 .dashboard-root:not(.is-editing) .bookmark-quick-link.is-compact .bookmark-quick-link-main > span:last-child {
@@ -1072,6 +1085,17 @@ button {
 .dashboard-root.is-editing .dashboard-bookmark-compact-bar .bookmark-quick-link.is-compact {
   width: auto;
   flex: initial;
+}
+
+.dashboard-root:not(.is-editing) .bookmark-quick-link.is-compact .bookmark-widget-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+}
+
+.dashboard-root:not(.is-editing) .bookmark-quick-link.is-compact .bookmark-widget-icon img {
+  width: 30px;
+  height: 30px;
 }
 
 .bookmark-quick-link-actions {
