@@ -318,13 +318,43 @@ export function TicketsPage({
       </dialog>
 
       <dialog id="ticket-edit-dialog" class="ticket-dialog">
+        <form
+          id="ticket-delete-form"
+          action="/tickets/0/delete"
+          method="post"
+          class="dialog-delete-form"
+          data-ticket-delete-form
+          data-confirm="티켓을 휴지통으로 이동할까요?"
+        >
+          <CsrfInput token={csrfToken} />
+        </form>
         <form action="/tickets/0/update" method="post" class="stack-form" data-ticket-edit-form>
           <CsrfInput token={csrfToken} />
           <div class="dialog-header">
             <h2>티켓 수정</h2>
-            <button type="button" class="icon-button" aria-label="닫기" data-dialog-close>
-              ×
-            </button>
+            <div class="dialog-header-actions">
+              <button
+                type="submit"
+                form="ticket-delete-form"
+                class="icon-button icon-button-small dialog-delete-button"
+                aria-label="티켓 삭제"
+                title="티켓 삭제"
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <path
+                    d="M5 7h14m-9 4v6m4-6v6M8 7l1 13h6l1-13M9 7V4h6v3"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </button>
+              <button type="button" class="icon-button" aria-label="닫기" data-dialog-close>
+                ×
+              </button>
+            </div>
           </div>
           <label>
             <span>제목</span>
@@ -351,18 +381,6 @@ export function TicketsPage({
               저장
             </button>
           </div>
-        </form>
-        <form
-          action="/tickets/0/delete"
-          method="post"
-          class="dialog-delete-form"
-          data-ticket-delete-form
-          data-confirm="티켓을 휴지통으로 이동할까요?"
-        >
-          <CsrfInput token={csrfToken} />
-          <button type="submit" class="button button-danger button-full">
-            티켓 삭제
-          </button>
         </form>
       </dialog>
     </AppLayout>

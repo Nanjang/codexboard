@@ -2010,8 +2010,35 @@ select:focus {
   font-size: 1.25rem;
 }
 
+.dialog-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.dialog-delete-button {
+  color: var(--danger);
+}
+
+.dialog-delete-button:hover {
+  border-color: var(--danger-soft);
+  color: var(--danger-hover);
+  background: var(--danger-soft);
+}
+
+.dialog-delete-button svg {
+  width: 16px;
+  height: 16px;
+}
+
 .dialog-delete-form {
-  padding-top: 0 !important;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .separate-danger-form {
