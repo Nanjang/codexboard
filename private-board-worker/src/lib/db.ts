@@ -1640,6 +1640,12 @@ export async function listTrashedTickets(db: D1Database, ownerId: string): Promi
   return attachTicketTags(db, result.results)
 }
 
+export async function listAllTicketsForExport(db: D1Database, ownerId: string): Promise<TicketRow[]> {
+  const active = await listTickets(db, ownerId)
+  const trashed = await listTrashedTickets(db, ownerId)
+  return [...active, ...trashed].sort((a, b) => a.id - b.id)
+}
+
 export async function restoreTicket(db: D1Database, ownerId: string, ticketId: number): Promise<boolean> {
   const now = Date.now()
   await purgeExpiredTickets(db, ownerId, now)

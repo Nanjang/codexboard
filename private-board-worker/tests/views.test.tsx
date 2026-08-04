@@ -999,6 +999,7 @@ describe('핵심 화면', () => {
     expect(html).toContain(`name="creation_request_id" value="${ticketCreationRequestId}"`)
     expect(html).toContain('data-prevent-double-submit')
     expect(html).toContain('href="/tickets/trash"')
+    expect(html).toContain('href="/tickets/export"')
     expect(html).toContain('href="/tickets/tags"')
     expect(html).toContain('class="ticket-tag ticket-tag-color-coral"')
     expect(html).toContain('data-ticket-tag-ids="7"')

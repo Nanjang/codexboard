@@ -245,6 +245,9 @@ export function TicketsPage({
           <a class="button button-secondary button-compact" href="/tickets/tags">
             태그 관리
           </a>
+          <a class="button button-secondary button-compact" href="/tickets/export">
+            전체 내보내기
+          </a>
           <a class="button button-secondary button-compact" href="/tickets/trash">
             휴지통
           </a>

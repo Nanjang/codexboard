@@ -63,6 +63,7 @@ import {
   listRecentPostsByBoardSlug,
   listTickets,
   listTicketTags,
+  listAllTicketsForExport,
   listTrashedTickets,
   MAX_MEMO_PATTERNS_PER_USER,
   MAX_RSS_WIDGETS_PER_USER,
@@ -2447,6 +2448,31 @@ app.post('/tickets/tags/:id/delete', async (c) => {
   const deleted = await deleteTicketTag(c.env.DB, auth.user.id, tagId)
   if (!deleted) throw new HTTPException(404, { message: '태그를 찾을 수 없습니다.' })
   return redirectWithNotice(c, '/tickets/tags', 'ticket-tag-deleted')
+})
+
+app.get('/tickets/export', async (c) => {
+  const auth = requireActiveAuth(c)
+  const tickets = await listAllTicketsForExport(c.env.DB, auth.user.id)
+  const payload = {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    tickets: tickets.map((ticket) => ({
+      id: ticket.id,
+      title: ticket.title,
+      note: ticket.note,
+      lane: ticket.lane,
+      status: ticket.deleted_at === null ? 'active' : 'trashed',
+      tags: (ticket.tags ?? []).map((tag) => ({ id: tag.id, name: tag.name, color: tag.color })),
+      createdAt: new Date(ticket.created_at).toISOString(),
+      updatedAt: new Date(ticket.updated_at).toISOString(),
+      deletedAt: ticket.deleted_at === null ? null : new Date(ticket.deleted_at).toISOString(),
+      purgeAfter: ticket.purge_after === null ? null : new Date(ticket.purge_after).toISOString(),
+    })),
+  }
+  c.header('Cache-Control', 'private, no-store')
+  c.header('Content-Type', 'application/json; charset=utf-8')
+  c.header('Content-Disposition', `attachment; filename="tickets-${new Date().toISOString().slice(0, 10)}.json"`)
+  return c.body(JSON.stringify(payload, null, 2))
 })
 
 app.get('/tickets/trash', async (c) => {
