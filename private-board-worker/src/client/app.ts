@@ -166,6 +166,27 @@ function setupTicketEditing(): void {
   })
 }
 
+function setupTicketCreateDropZones(): void {
+  const dialog = document.querySelector<HTMLDialogElement>('#ticket-create-dialog')
+  const form = dialog?.querySelector<HTMLFormElement>('form')
+  const laneInput = form?.elements.namedItem('lane')
+  if (!dialog || !form || !(laneInput instanceof HTMLSelectElement)) return
+
+  document.addEventListener('click', (event) => {
+    const target = event.target
+    if (!(target instanceof Element)) return
+    const zone = target.closest<HTMLButtonElement>('[data-ticket-drop-zone]')
+    if (!zone) return
+
+    const lane = zone.dataset.ticketCreateLane
+    if (lane !== 'todo' && lane !== 'doing' && lane !== 'done') return
+    event.preventDefault()
+    form.reset()
+    laneInput.value = lane
+    openDialog(dialog)
+  })
+}
+
 function setupConfirmations(): void {
   document.addEventListener('submit', (event) => {
     const form = event.target
@@ -1293,6 +1314,7 @@ function initialize(): void {
   setupMenu()
   setupDialogs()
   setupTicketEditing()
+  setupTicketCreateDropZones()
   setupConfirmations()
   setupRichEditor()
   setupDevlogArchiveToggle()

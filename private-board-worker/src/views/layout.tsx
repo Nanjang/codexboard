@@ -30,6 +30,7 @@ interface AppLayoutProps {
   activeNav: ActiveNav
   notice?: string | null
   backHref?: string
+  wide?: boolean
   contextAction?: ContextAction
   children: Child
 }
@@ -44,6 +45,7 @@ export function AppLayout({
   activeNav,
   notice = null,
   backHref,
+  wide = false,
   contextAction,
   children,
 }: AppLayoutProps) {
@@ -175,7 +177,7 @@ export function AppLayout({
           </aside>
         </div>
 
-        <main class="page-shell">
+        <main class={`page-shell${wide ? ' page-shell-wide' : ''}`}>
           <Notice message={notice} />
           {children}
         </main>

@@ -40,6 +40,7 @@ export function TicketTagsPage({
       csrfToken={csrfToken}
       activeNav="tickets"
       backHref="/tickets"
+      wide
       notice={notice}
     >
       <section class="page-heading">
@@ -234,6 +235,7 @@ export function TicketsPage({
       user={user}
       csrfToken={csrfToken}
       activeNav="tickets"
+      wide
       notice={notice}
       contextAction={{ kind: 'link', label: '티켓 추가', href: '/tickets/new', dialogId: 'ticket-create-dialog' }}
     >
@@ -271,9 +273,16 @@ export function TicketsPage({
               {byLane[lane].map((ticket) => (
                 <TicketCard key={ticket.id} ticket={ticket} />
               ))}
-              <div class="ticket-drop-zone" data-ticket-drop-zone>
-                <span>여기에 놓아 상태를 변경</span>
-              </div>
+              <button
+                type="button"
+                class="ticket-drop-zone"
+                data-ticket-drop-zone
+                data-ticket-create-lane={lane}
+                aria-label={`${laneLabel(lane)} 상태에 티켓 추가`}
+                title={`${laneLabel(lane)} 상태에 티켓 추가`}
+              >
+                <span aria-hidden="true">+</span>
+              </button>
             </div>
           </section>
         ))}
@@ -420,6 +429,7 @@ export function TicketFormPage({
       csrfToken={csrfToken}
       activeNav="tickets"
       backHref="/tickets"
+      wide
     >
       <section class="form-card">
         {error ? <div class="notice notice-error">{error}</div> : null}
@@ -509,6 +519,7 @@ export function TicketTrashPage({
       csrfToken={csrfToken}
       activeNav="tickets"
       backHref="/tickets"
+      wide
       notice={notice}
     >
       <section class="page-heading">

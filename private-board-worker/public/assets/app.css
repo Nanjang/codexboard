@@ -326,6 +326,10 @@ button {
   padding: 30px 0 64px;
 }
 
+.page-shell-wide {
+  width: min(1344px, calc(100% - 32px));
+}
+
 .deploy-footer {
   display: flex;
   flex: 0 0 auto;
@@ -1679,6 +1683,7 @@ select:focus {
 }
 
 .ticket-drop-zone {
+  width: 100%;
   display: grid;
   place-items: center;
   min-height: 3.6rem;
@@ -1687,8 +1692,30 @@ select:focus {
   border-radius: 10px;
   color: var(--text-muted);
   background: color-mix(in srgb, var(--surface-muted) 52%, transparent);
-  font-size: 0.82rem;
-  text-align: center;
+  cursor: pointer;
+}
+
+.ticket-drop-zone:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 7%, var(--surface));
+}
+
+.ticket-drop-zone:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.ticket-drop-zone > span {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  font-size: 1.35rem;
+  font-weight: 500;
+  line-height: 1;
 }
 
 .ticket-card {
