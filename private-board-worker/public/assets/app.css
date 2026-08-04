@@ -1707,10 +1707,27 @@ select:focus {
 }
 
 .ticket-tags {
-  display: flex;
+  display: inline-flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin-top: 10px;
+  margin: 0;
+}
+
+.ticket-card-heading {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ticket-card-heading .ticket-card-open {
+  flex: 1 1 auto;
+}
+
+.ticket-trash-heading {
+  flex-wrap: wrap;
 }
 
 .ticket-tag {
@@ -1852,7 +1869,7 @@ select:focus {
 }
 
 .ticket-trash-card .ticket-tags {
-  margin-top: 9px;
+  margin: 0;
 }
 
 .ticket-trash-card .ticket-note {

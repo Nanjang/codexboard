@@ -190,19 +190,21 @@ function TicketCard({ ticket }: { ticket: TicketRow }) {
       data-ticket-tag-ids={ticket.tags?.map((tag) => String(tag.id)).join(',') ?? ''}
     >
       <div class="ticket-card-top">
-        <a
-          class="ticket-card-open"
-          href={`/tickets/${ticket.id}/edit`}
-          data-ticket-edit
-          aria-label={`${ticket.title} 수정`}
-        >
-          <strong>{ticket.title}</strong>
-        </a>
+        <div class="ticket-card-heading">
+          <a
+            class="ticket-card-open"
+            href={`/tickets/${ticket.id}/edit`}
+            data-ticket-edit
+            aria-label={`${ticket.title} 수정`}
+          >
+            <strong>{ticket.title}</strong>
+          </a>
+          <TicketTags tags={ticket.tags ?? []} />
+        </div>
         <button type="button" class="drag-handle" aria-label={`${ticket.title} 끌어서 이동`} title="끌어서 이동">
           <span aria-hidden="true">⠿</span>
         </button>
       </div>
-      <TicketTags tags={ticket.tags ?? []} />
       {ticket.note ? <p class="ticket-note">{ticket.note}</p> : <p class="ticket-note ticket-note-empty">메모 없음</p>}
     </article>
   )
@@ -512,8 +514,8 @@ export function TicketTrashPage({
                 <div class="ticket-trash-heading">
                   <strong>{ticket.title}</strong>
                   <span>{laneLabel(ticket.lane)}</span>
+                  <TicketTags tags={ticket.tags ?? []} />
                 </div>
-                <TicketTags tags={ticket.tags ?? []} />
                 {ticket.note ? <p class="ticket-note">{ticket.note}</p> : null}
                 <p class="ticket-trash-meta">
                   삭제 <time datetime={new Date(ticket.deleted_at).toISOString()}>{formatDateTime(ticket.deleted_at)}</time>
