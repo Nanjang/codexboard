@@ -11,6 +11,9 @@ export const WEATHER_LOCATIONS = [
   { id: 'daejeon', name: '대전', stationId: 133, stationType: 'ASOS' },
   { id: 'daegu', name: '대구', stationId: 143, stationType: 'ASOS' },
   { id: 'busan', name: '부산', stationId: 159, stationType: 'ASOS' },
+  { id: 'jeju', name: '제주', stationId: 184, stationType: 'ASOS' },
+  { id: 'gwangju', name: '광주', stationId: 156, stationType: 'ASOS' },
+  { id: 'yangsan', name: '양산', stationId: 257, stationType: 'AWS' },
 ] as const
 
 export type WeatherLocationId = (typeof WEATHER_LOCATIONS)[number]['id']

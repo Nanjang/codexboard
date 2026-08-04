@@ -31,6 +31,9 @@ describe('weather helpers', () => {
 
   it('normalizes the supported location list', () => {
     expect(weatherLocationId('seongnam')).toBe('seongnam')
+    expect(weatherLocationId('jeju')).toBe('jeju')
+    expect(weatherLocationId('gwangju')).toBe('gwangju')
+    expect(weatherLocationId('yangsan')).toBe('yangsan')
     expect(weatherLocationId('pangyo')).toBe('seoul')
     expect(weatherLocationId(null)).toBe('seoul')
   })
