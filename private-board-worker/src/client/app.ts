@@ -782,6 +782,38 @@ function setupBookmarkIconLookup(): void {
   })
 }
 
+function syncBookmarkCompactMode(form: HTMLFormElement): void {
+  const mode = form.querySelector<HTMLInputElement>('input[name="iconMode"]:checked')
+  const iconUrl = form.querySelector<HTMLInputElement>('input[name="iconUrl"]')
+  const compactMode = form.querySelector<HTMLInputElement>('[data-bookmark-compact-mode]')
+  if (!mode || !iconUrl || !compactMode) return
+
+  const enabled = mode.value === 'url' && iconUrl.value.trim().length > 0
+  compactMode.disabled = !enabled
+  if (!enabled) compactMode.checked = false
+}
+
+function setupBookmarkCompactMode(): void {
+  document.querySelectorAll<HTMLFormElement>('.bookmark-dialog-content').forEach((form) => {
+    syncBookmarkCompactMode(form)
+    form.addEventListener('input', (event) => {
+      const target = event.target
+      if (target instanceof HTMLInputElement && target.name === 'iconUrl') {
+        syncBookmarkCompactMode(form)
+      }
+    })
+    form.addEventListener('change', (event) => {
+      const target = event.target
+      if (
+        target instanceof HTMLInputElement
+        && (target.name === 'iconUrl' || target.name === 'iconMode')
+      ) {
+        syncBookmarkCompactMode(form)
+      }
+    })
+  })
+}
+
 function setupImageUpload(): void {
   const uploader = document.querySelector<HTMLElement>('[data-image-uploader]')
   const input = uploader?.querySelector<HTMLInputElement>('[data-image-file]')
@@ -1322,6 +1354,7 @@ function initialize(): void {
   setupDoubleSubmitPrevention()
   setupNotices()
   setupBookmarkIconLookup()
+  setupBookmarkCompactMode()
   setupTicketBoard()
   setupDashboardEditing()
   setupPersonalBookmarks()

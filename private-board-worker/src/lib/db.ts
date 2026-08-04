@@ -587,7 +587,7 @@ export async function listDashboardWidgets(db: D1Database, userId: string): Prom
   const result = await db
     .prepare(
       `
-      SELECT id, user_id, widget_type, title, url, icon_url, icon_color, sort_order, created_at
+      SELECT id, user_id, widget_type, title, url, icon_url, icon_color, compact_mode, sort_order, created_at
       FROM dashboard_widgets
       WHERE user_id = ?1
       ORDER BY sort_order, widget_type
@@ -632,6 +632,7 @@ export async function addBookmarkDashboardWidget(
   url: string,
   iconUrl: string | null,
   iconColor: DashboardWidgetRow['icon_color'],
+  compactMode: boolean,
   creationRequestId: string,
 ): Promise<number> {
   await ensureUserDashboard(db, userId)
@@ -647,15 +648,16 @@ export async function addBookmarkDashboardWidget(
         url,
         icon_url,
         icon_color,
+        compact_mode,
         sort_order,
         created_at,
         create_request_id
       )
-      VALUES (?1, 'bookmark', ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+      VALUES (?1, 'bookmark', ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
       ON CONFLICT DO NOTHING
       `,
     )
-    .bind(userId, title, url, iconUrl, iconColor, sortOrder, now, creationRequestId)
+    .bind(userId, title, url, iconUrl, iconColor, compactMode && iconUrl ? 1 : 0, sortOrder, now, creationRequestId)
     .run()
 
   if (result.meta.changes > 0 && result.meta.last_row_id) {
@@ -686,7 +688,7 @@ export async function getBookmarkDashboardWidget(
   return db
     .prepare(
       `
-      SELECT id, user_id, widget_type, title, url, icon_url, icon_color, sort_order, created_at
+      SELECT id, user_id, widget_type, title, url, icon_url, icon_color, compact_mode, sort_order, created_at
       FROM dashboard_widgets
       WHERE id = ?1 AND user_id = ?2 AND widget_type = 'bookmark'
       LIMIT 1
@@ -704,6 +706,7 @@ export async function updateBookmarkDashboardWidget(
   url: string,
   iconUrl: string | null,
   iconColor: DashboardWidgetRow['icon_color'],
+  compactMode: boolean,
 ): Promise<boolean> {
   const result = await db
     .prepare(
@@ -713,13 +716,14 @@ export async function updateBookmarkDashboardWidget(
           url = ?2,
           icon_url = ?3,
           icon_color = ?4,
+          compact_mode = CASE WHEN ?5 = 1 AND ?3 IS NOT NULL THEN 1 ELSE 0 END,
           icon_content_type = NULL,
           icon_data = NULL,
           icon_updated_at = NULL
-      WHERE id = ?5 AND user_id = ?6 AND widget_type = 'bookmark'
+      WHERE id = ?6 AND user_id = ?7 AND widget_type = 'bookmark'
       `,
     )
-    .bind(title, url, iconUrl, iconColor, widgetId, userId)
+    .bind(title, url, iconUrl, iconColor, compactMode ? 1 : 0, widgetId, userId)
     .run()
   return result.meta.changes > 0
 }

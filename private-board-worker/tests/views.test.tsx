@@ -108,6 +108,7 @@ const dashboardWidgets: DashboardWidgetRow[] = [
     url: null,
     icon_url: null,
     icon_color: 'green',
+    compact_mode: 0,
     sort_order: 1000,
     created_at: 1,
   },
@@ -119,6 +120,7 @@ const dashboardWidgets: DashboardWidgetRow[] = [
     url: 'https://example.com/feed.xml',
     icon_url: null,
     icon_color: 'green',
+    compact_mode: 0,
     sort_order: 3000,
     created_at: 1,
   },
@@ -130,7 +132,20 @@ const dashboardWidgets: DashboardWidgetRow[] = [
     url: 'https://example.com/docs',
     icon_url: 'https://example.com/icon.png',
     icon_color: 'purple',
+    compact_mode: 1,
     sort_order: 2000,
+    created_at: 1,
+  },
+  {
+    id: 4,
+    user_id: user.id,
+    widget_type: 'bookmark',
+    title: 'Standard bookmark',
+    url: 'https://example.com/standard',
+    icon_url: null,
+    icon_color: 'green',
+    compact_mode: 0,
+    sort_order: 4000,
     created_at: 1,
   },
 ]
@@ -376,9 +391,10 @@ describe('핵심 화면', () => {
     expect(html).toContain('rel="noopener noreferrer"')
     expect(html).toContain('data-dialog-open="widget-add-dialog"')
     expect(html).toContain('data-dashboard')
-    expect(html).toContain('data-dashboard-sortable="bookmarks"')
+    expect(html).toContain('data-dashboard-sortable="bookmarks-compact"')
+    expect(html).toContain('data-dashboard-sortable="bookmarks-standard"')
     expect(html).toContain('data-dashboard-sortable="widgets"')
-    expect(html).toContain('class="bookmark-quick-link"')
+    expect(html).toContain('class="bookmark-quick-link is-compact"')
     expect(html).toContain('내 북마크')
     expect(html).toContain('data-dialog-open="bookmark-add-dialog"')
     expect(html).toContain('class="button button-secondary dashboard-bookmark-add-button"')
@@ -397,7 +413,9 @@ describe('핵심 화면', () => {
     expect(html).toContain('data-bookmark-icon-lookup-status')
     expect(html).toContain('name="iconUrl"')
     expect(html).toContain('value="https://example.com/icon.png"')
-    expect(html.match(/name="iconColor"/gu)).toHaveLength(10)
+    expect(html).toContain('name="compactMode"')
+    expect(html).toContain('data-bookmark-compact-mode')
+    expect(html.match(/name="iconColor"/gu)).toHaveLength(15)
     expect(html).toContain('bookmark-icon-color-green')
     expect(html).toContain('bookmark-icon-color-blue')
     expect(html).toContain('bookmark-icon-color-purple')
@@ -406,7 +424,7 @@ describe('핵심 화면', () => {
     expect(html).not.toContain('사이트 아이콘 가져와 추가')
     expect(html).not.toContain('사이트 아이콘 갱신')
     expect(html).not.toContain('name="widgetType" value="bookmark"')
-    const bookmarkCard = html.match(/<article class="bookmark-quick-link"[\s\S]*?<\/article>/u)?.[0]
+    const bookmarkCard = html.match(/<article class="bookmark-quick-link(?: is-compact)?"[\s\S]*?<\/article>/u)?.[0]
     expect(bookmarkCard).not.toContain('<small>')
     expect(html).toContain('data-dashboard-add-slot')
     expect(html).toContain('data-dashboard-edit-toggle')
@@ -420,6 +438,10 @@ describe('핵심 화면', () => {
     expect(html).toContain('data-dashboard-widget-id="1"')
     expect(html).toContain('data-dashboard-widget-id="2"')
     expect(html).toContain('data-dashboard-widget-id="3"')
+    expect(html).toContain('data-dashboard-widget-id="4"')
+    expect(html.indexOf('data-dashboard-widget-id="2"')).toBeLessThan(
+      html.indexOf('data-dashboard-widget-id="4"'),
+    )
     expect(html).toContain('data-dashboard-move="-1"')
     expect(html).toContain('data-dashboard-move="1"')
     expect(html).toContain('class="dashboard-remove-icon"')

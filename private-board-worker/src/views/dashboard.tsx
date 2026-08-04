@@ -135,14 +135,20 @@ function BookmarkQuickLink({
   csrfToken: string
 }) {
   if (!widget.title || !widget.url) return null
+  const compactMode = widget.compact_mode === 1
 
   return (
-    <article class="bookmark-quick-link" data-dashboard-widget-id={widget.id}>
+    <article
+      class={`bookmark-quick-link${compactMode ? ' is-compact' : ''}`}
+      data-dashboard-widget-id={widget.id}
+    >
       <a
         class="bookmark-quick-link-main"
         href={widget.url}
         target="_blank"
         rel="noopener noreferrer"
+        aria-label={compactMode ? widget.title : undefined}
+        title={compactMode ? widget.title : undefined}
       >
         <span class="bookmark-widget-icon" aria-hidden="true">
           <img
@@ -304,6 +310,17 @@ function BookmarkIconFields({ widget }: { widget?: DashboardWidgetRow }) {
         />
         <small class="bookmark-icon-lookup-status" data-bookmark-icon-lookup-status aria-live="polite" />
       </div>
+      <label class="bookmark-compact-mode-field">
+        <input
+          type="checkbox"
+          name="compactMode"
+          value="1"
+          checked={widget?.compact_mode === 1}
+          disabled={!usesIconUrl}
+          data-bookmark-compact-mode
+        />
+        <span>간소모드 사용</span>
+      </label>
       <p class="bookmark-icon-hint">
         아이콘 URL은 공개 HTTPS PNG, JPG, WebP, GIF 또는 ICO 이미지 주소를 입력해 주세요.
       </p>
@@ -470,7 +487,11 @@ export function DashboardPage({
   bookmarkCreationRequestId,
 }: DashboardPageProps) {
   const hasFreeBoard = widgets.some((widget) => widget.widget_type === 'free-board')
-  const bookmarkWidgets = widgets.filter((widget) => widget.widget_type === 'bookmark')
+  const bookmarkWidgets = widgets
+    .filter((widget) => widget.widget_type === 'bookmark')
+    .sort((left, right) => Number(right.compact_mode === 1) - Number(left.compact_mode === 1))
+  const compactBookmarkWidgets = bookmarkWidgets.filter((widget) => widget.compact_mode === 1)
+  const standardBookmarkWidgets = bookmarkWidgets.filter((widget) => widget.compact_mode !== 1)
   const contentWidgets = widgets.filter((widget) => widget.widget_type !== 'bookmark')
 
   return (
@@ -534,11 +555,27 @@ export function DashboardPage({
           <div
             class="dashboard-quick-links"
             aria-label="내 북마크 목록"
-            data-dashboard-sortable="bookmarks"
           >
-            {bookmarkWidgets.map((widget) => (
-              <BookmarkQuickLink key={widget.id} widget={widget} csrfToken={csrfToken} />
-            ))}
+            {compactBookmarkWidgets.length > 0 ? (
+              <div
+                class="dashboard-bookmark-compact-bar"
+                aria-label="간소모드 북마크"
+                data-dashboard-sortable="bookmarks-compact"
+              >
+                {compactBookmarkWidgets.map((widget) => (
+                  <BookmarkQuickLink key={widget.id} widget={widget} csrfToken={csrfToken} />
+                ))}
+              </div>
+            ) : null}
+            <div
+              class="dashboard-bookmark-standard-grid"
+              aria-label="일반 북마크"
+              data-dashboard-sortable="bookmarks-standard"
+            >
+              {standardBookmarkWidgets.map((widget) => (
+                <BookmarkQuickLink key={widget.id} widget={widget} csrfToken={csrfToken} />
+              ))}
+            </div>
           </div>
         </section>
 

@@ -678,6 +678,19 @@ button {
 
 .dashboard-quick-links {
   display: grid;
+  gap: 10px;
+}
+
+.dashboard-bookmark-compact-bar {
+  display: flex;
+  gap: 10px;
+  min-width: 0;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.dashboard-bookmark-standard-grid {
+  display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
 }
@@ -1034,6 +1047,33 @@ button {
   font-size: 0.82rem;
 }
 
+.dashboard-root:not(.is-editing) .bookmark-quick-link.is-compact {
+  width: 52px;
+  flex: 0 0 52px;
+}
+
+.dashboard-root:not(.is-editing) .bookmark-quick-link.is-compact .bookmark-quick-link-main {
+  width: 52px;
+  min-height: 52px;
+  justify-content: center;
+  padding: 8px;
+}
+
+.dashboard-root:not(.is-editing) .bookmark-quick-link.is-compact .bookmark-quick-link-main > span:last-child {
+  display: none;
+}
+
+.dashboard-root.is-editing .dashboard-bookmark-compact-bar {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  overflow: visible;
+}
+
+.dashboard-root.is-editing .dashboard-bookmark-compact-bar .bookmark-quick-link.is-compact {
+  width: auto;
+  flex: initial;
+}
+
 .bookmark-quick-link-actions {
   display: none;
 }
@@ -1245,6 +1285,24 @@ button {
 
 .bookmark-icon-url-field input {
   width: 100%;
+}
+
+.bookmark-compact-mode-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  color: var(--text);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.bookmark-compact-mode-field input {
+  accent-color: var(--primary);
+}
+
+.bookmark-compact-mode-field input:disabled + span {
+  color: var(--text-muted);
 }
 
 .bookmark-icon-url-heading {
@@ -4084,6 +4142,11 @@ button.privacy-toggle.is-on > span {
   }
 
   .dashboard-quick-links {
+    gap: 8px;
+  }
+
+  .dashboard-bookmark-standard-grid,
+  .dashboard-root.is-editing .dashboard-bookmark-compact-bar {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 

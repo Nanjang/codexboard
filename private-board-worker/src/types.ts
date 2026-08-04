@@ -228,6 +228,7 @@ export interface DashboardWidgetRow {
   url: string | null
   icon_url: string | null
   icon_color: BookmarkIconColor
+  compact_mode: number
   sort_order: number
   created_at: number
 }

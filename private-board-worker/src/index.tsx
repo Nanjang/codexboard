@@ -1099,6 +1099,10 @@ async function bookmarkIconSelection(form: FormData): Promise<{
   return { iconUrl, iconColor, icon }
 }
 
+function bookmarkCompactMode(form: FormData, iconUrl: string | null): boolean {
+  return iconUrl !== null && form.get('compactMode') === '1'
+}
+
 app.post('/dashboard/bookmarks', async (c) => {
   const auth = requireActiveAuth(c)
   await enforceWriteRateLimit(c, 'dashboard-bookmark')
@@ -1107,6 +1111,7 @@ app.post('/dashboard/bookmarks', async (c) => {
   const url = bookmarkUrl(form.get('url'))
   const requestId = creationRequestId(form.get('creation_request_id'))
   const { iconUrl, iconColor, icon } = await bookmarkIconSelection(form)
+  const compactMode = bookmarkCompactMode(form, iconUrl)
   const widgetId = await addBookmarkDashboardWidget(
     c.env.DB,
     auth.user.id,
@@ -1114,6 +1119,7 @@ app.post('/dashboard/bookmarks', async (c) => {
     url,
     iconUrl,
     iconColor,
+    compactMode,
     requestId,
   )
   if (icon) {
@@ -1137,6 +1143,7 @@ app.post('/dashboard/bookmarks/:id/update', async (c) => {
   const title = singleLine(form.get('title'), '표시 이름', 60)
   const url = bookmarkUrl(form.get('url'))
   const { iconUrl, iconColor, icon } = await bookmarkIconSelection(form)
+  const compactMode = bookmarkCompactMode(form, iconUrl)
   const updated = await updateBookmarkDashboardWidget(
     c.env.DB,
     auth.user.id,
@@ -1145,6 +1152,7 @@ app.post('/dashboard/bookmarks/:id/update', async (c) => {
     url,
     iconUrl,
     iconColor,
+    compactMode,
   )
   if (!updated) throw new HTTPException(404, { message: '북마크를 찾을 수 없습니다.' })
   if (icon) {
