@@ -210,9 +210,7 @@ function setupWeatherChart(): void {
     svg.addEventListener('pointermove', (event) => show(event.target, event))
     svg.addEventListener('pointerup', (event) => show(event.target, event))
     svg.addEventListener('focusin', (event) => show(event.target))
-    svg.addEventListener('pointerleave', (event) => {
-      if (event.pointerType === 'mouse') resetWeatherTooltip(tooltip)
-    })
+    svg.addEventListener('pointerleave', () => resetWeatherTooltip(tooltip))
   }
 
   setupWeatherZoom(svg)
