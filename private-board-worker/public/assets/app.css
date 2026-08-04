@@ -117,15 +117,39 @@
   padding: 18px 20px 14px;
 }
 
-.weather-chart-layout {
-  align-items: start;
+.weather-comparison-controls {
+  align-items: end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 12px;
+  margin: 0 4px 16px;
+}
+
+.weather-comparison-controls label {
   display: grid;
-  gap: 18px;
-  grid-template-columns: minmax(0, 1fr) 190px;
+  gap: 5px;
+  min-width: 132px;
+}
+
+.weather-comparison-controls label > span {
+  color: var(--muted-text, #667466);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.weather-comparison-controls select {
+  min-height: 38px;
+  padding: 7px 10px;
+}
+
+.weather-chart-layout {
+  display: block;
+  position: relative;
 }
 
 .weather-chart-plot {
   min-width: 0;
+  position: relative;
 }
 
 .weather-hover-zone {
@@ -140,8 +164,11 @@
   color: var(--text, #1d2a1d);
   min-height: 132px;
   padding: 14px;
-  position: sticky;
-  top: 16px;
+  position: absolute;
+  right: 14px;
+  top: 14px;
+  width: 190px;
+  z-index: 2;
 }
 
 .weather-tooltip.is-active {
@@ -241,6 +268,10 @@
   height: auto;
   overflow: visible;
   width: 100%;
+}
+
+.weather-chart[data-weather-chart] {
+  overscroll-behavior: contain;
 }
 
 .weather-grid-line {
@@ -346,16 +377,23 @@
   .weather-chart-legend {
     gap: 10px 14px;
   }
+
+  .weather-comparison-controls {
+    align-items: stretch;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .weather-comparison-controls .button {
+    grid-column: 1 / -1;
+  }
 }
 
 @media (max-width: 760px) {
-  .weather-chart-layout {
-    grid-template-columns: 1fr;
-  }
-
   .weather-tooltip {
     min-height: 0;
-    position: static;
+    right: 10px;
+    top: 10px;
   }
 }
 

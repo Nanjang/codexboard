@@ -232,7 +232,7 @@ import { PrivateImagesPage } from './views/images'
 import { MemoBoardPage, MemoSettingsPage, type MemoPatternDraft } from './views/memos'
 import { PersonalBookmarksPage } from './views/personal-bookmarks'
 import { TicketFormPage, TicketTagsPage, TicketsPage, TicketTrashPage } from './views/tickets'
-import { WeatherPage, weatherJsonUrl } from './views/weather'
+import { WeatherPage, weatherComparisonChoice, weatherJsonUrl } from './views/weather'
 import {
   DEVLOG_IMAGE_FILENAME_PATTERN,
   MAX_IMAGE_BYTES,
@@ -803,11 +803,18 @@ app.get('/weather.json', async (c) => {
 app.get('/weather', async (c) => {
   const location = weatherLocationId(c.req.query('location'))
   const payload = await loadWeatherPayload(c.env.DB, c.env, location)
+  const leftComparison = c.req.query('left')
+  const rightComparison = c.req.query('right')
+  const comparison = {
+    left: leftComparison === undefined ? 'previous' as const : weatherComparisonChoice(leftComparison),
+    right: rightComparison === undefined ? 'current' as const : weatherComparisonChoice(rightComparison),
+  }
   return c.html(
     <WeatherPage
       {...viewMeta(c)}
       data={payload}
       jsonUrl={weatherJsonUrl(location)}
+      comparison={comparison}
     />,
   )
 })

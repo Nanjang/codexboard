@@ -6,6 +6,7 @@ import {
   parseKmaDailyText,
   weatherLocationId,
 } from '../src/lib/weather'
+import { weatherComparisonChoice } from '../src/views/weather'
 
 describe('weather helpers', () => {
   it('parses KMA daily value rows with a header', () => {
@@ -42,5 +43,11 @@ describe('weather helpers', () => {
     expect(kstDateString(new Date('2026-08-03T15:30:00.000Z'))).toBe('2026-08-04')
     expect(offsetDate('2026-01-01', -1)).toBe('2025-12-31')
     expect(kmaDateParameter('2026-08-04')).toBe('20260804')
+  })
+
+  it('normalizes comparison choices to the supported two years', () => {
+    expect(weatherComparisonChoice('current')).toBe('current')
+    expect(weatherComparisonChoice('previous')).toBe('previous')
+    expect(weatherComparisonChoice('future')).toBe('previous')
   })
 })

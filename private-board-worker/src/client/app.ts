@@ -151,8 +151,8 @@ function updateWeatherTooltip(tooltip: HTMLElement, zone: SVGRectElement): void 
   tooltip.appendChild(title)
 
   for (const item of [
-    { year: data.weatherCurrentYear, label: '올해', max: data.weatherCurrentMax, min: data.weatherCurrentMin },
-    { year: data.weatherPreviousYear, label: '작년', max: data.weatherPreviousMax, min: data.weatherPreviousMin },
+    { year: data.weatherLeftYear, label: data.weatherLeftLabel ?? '좌측', max: data.weatherLeftMax, min: data.weatherLeftMin },
+    { year: data.weatherRightYear, label: data.weatherRightLabel ?? '우측', max: data.weatherRightMax, min: data.weatherRightMin },
   ]) {
     const section = document.createElement('div')
     section.className = 'weather-tooltip-year'
@@ -165,7 +165,7 @@ function updateWeatherTooltip(tooltip: HTMLElement, zone: SVGRectElement): void 
     tooltip.appendChild(section)
   }
 
-  if (data.weatherCurrentStatus === 'provisional') {
+  if (data.weatherLeftStatus === 'provisional' || data.weatherRightStatus === 'provisional') {
     const status = document.createElement('small')
     status.textContent = '오늘 값은 잠정값입니다.'
     tooltip.appendChild(status)
@@ -176,21 +176,145 @@ function updateWeatherTooltip(tooltip: HTMLElement, zone: SVGRectElement): void 
 function setupWeatherChart(): void {
   const svg = document.querySelector<SVGSVGElement>('[data-weather-chart]')
   const tooltip = document.querySelector<HTMLElement>('[data-weather-tooltip]')
-  if (!svg || !tooltip) return
+  if (!svg) return
 
-  const show = (target: EventTarget | null): void => {
-    if (!(target instanceof Element)) return
-    const zone = target.closest<SVGRectElement>('[data-weather-zone]')
-    if (zone) updateWeatherTooltip(tooltip, zone)
+  if (tooltip) {
+    const show = (target: EventTarget | null): void => {
+      if (!(target instanceof Element)) return
+      const zone = target.closest<SVGRectElement>('[data-weather-zone]')
+      if (zone) updateWeatherTooltip(tooltip, zone)
+    }
+
+    svg.addEventListener('pointerover', (event) => show(event.target))
+    svg.addEventListener('pointermove', (event) => show(event.target))
+    svg.addEventListener('pointerup', (event) => show(event.target))
+    svg.addEventListener('focusin', (event) => show(event.target))
+    svg.addEventListener('pointerleave', (event) => {
+      if (event.pointerType === 'mouse') resetWeatherTooltip(tooltip)
+    })
   }
 
-  svg.addEventListener('pointerover', (event) => show(event.target))
-  svg.addEventListener('pointermove', (event) => show(event.target))
-  svg.addEventListener('pointerup', (event) => show(event.target))
-  svg.addEventListener('focusin', (event) => show(event.target))
-  svg.addEventListener('pointerleave', (event) => {
-    if (event.pointerType === 'mouse') resetWeatherTooltip(tooltip)
+  setupWeatherZoom(svg)
+}
+
+function setupWeatherComparison(): void {
+  const controls = document.querySelector<HTMLElement>('[data-weather-comparison-controls]')
+  const leftCandidate = controls?.querySelector('[data-weather-comparison-left]')
+  const rightCandidate = controls?.querySelector('[data-weather-comparison-right]')
+  const applyCandidate = controls?.querySelector('[data-weather-comparison-apply]')
+  if (!controls || !(leftCandidate instanceof HTMLSelectElement) || !(rightCandidate instanceof HTMLSelectElement) || !(applyCandidate instanceof HTMLButtonElement)) return
+  const left = leftCandidate
+  const right = rightCandidate
+  const apply = applyCandidate
+
+  const updateDisabledState = (): void => {
+    apply.disabled = left.value === right.value
+  }
+
+  left.addEventListener('change', updateDisabledState)
+  right.addEventListener('change', updateDisabledState)
+  apply.addEventListener('click', () => {
+    if (apply.disabled) return
+    const url = new URL(window.location.href)
+    url.searchParams.set('left', left.value)
+    url.searchParams.set('right', right.value)
+    window.location.assign(url.toString())
   })
+  updateDisabledState()
+}
+
+interface WeatherZoomPoint {
+  index: number
+  value: number
+}
+
+function setupWeatherZoom(svg: SVGSVGElement): void {
+  const xLayer = svg.querySelector<SVGGElement>('[data-weather-x-layer]')
+  const yLayer = svg.querySelector<SVGGElement>('[data-weather-y-layer]')
+  const yTicks = Array.from(svg.querySelectorAll<SVGGElement>('[data-weather-y-tick]'))
+  if (!xLayer || !yLayer || yTicks.length === 0) return
+
+  const data = svg.dataset
+  const globalYMin = Number(data.weatherChartYMin)
+  const globalYMax = Number(data.weatherChartYMax)
+  const days = Number(data.weatherChartDays)
+  const chartLeft = Number(data.weatherChartLeft)
+  const chartRight = Number(data.weatherChartRight)
+  const chartTop = Number(data.weatherChartTop)
+  const chartBottom = Number(data.weatherChartBottom)
+  const points = JSON.parse(data.weatherChartPoints ?? '[]') as WeatherZoomPoint[]
+  if (![globalYMin, globalYMax, days, chartLeft, chartRight, chartTop, chartBottom].every(Number.isFinite)) return
+
+  const plotWidth = chartRight - chartLeft
+  const plotHeight = chartBottom - chartTop
+  let scale = 1
+  let translate = 0
+
+  const yForValue = (value: number, min: number, max: number): number => (
+    chartTop + ((max - value) / Math.max(max - min, 1)) * plotHeight
+  )
+
+  const update = (): void => {
+    xLayer.setAttribute('transform', `translate(${translate.toFixed(2)} 0) scale(${scale.toFixed(4)} 1)`)
+
+    const visibleStart = Math.max(0, (chartLeft - translate) / scale)
+    const visibleEnd = Math.min(chartRight, (chartRight - translate) / scale)
+    const startIndex = Math.floor(((visibleStart - chartLeft) / plotWidth) * Math.max(days - 1, 1))
+    const endIndex = Math.ceil(((visibleEnd - chartLeft) / plotWidth) * Math.max(days - 1, 1))
+    const visibleValues = points
+      .filter((point) => point.index >= startIndex && point.index <= endIndex)
+      .map((point) => point.value)
+    if (visibleValues.length === 0) return
+
+    const dataMin = Math.min(...visibleValues)
+    const dataMax = Math.max(...visibleValues)
+    let visibleMin = Math.floor((dataMin - 5) / 5) * 5
+    let visibleMax = Math.ceil((dataMax + 5) / 5) * 5
+    if (visibleMax - visibleMin < 20) {
+      const center = (visibleMax + visibleMin) / 2
+      visibleMin = Math.floor((center - 10) / 5) * 5
+      visibleMax = visibleMin + 20
+    }
+
+    const yScale = (globalYMax - globalYMin) / Math.max(visibleMax - visibleMin, 1)
+    const yTranslate = chartTop + ((visibleMax - globalYMax) / Math.max(visibleMax - visibleMin, 1)) * plotHeight - yScale * chartTop
+    yLayer.setAttribute('transform', `translate(0 ${yTranslate.toFixed(2)}) scale(1 ${yScale.toFixed(4)})`)
+
+    yTicks.forEach((tick) => {
+      const value = Number(tick.dataset.weatherYValue)
+      const visible = Number.isFinite(value) && value >= visibleMin && value <= visibleMax
+      tick.style.display = visible ? '' : 'none'
+      if (!visible) return
+      const y = yForValue(value, visibleMin, visibleMax)
+      tick.querySelectorAll<SVGLineElement>('line').forEach((line) => {
+        line.setAttribute('y1', y.toFixed(2))
+        line.setAttribute('y2', y.toFixed(2))
+      })
+      tick.querySelectorAll<SVGTextElement>('text').forEach((text) => {
+        text.setAttribute('y', (y + 4).toFixed(2))
+      })
+    })
+  }
+
+  svg.addEventListener('wheel', (event) => {
+    event.preventDefault()
+    const rect = svg.getBoundingClientRect()
+    const viewBox = svg.viewBox.baseVal
+    const pointerX = Math.min(
+      chartRight,
+      Math.max(chartLeft, viewBox.x + ((event.clientX - rect.left) / Math.max(rect.width, 1)) * viewBox.width),
+    )
+    const dataX = (pointerX - translate) / scale
+    const nextScale = Math.min(12, Math.max(1, scale * (event.deltaY < 0 ? 1.25 : 0.8)))
+    const minTranslate = chartRight - nextScale * chartRight
+    const maxTranslate = chartLeft - nextScale * chartLeft
+    scale = nextScale
+    translate = pointerX - scale * dataX
+    translate = Math.min(maxTranslate, Math.max(minTranslate, translate))
+    update()
+  }, { passive: false })
+
+  update()
 }
 
 function setupTicketEditing(): void {
@@ -1431,6 +1555,7 @@ function initialize(): void {
   setupImageUpload()
   setupImageCopies()
   setupValueCopies()
+  setupWeatherComparison()
   setupWeatherChart()
 }
 
