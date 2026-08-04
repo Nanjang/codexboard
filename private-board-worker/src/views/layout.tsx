@@ -225,6 +225,7 @@ export function PublicLayout({ appName, deployInfo, documentTitle, children, inc
         <link rel="icon" type="image/png" href="/favicon.png" sizes="64x64" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
         <link rel="stylesheet" href="/assets/app.css" />
+        <script src="/assets/app.js" defer></script>
         {includeTurnstile ? (
           <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
         ) : null}

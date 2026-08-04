@@ -2985,7 +2985,7 @@ button.privacy-toggle.is-on > span {
 
 .public-body {
   display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-rows: minmax(min-content, 1fr) auto;
   min-height: 100vh;
   padding: 24px;
   background: linear-gradient(145deg, #f3f6ff 0%, #f7f7f8 50%, #eef2f7 100%);
