@@ -39,6 +39,7 @@ export interface Bindings {
   SESSION_DAYS?: string
   TURNSTILE_SITE_KEY?: string
   TURNSTILE_SECRET_KEY?: string
+  KMA_AUTH_KEY?: string
   CONTACT_EMAIL?: string
   CLOUDFLARE_ACCOUNT_ID?: string
   CLOUDFLARE_API_TOKEN?: string
