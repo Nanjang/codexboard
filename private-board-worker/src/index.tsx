@@ -64,7 +64,10 @@ import {
   listTickets,
   listTicketTags,
   listAllTicketsForExport,
+  listAllTicketLogsForExport,
+  listTicketLogs,
   listTrashedTickets,
+  DEFAULT_TICKET_LOG_PAGE_SIZE,
   MAX_MEMO_PATTERNS_PER_USER,
   MAX_RSS_WIDGETS_PER_USER,
   moveTicket,
@@ -88,6 +91,7 @@ import {
   upsertMemoUrlSettings,
   updatePost,
   updateTicket,
+  TICKET_LOG_PAGE_SIZES,
 } from './lib/db'
 import { safeEqual } from './lib/crypto'
 import { getAccountD1Storage, getDatabaseUsageStats } from './lib/database-usage'
@@ -231,7 +235,7 @@ import { LoginPage } from './views/login'
 import { PrivateImagesPage } from './views/images'
 import { MemoBoardPage, MemoSettingsPage, type MemoPatternDraft } from './views/memos'
 import { PersonalBookmarksPage } from './views/personal-bookmarks'
-import { TicketFormPage, TicketTagsPage, TicketsPage, TicketTrashPage } from './views/tickets'
+import { TicketFormPage, TicketLogsPage, TicketTagsPage, TicketsPage, TicketTrashPage } from './views/tickets'
 import { WeatherPage, weatherComparisonChoice, weatherJsonUrl } from './views/weather'
 import {
   DEVLOG_IMAGE_FILENAME_PATTERN,
@@ -244,6 +248,20 @@ export { DevlogImageCache } from './devlog-image-cache-entrypoint'
 
 const app = new Hono<AppEnv>()
 const MAX_REQUEST_BYTES = 64 * 1024
+
+function ticketLogPage(value: string | undefined): number {
+  if (!value || !/^[1-9][0-9]*$/u.test(value)) return 1
+  const parsed = Number(value)
+  return Number.isSafeInteger(parsed) ? parsed : 1
+}
+
+function ticketLogPageSize(value: string | undefined): number {
+  if (!value || !/^[1-9][0-9]*$/u.test(value)) return DEFAULT_TICKET_LOG_PAGE_SIZE
+  const parsed = Number(value)
+  return TICKET_LOG_PAGE_SIZES.includes(parsed as (typeof TICKET_LOG_PAGE_SIZES)[number])
+    ? parsed
+    : DEFAULT_TICKET_LOG_PAGE_SIZE
+}
 
 type ErrorStatus = 400 | 401 | 403 | 404 | 409 | 413 | 429 | 500 | 503
 
@@ -2497,6 +2515,7 @@ app.post('/tickets/tags/:id/delete', async (c) => {
 app.get('/tickets/export', async (c) => {
   const auth = requireActiveAuth(c)
   const tickets = await listAllTicketsForExport(c.env.DB, auth.user.id)
+  const logs = await listAllTicketLogsForExport(c.env.DB, auth.user.id)
   const payload = {
     version: 1,
     exportedAt: new Date().toISOString(),
@@ -2512,11 +2531,40 @@ app.get('/tickets/export', async (c) => {
       deletedAt: ticket.deleted_at === null ? null : new Date(ticket.deleted_at).toISOString(),
       purgeAfter: ticket.purge_after === null ? null : new Date(ticket.purge_after).toISOString(),
     })),
+    logs: logs.map((log) => ({
+      id: log.id,
+      ticketId: log.ticket_id,
+      title: log.ticket_title,
+      action: log.action,
+      createdAt: new Date(log.created_at).toISOString(),
+    })),
   }
   c.header('Cache-Control', 'private, no-store')
   c.header('Content-Type', 'application/json; charset=utf-8')
   c.header('Content-Disposition', `attachment; filename="tickets-${new Date().toISOString().slice(0, 10)}.json"`)
   return c.body(JSON.stringify(payload, null, 2))
+})
+
+app.get('/tickets/logs', async (c) => {
+  const auth = requireActiveAuth(c)
+  const logs = await listTicketLogs(
+    c.env.DB,
+    auth.user.id,
+    ticketLogPage(c.req.query('page')),
+    ticketLogPageSize(c.req.query('pageSize')),
+  )
+  return c.html(
+    <TicketLogsPage
+      {...viewMeta(c)}
+      user={auth.user}
+      csrfToken={auth.csrfToken}
+      logs={logs.items}
+      page={logs.page}
+      pageSize={logs.pageSize}
+      totalItems={logs.totalItems}
+      totalPages={logs.totalPages}
+    />,
+  )
 })
 
 app.get('/tickets/trash', async (c) => {

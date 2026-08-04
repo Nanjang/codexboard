@@ -15,6 +15,7 @@ import type {
   PostListRow,
   PostDetailRow,
   PrivateImageRow,
+  TicketLogRow,
   TicketRow,
   TrashedTicketRow,
   VisitorPageViewRow,
@@ -37,7 +38,7 @@ import { LoginPage } from '../src/views/login'
 import { PrivateImagesPage } from '../src/views/images'
 import { PersonalBookmarksPage } from '../src/views/personal-bookmarks'
 import { composeMemoUrl, MemoBoardPage, MemoSettingsPage } from '../src/views/memos'
-import { TicketTagsPage, TicketsPage, TicketTrashPage } from '../src/views/tickets'
+import { TicketLogsPage, TicketTagsPage, TicketsPage, TicketTrashPage } from '../src/views/tickets'
 
 const ticketCreationRequestId = 'f47ac10b-58cc-4372-a567-0e02b2c3d479'
 
@@ -1022,6 +1023,7 @@ describe('핵심 화면', () => {
     expect(html).toContain('data-prevent-double-submit')
     expect(html).toContain('href="/tickets/trash"')
     expect(html).toContain('href="/tickets/export"')
+    expect(html).toContain('href="/tickets/logs"')
     expect(html).toContain('href="/tickets/tags"')
     expect(html).toContain('class="ticket-tag ticket-tag-color-coral"')
     expect(html).toContain('data-ticket-tag-ids="7"')
@@ -1034,6 +1036,49 @@ describe('핵심 화면', () => {
     expect(html).not.toContain('>열기</a>')
     expect(html).not.toContain('ticket-card-footer')
     expect(html).not.toContain('ticket-move-actions')
+  })
+
+  it('티켓 변경 로그는 최신순과 페이지당 개수 선택을 표시한다', async () => {
+    const logs: TicketLogRow[] = [
+      {
+        id: 2,
+        owner_id: user.id,
+        ticket_id: 1,
+        ticket_title: '문서 검토 수정본',
+        action: 'updated',
+        created_at: Date.UTC(2026, 6, 25, 2, 0),
+      },
+      {
+        id: 1,
+        owner_id: user.id,
+        ticket_id: 1,
+        ticket_title: '문서 검토',
+        action: 'created',
+        created_at: Date.UTC(2026, 6, 24, 2, 0),
+      },
+    ]
+    const html = String(
+      await TicketLogsPage({
+        appName: 'Private Board',
+        deployInfo,
+        user,
+        csrfToken: 'csrf-test',
+        logs,
+        page: 1,
+        pageSize: 50,
+        totalItems: 51,
+        totalPages: 2,
+      }),
+    )
+
+    expect(html).toContain('티켓 변경 로그')
+    expect(html).toContain('페이지당 로그 수')
+    expect(html).toContain('value="100"')
+    expect(html).toContain('value="200"')
+    expect(html).toContain('value="500"')
+    expect(html).toContain('href="/tickets/logs?page=2&amp;pageSize=50"')
+    expect(html.indexOf('문서 검토 수정본')).toBeLessThan(html.indexOf('문서 검토</span>'))
+    expect(html).not.toContain('간단한 메모')
   })
 
   it('티켓 휴지통은 복원 기한과 영구 삭제 동작을 표시한다', async () => {

@@ -1,4 +1,14 @@
-import type { CurrentUser, DeployInfo, TicketLane, TicketRow, TicketTagColor, TicketTagRow, TrashedTicketRow } from '../types'
+import type {
+  CurrentUser,
+  DeployInfo,
+  TicketLane,
+  TicketLogAction,
+  TicketLogRow,
+  TicketRow,
+  TicketTagColor,
+  TicketTagRow,
+  TrashedTicketRow,
+} from '../types'
 import { CsrfInput, EmptyState } from './components'
 import { formatDateTime, laneLabel } from './format'
 import { AppLayout } from './layout'
@@ -134,6 +144,15 @@ const ticketTagColors: Array<{ value: TicketTagColor; label: string }> = [
   { value: 'purple', label: '보라' },
 ]
 
+const ticketLogActionLabels: Record<TicketLogAction, string> = {
+  created: '추가',
+  moved: '이동',
+  updated: '수정',
+  deleted: '삭제',
+  restored: '복원',
+  purged: '영구 삭제',
+}
+
 function TicketTags({ tags }: { tags: TicketTagRow[] | undefined }) {
   if (!tags?.length) return null
 
@@ -251,6 +270,9 @@ export function TicketsPage({
           </a>
           <a class="button button-secondary button-compact" href="/tickets/export">
             전체 내보내기
+          </a>
+          <a class="button button-secondary button-compact" href="/tickets/logs">
+            변경 로그
           </a>
           <a class="button button-secondary button-compact" href="/tickets/trash">
             휴지통
@@ -392,6 +414,110 @@ export function TicketsPage({
           </div>
         </form>
       </dialog>
+    </AppLayout>
+  )
+}
+
+export function TicketLogsPage({
+  appName,
+  deployInfo,
+  user,
+  csrfToken,
+  logs,
+  page,
+  pageSize,
+  totalItems,
+  totalPages,
+}: TicketPageProps & {
+  logs: TicketLogRow[]
+  page: number
+  pageSize: number
+  totalItems: number
+  totalPages: number
+}) {
+  const pageLink = (nextPage: number) => `/tickets/logs?page=${nextPage}&pageSize=${pageSize}`
+  const firstItem = totalItems === 0 ? 0 : (page - 1) * pageSize + 1
+  const lastItem = Math.min(page * pageSize, totalItems)
+
+  return (
+    <AppLayout
+      appName={appName}
+      deployInfo={deployInfo}
+      documentTitle="티켓 변경 로그"
+      topbarTitle="티켓 변경 로그"
+      user={user}
+      csrfToken={csrfToken}
+      activeNav="tickets"
+      backHref="/tickets"
+      wide
+    >
+      <section class="page-heading ticket-log-page-heading">
+        <div>
+          <p class="eyebrow">개인 작업 보드</p>
+          <h2>티켓 변경 로그</h2>
+          <p>티켓의 추가, 이동, 수정, 삭제 이력을 최신순으로 확인합니다.</p>
+        </div>
+        <div class="ticket-page-heading-actions">
+          <a class="button button-secondary button-compact" href="/tickets/export">
+            전체 내보내기
+          </a>
+          <a class="button button-secondary button-compact" href="/tickets">
+            작업 보드
+          </a>
+        </div>
+      </section>
+
+      <section class="ticket-log-card" aria-labelledby="ticket-log-list-title">
+        <div class="ticket-log-toolbar">
+          <div>
+            <h3 id="ticket-log-list-title">변경 이력</h3>
+            <p>{totalItems.toLocaleString('ko-KR')}개 중 {firstItem.toLocaleString('ko-KR')}–{lastItem.toLocaleString('ko-KR')}</p>
+          </div>
+          <form method="get" class="ticket-log-page-size-form">
+            <input type="hidden" name="page" value="1" />
+            <label>
+              <span>페이지당</span>
+              <select name="pageSize" aria-label="페이지당 로그 수">
+                {[50, 100, 200, 500].map((size) => (
+                  <option value={size} selected={size === pageSize}>
+                    {size}개
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button class="button button-secondary button-small" type="submit">
+              적용
+            </button>
+          </form>
+        </div>
+
+        {logs.length ? (
+          <div class="ticket-log-list">
+            {logs.map((log) => (
+              <article class="ticket-log-row" key={log.id}>
+                <span class={`ticket-log-action ticket-log-action-${log.action}`}>
+                  {ticketLogActionLabels[log.action]}
+                </span>
+                <div class="ticket-log-content">
+                  <strong>티켓 #{log.ticket_id}</strong>
+                  <span>{log.ticket_title}</span>
+                </div>
+                <time datetime={new Date(log.created_at).toISOString()}>{formatDateTime(log.created_at)}</time>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <EmptyState title="아직 변경 로그가 없습니다" description="티켓을 추가하거나 변경하면 이곳에 기록됩니다." />
+        )}
+
+        {totalPages > 1 ? (
+          <nav class="ticket-log-pagination" aria-label="티켓 변경 로그 페이지">
+            {page > 1 ? <a class="button button-secondary button-small" href={pageLink(page - 1)}>이전</a> : <span />}
+            <span>{page} / {totalPages}</span>
+            {page < totalPages ? <a class="button button-secondary button-small" href={pageLink(page + 1)}>다음</a> : <span />}
+          </nav>
+        ) : null}
+      </section>
     </AppLayout>
   )
 }
