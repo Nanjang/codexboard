@@ -4,6 +4,7 @@ const KMA_DAILY_URL = 'https://apihub.kma.go.kr/api/typ01/url/sfc_aws_day.php'
 const KMA_REQUEST_TIMEOUT_MS = 15_000
 const KMA_MAX_RESPONSE_BYTES = 4 * 1024 * 1024
 const WEATHER_TODAY_REFRESH_MS = 10 * 60 * 1000
+export const WEATHER_HISTORY_YEARS = 5
 
 export const WEATHER_LOCATIONS = [
   { id: 'seoul', name: '서울', stationId: 108, stationType: 'ASOS' },
@@ -299,20 +300,30 @@ async function getWeatherSyncState(
   db: D1Database,
   locationId: WeatherLocationId,
   today: string,
-): Promise<{ latestConfirmed: string | null; todayFetchedAt: number | null }> {
+): Promise<{ earliestConfirmed: string | null; latestConfirmed: string | null; todayFetchedAt: number | null }> {
   const row = await db.prepare(
     `
     SELECT
+      MIN(CASE WHEN status = 'confirmed' THEN date_kst END) AS earliest_confirmed,
       MAX(CASE WHEN status = 'confirmed' THEN date_kst END) AS latest_confirmed,
       MAX(CASE WHEN date_kst = ?2 THEN fetched_at END) AS today_fetched_at
     FROM weather_daily
     WHERE location_id = ?1
     `,
-  ).bind(locationId, today).first<{ latest_confirmed: string | null; today_fetched_at: number | null }>()
+  ).bind(locationId, today).first<{
+    earliest_confirmed: string | null
+    latest_confirmed: string | null
+    today_fetched_at: number | null
+  }>()
   return {
+    earliestConfirmed: row?.earliest_confirmed ?? null,
     latestConfirmed: row?.latest_confirmed ?? null,
     todayFetchedAt: row?.today_fetched_at ?? null,
   }
+}
+
+export function weatherHistoryStart(today: string): string {
+  return `${Number(today.slice(0, 4)) - WEATHER_HISTORY_YEARS}-01-01`
 }
 
 async function refreshWeatherLocation(
@@ -321,16 +332,15 @@ async function refreshWeatherLocation(
   authKey: string,
   today: string,
   yesterday: string,
+  historyStart: string,
   historicalNeeded: boolean,
   todayNeeded: boolean,
 ): Promise<WeatherRefreshResult> {
   let historicalError: string | null = null
   let todayError: string | null = null
-  const previousYearStart = `${Number(today.slice(0, 4)) - 1}-01-01`
-
   if (historicalNeeded) {
     try {
-      await refreshWeatherRange(db, location, authKey, previousYearStart, yesterday, () => 'confirmed')
+      await refreshWeatherRange(db, location, authKey, historyStart, yesterday, () => 'confirmed')
     } catch (error) {
       historicalError = error instanceof Error ? error.message : 'historical refresh failed'
     }
@@ -374,9 +384,13 @@ export async function loadWeatherPayload(
   const location = weatherLocation(locationId)
   const today = kstDateString(now)
   const yesterday = offsetDate(today, -1)
-  const from = `${Number(today.slice(0, 4)) - 1}-01-01`
+  const from = weatherHistoryStart(today)
   const state = await getWeatherSyncState(db, location.id, today)
-  const historicalNeeded = state.latestConfirmed === null || state.latestConfirmed < yesterday
+  const historicalNeeded =
+    state.earliestConfirmed === null ||
+    state.earliestConfirmed > from ||
+    state.latestConfirmed === null ||
+    state.latestConfirmed < yesterday
   const todayNeeded = state.todayFetchedAt === null || Date.now() - state.todayFetchedAt >= WEATHER_TODAY_REFRESH_MS
   let warning: string | null = null
 
@@ -390,6 +404,7 @@ export async function loadWeatherPayload(
         bindings.KMA_AUTH_KEY.trim(),
         today,
         yesterday,
+        from,
         historicalNeeded,
         todayNeeded,
       )

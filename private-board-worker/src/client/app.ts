@@ -134,6 +134,9 @@ function weatherDateLabel(date: string): string {
 
 function resetWeatherTooltip(tooltip: HTMLElement): void {
   tooltip.classList.remove('is-active')
+  tooltip.style.removeProperty('left')
+  tooltip.style.removeProperty('top')
+  tooltip.style.removeProperty('right')
   tooltip.replaceChildren()
   const empty = document.createElement('p')
   empty.className = 'weather-tooltip-empty'
@@ -141,7 +144,22 @@ function resetWeatherTooltip(tooltip: HTMLElement): void {
   tooltip.appendChild(empty)
 }
 
-function updateWeatherTooltip(tooltip: HTMLElement, zone: SVGRectElement): void {
+function positionWeatherTooltip(tooltip: HTMLElement, event: PointerEvent): void {
+  const host = tooltip.parentElement
+  if (!host) return
+  const hostRect = host.getBoundingClientRect()
+  const offset = 30
+  const padding = 8
+  const desiredLeft = event.clientX - hostRect.left + offset
+  const desiredTop = event.clientY - hostRect.top - tooltip.offsetHeight / 2
+  const maxLeft = Math.max(padding, hostRect.width - tooltip.offsetWidth - padding)
+  const maxTop = Math.max(padding, hostRect.height - tooltip.offsetHeight - padding)
+  tooltip.style.left = `${Math.min(maxLeft, Math.max(padding, desiredLeft))}px`
+  tooltip.style.top = `${Math.min(maxTop, Math.max(padding, desiredTop))}px`
+  tooltip.style.right = 'auto'
+}
+
+function updateWeatherTooltip(tooltip: HTMLElement, zone: SVGRectElement, event?: PointerEvent): void {
   const data = zone.dataset
   tooltip.replaceChildren()
 
@@ -171,6 +189,7 @@ function updateWeatherTooltip(tooltip: HTMLElement, zone: SVGRectElement): void 
     tooltip.appendChild(status)
   }
   tooltip.classList.add('is-active')
+  if (event) positionWeatherTooltip(tooltip, event)
 }
 
 function setupWeatherChart(): void {
@@ -179,15 +198,15 @@ function setupWeatherChart(): void {
   if (!svg) return
 
   if (tooltip) {
-    const show = (target: EventTarget | null): void => {
+    const show = (target: EventTarget | null, event?: PointerEvent): void => {
       if (!(target instanceof Element)) return
       const zone = target.closest<SVGRectElement>('[data-weather-zone]')
-      if (zone) updateWeatherTooltip(tooltip, zone)
+      if (zone) updateWeatherTooltip(tooltip, zone, event)
     }
 
-    svg.addEventListener('pointerover', (event) => show(event.target))
-    svg.addEventListener('pointermove', (event) => show(event.target))
-    svg.addEventListener('pointerup', (event) => show(event.target))
+    svg.addEventListener('pointerover', (event) => show(event.target, event))
+    svg.addEventListener('pointermove', (event) => show(event.target, event))
+    svg.addEventListener('pointerup', (event) => show(event.target, event))
     svg.addEventListener('focusin', (event) => show(event.target))
     svg.addEventListener('pointerleave', (event) => {
       if (event.pointerType === 'mouse') resetWeatherTooltip(tooltip)

@@ -4,6 +4,7 @@ import {
   kstDateString,
   offsetDate,
   parseKmaDailyText,
+  weatherHistoryStart,
   weatherLocationId,
 } from '../src/lib/weather'
 import { weatherComparisonChoice } from '../src/views/weather'
@@ -48,6 +49,11 @@ describe('weather helpers', () => {
   it('normalizes comparison choices to the supported two years', () => {
     expect(weatherComparisonChoice('current')).toBe('current')
     expect(weatherComparisonChoice('previous')).toBe('previous')
+    expect(weatherComparisonChoice('year-5')).toBe('year-5')
     expect(weatherComparisonChoice('future')).toBe('previous')
+  })
+
+  it('starts the cached range five years before the current year', () => {
+    expect(weatherHistoryStart('2026-08-04')).toBe('2021-01-01')
   })
 })

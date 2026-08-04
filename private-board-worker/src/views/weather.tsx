@@ -11,7 +11,16 @@ interface WeatherPageProps {
   comparison: WeatherComparison
 }
 
-export type WeatherComparisonChoice = 'previous' | 'current'
+export type WeatherComparisonChoice = 'previous' | 'current' | 'year-2' | 'year-3' | 'year-4' | 'year-5'
+
+export const WEATHER_COMPARISON_OPTIONS: Array<{ value: WeatherComparisonChoice; label: string }> = [
+  { value: 'year-5', label: '5년 전' },
+  { value: 'year-4', label: '4년 전' },
+  { value: 'year-3', label: '3년 전' },
+  { value: 'year-2', label: '2년 전' },
+  { value: 'previous', label: '전년' },
+  { value: 'current', label: '올해' },
+]
 
 export interface WeatherComparison {
   left: WeatherComparisonChoice
@@ -19,7 +28,9 @@ export interface WeatherComparison {
 }
 
 export function weatherComparisonChoice(value: string | null | undefined): WeatherComparisonChoice {
-  return value === 'current' ? 'current' : 'previous'
+  return WEATHER_COMPARISON_OPTIONS.some((option) => option.value === value)
+    ? value as WeatherComparisonChoice
+    : 'previous'
 }
 
 interface ChartPoint {
@@ -33,10 +44,7 @@ interface ChartModel {
   yTicks: number[]
   yMin: number
   yMax: number
-  previousMax: ChartPoint[]
-  previousMin: ChartPoint[]
-  currentMax: ChartPoint[]
-  currentMin: ChartPoint[]
+  seriesByYear: Map<number, { max: ChartPoint[]; min: ChartPoint[] }>
   todayIndex: number
 }
 
@@ -77,11 +85,22 @@ function toChartPoints(
 
 function buildChartModel(data: WeatherPayload): ChartModel {
   const currentYear = Number(data.asOf.slice(0, 4))
-  const previousYear = currentYear - 1
   const days = dateKeys(currentYear)
   const keyIndex = new Map(days.map((key, index) => [key, index]))
-  const previousRecords = data.records.filter((record) => record.date.startsWith(`${previousYear}-`))
-  const currentRecords = data.records.filter((record) => record.date.startsWith(`${currentYear}-`))
+  const recordsByYear = new Map<number, WeatherRecord[]>()
+  data.records.forEach((record) => {
+    const year = Number(record.date.slice(0, 4))
+    const records = recordsByYear.get(year) ?? []
+    records.push(record)
+    recordsByYear.set(year, records)
+  })
+  const seriesByYear = new Map<number, { max: ChartPoint[]; min: ChartPoint[] }>()
+  recordsByYear.forEach((records, year) => {
+    seriesByYear.set(year, {
+      max: toChartPoints(records, keyIndex, 'maxC'),
+      min: toChartPoints(records, keyIndex, 'minC'),
+    })
+  })
   const values = finiteValues(data.records)
   const dataMin = values.length > 0 ? Math.min(...values) : 0
   const dataMax = values.length > 0 ? Math.max(...values) : 30
@@ -105,10 +124,7 @@ function buildChartModel(data: WeatherPayload): ChartModel {
     yTicks,
     yMin,
     yMax,
-    previousMax: toChartPoints(previousRecords, keyIndex, 'maxC'),
-    previousMin: toChartPoints(previousRecords, keyIndex, 'minC'),
-    currentMax: toChartPoints(currentRecords, keyIndex, 'maxC'),
-    currentMin: toChartPoints(currentRecords, keyIndex, 'minC'),
+    seriesByYear,
     todayIndex: keyIndex.get(data.asOf.slice(5)) ?? 0,
   }
 }
@@ -179,12 +195,18 @@ function dateLabel(date: string): string {
   return `${date.slice(0, 4)}년 ${Number(date.slice(5, 7))}월 ${Number(date.slice(8, 10))}일`
 }
 
+function comparisonOffset(choice: WeatherComparisonChoice): number {
+  if (choice === 'current') return 0
+  if (choice === 'previous') return 1
+  return Number(choice.slice(5))
+}
+
 function comparisonYear(choice: WeatherComparisonChoice, currentYear: number): number {
-  return choice === 'current' ? currentYear : currentYear - 1
+  return currentYear - comparisonOffset(choice)
 }
 
 function comparisonLabel(choice: WeatherComparisonChoice): string {
-  return choice === 'current' ? '올해' : '전년'
+  return WEATHER_COMPARISON_OPTIONS.find((option) => option.value === choice)?.label ?? '전년'
 }
 
 function comparisonRecord(
@@ -198,11 +220,12 @@ function comparisonRecord(
 
 function comparisonPoints(
   model: ChartModel,
+  currentYear: number,
   choice: WeatherComparisonChoice,
   field: 'maxC' | 'minC',
 ): ChartPoint[] {
-  if (choice === 'current') return field === 'maxC' ? model.currentMax : model.currentMin
-  return field === 'maxC' ? model.previousMax : model.previousMin
+  const series = model.seriesByYear.get(comparisonYear(choice, currentYear))
+  return field === 'maxC' ? series?.max ?? [] : series?.min ?? []
 }
 
 function WeatherChart({ data, comparison }: { data: WeatherPayload; comparison: WeatherComparison }) {
@@ -211,10 +234,10 @@ function WeatherChart({ data, comparison }: { data: WeatherPayload; comparison: 
   const recordsByDate = new Map(data.records.map((record) => [record.date, record]))
   const leftYear = comparisonYear(comparison.left, currentYear)
   const rightYear = comparisonYear(comparison.right, currentYear)
-  const leftMax = comparisonPoints(model, comparison.left, 'maxC')
-  const leftMin = comparisonPoints(model, comparison.left, 'minC')
-  const rightMax = comparisonPoints(model, comparison.right, 'maxC')
-  const rightMin = comparisonPoints(model, comparison.right, 'minC')
+  const leftMax = comparisonPoints(model, currentYear, comparison.left, 'maxC')
+  const leftMin = comparisonPoints(model, currentYear, comparison.left, 'minC')
+  const rightMax = comparisonPoints(model, currentYear, comparison.right, 'maxC')
+  const rightMin = comparisonPoints(model, currentYear, comparison.right, 'minC')
   const rightToday = comparisonRecord(recordsByDate, data.asOf.slice(5), currentYear, comparison.right)
   const leftRangePath = rangePath(leftMax, leftMin, model)
   const rightMaxPath = linePath(rightMax, model)
@@ -225,17 +248,21 @@ function WeatherChart({ data, comparison }: { data: WeatherPayload; comparison: 
     <div class="weather-chart-card">
       <div class="weather-comparison-controls" data-weather-comparison-controls>
         <label>
-          <span>좌측 비교 데이터</span>
-          <select data-weather-comparison-left>
-            <option value="previous" selected={comparison.left === 'previous'}>전년</option>
-            <option value="current" selected={comparison.left === 'current'}>올해</option>
+          <select data-weather-comparison-left aria-label="좌측 비교 데이터">
+            {WEATHER_COMPARISON_OPTIONS.map((option) => (
+              <option value={option.value} selected={comparison.left === option.value} key={option.value}>
+                {option.label}
+              </option>
+            ))}
           </select>
         </label>
         <label>
-          <span>우측 비교 데이터</span>
-          <select data-weather-comparison-right>
-            <option value="previous" selected={comparison.right === 'previous'}>전년</option>
-            <option value="current" selected={comparison.right === 'current'}>올해</option>
+          <select data-weather-comparison-right aria-label="우측 비교 데이터">
+            {WEATHER_COMPARISON_OPTIONS.map((option) => (
+              <option value={option.value} selected={comparison.right === option.value} key={option.value}>
+                {option.label}
+              </option>
+            ))}
           </select>
         </label>
         <button

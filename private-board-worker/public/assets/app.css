@@ -131,12 +131,6 @@
   min-width: 132px;
 }
 
-.weather-comparison-controls label > span {
-  color: var(--muted-text, #667466);
-  font-size: 0.78rem;
-  font-weight: 700;
-}
-
 .weather-comparison-controls select {
   min-height: 38px;
   padding: 7px 10px;
