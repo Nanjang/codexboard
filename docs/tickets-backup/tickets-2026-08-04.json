@@ -1,0 +1,162 @@
+{
+  "version": 1,
+  "exportedAt": "2026-08-04T06:23:54.862Z",
+  "tickets": [
+    {
+      "id": 1,
+      "title": "루나 모델링",
+      "note": "AI 이상한 부분 정리",
+      "lane": "doing",
+      "status": "active",
+      "tags": [],
+      "createdAt": "2026-07-26T10:59:07.425Z",
+      "updatedAt": "2026-08-04T05:21:20.415Z",
+      "deletedAt": null,
+      "purgeAfter": null
+    },
+    {
+      "id": 3,
+      "title": "(AI) 개발중 로우폴 모델 스위칭",
+      "note": "에디터도 마찬가지이며\n에디터에서 전환하고 런타임 에서는 에디터 상태가 그대로 간다",
+      "lane": "doing",
+      "status": "active",
+      "tags": [
+        {
+          "id": 1,
+          "name": "AI",
+          "color": "green"
+        }
+      ],
+      "createdAt": "2026-08-03T17:06:37.888Z",
+      "updatedAt": "2026-08-04T05:21:20.415Z",
+      "deletedAt": null,
+      "purgeAfter": null
+    },
+    {
+      "id": 4,
+      "title": "태그 추가",
+      "note": "태그 기능, AI , Art, \n태그는 복수 지원가능하며 개인별 생성하여 티켓 추가나 수정시 드롭 다운으로 고른다",
+      "lane": "done",
+      "status": "active",
+      "tags": [
+        {
+          "id": 1,
+          "name": "AI",
+          "color": "green"
+        }
+      ],
+      "createdAt": "2026-08-03T17:08:01.350Z",
+      "updatedAt": "2026-08-04T05:21:20.415Z",
+      "deletedAt": null,
+      "purgeAfter": null
+    },
+    {
+      "id": 5,
+      "title": "작업 전체 익스포트 임포트",
+      "note": "깃헙 히스토리 보존용",
+      "lane": "done",
+      "status": "active",
+      "tags": [
+        {
+          "id": 1,
+          "name": "AI",
+          "color": "green"
+        }
+      ],
+      "createdAt": "2026-08-03T17:08:31.819Z",
+      "updatedAt": "2026-08-04T05:21:20.415Z",
+      "deletedAt": null,
+      "purgeAfter": null
+    },
+    {
+      "id": 6,
+      "title": "불필요 한 하단 티켓 영역 제거",
+      "note": "",
+      "lane": "done",
+      "status": "active",
+      "tags": [
+        {
+          "id": 1,
+          "name": "AI",
+          "color": "green"
+        }
+      ],
+      "createdAt": "2026-08-03T17:08:50.101Z",
+      "updatedAt": "2026-08-04T05:21:20.415Z",
+      "deletedAt": null,
+      "purgeAfter": null
+    },
+    {
+      "id": 7,
+      "title": "자신의 위치를 보고하는 페이지 추적기",
+      "note": "유니크 유저 방문 확인용 보드는 필요 없다",
+      "lane": "doing",
+      "status": "active",
+      "tags": [
+        {
+          "id": 1,
+          "name": "AI",
+          "color": "green"
+        }
+      ],
+      "createdAt": "2026-08-03T17:12:17.193Z",
+      "updatedAt": "2026-08-04T05:21:20.415Z",
+      "deletedAt": null,
+      "purgeAfter": null
+    },
+    {
+      "id": 8,
+      "title": "미니어쳐 스타일 벙커 아이디어",
+      "note": "하우징 덕코프 처럼 갈필요 없다 하코방 스타일이 오히려 먹힐것",
+      "lane": "todo",
+      "status": "active",
+      "tags": [],
+      "createdAt": "2026-08-03T17:20:02.573Z",
+      "updatedAt": "2026-08-04T05:21:20.415Z",
+      "deletedAt": null,
+      "purgeAfter": null
+    },
+    {
+      "id": 9,
+      "title": "PA 머리",
+      "note": "",
+      "lane": "doing",
+      "status": "active",
+      "tags": [],
+      "createdAt": "2026-08-04T05:21:30.606Z",
+      "updatedAt": "2026-08-04T05:21:30.606Z",
+      "deletedAt": null,
+      "purgeAfter": null
+    },
+    {
+      "id": 10,
+      "title": "PA 치마",
+      "note": "",
+      "lane": "doing",
+      "status": "active",
+      "tags": [],
+      "createdAt": "2026-08-04T05:21:52.860Z",
+      "updatedAt": "2026-08-04T05:21:52.860Z",
+      "deletedAt": null,
+      "purgeAfter": null
+    },
+    {
+      "id": 11,
+      "title": "대시보드 북마크 카드 간소모드",
+      "note": "대시보드 북마크 카드 간소모드 체크박스 켜면 아이콘만 보인다 간소모드는 전용 아이콘 주소가 할당 된 경우만 활성 되며 편집 중에는 일반 북마크 카드로 보이며 통상 모드일때는 맨 앞으로 당겨서 한줄을 간소모드 북마크 바로 사용한다 편집때에도 간소모드 아이콘들이 우선적으로 앞으로 간다",
+      "lane": "todo",
+      "status": "active",
+      "tags": [
+        {
+          "id": 1,
+          "name": "AI",
+          "color": "green"
+        }
+      ],
+      "createdAt": "2026-08-04T06:09:39.527Z",
+      "updatedAt": "2026-08-04T06:09:39.527Z",
+      "deletedAt": null,
+      "purgeAfter": null
+    }
+  ]
+}
