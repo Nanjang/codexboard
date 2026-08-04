@@ -154,7 +154,9 @@ function positionWeatherTooltip(tooltip: HTMLElement, event: PointerEvent): void
   const desiredTop = event.clientY - hostRect.top - tooltip.offsetHeight / 2
   const maxLeft = Math.max(padding, hostRect.width - tooltip.offsetWidth - padding)
   const maxTop = Math.max(padding, hostRect.height - tooltip.offsetHeight - padding)
-  tooltip.style.left = `${Math.min(maxLeft, Math.max(padding, desiredLeft))}px`
+  const leftOfPointer = event.clientX - hostRect.left - offset - tooltip.offsetWidth
+  const tooltipLeft = desiredLeft <= maxLeft ? desiredLeft : Math.max(padding, leftOfPointer)
+  tooltip.style.left = `${Math.min(maxLeft, Math.max(padding, tooltipLeft))}px`
   tooltip.style.top = `${Math.min(maxTop, Math.max(padding, desiredTop))}px`
   tooltip.style.right = 'auto'
 }
