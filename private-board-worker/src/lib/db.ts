@@ -23,6 +23,8 @@ import type {
   PostListRow,
   PostVisibility,
   PostImageLinkRow,
+  TicketLogAction,
+  TicketLogRow,
   TicketLane,
   TicketRow,
   TicketTagColor,
@@ -40,6 +42,8 @@ export const POSTS_PER_PAGE = 20
 export const DASHBOARD_POSTS_LIMIT = 5
 export const MAX_TICKETS_PER_USER = 200
 export const MAX_TICKET_TAGS_PER_USER = 50
+export const TICKET_LOG_PAGE_SIZES = [50, 100, 200, 500] as const
+export const DEFAULT_TICKET_LOG_PAGE_SIZE = TICKET_LOG_PAGE_SIZES[0]
 export const TICKET_TRASH_RETENTION_MS = 14 * 24 * 60 * 60 * 1000
 export const MAX_MEMOS_PER_USER = 1000
 export const MAX_MEMO_PATTERNS_PER_USER = 50
@@ -1463,6 +1467,25 @@ async function nextTicketOrder(db: D1Database, ownerId: string, lane: TicketLane
   return (row?.max_order ?? 0) + 1000
 }
 
+export async function recordTicketLog(
+  db: D1Database,
+  ownerId: string,
+  ticketId: number,
+  ticketTitle: string,
+  action: TicketLogAction,
+  createdAt = Date.now(),
+): Promise<void> {
+  await db
+    .prepare(
+      `
+      INSERT INTO ticket_logs (owner_id, ticket_id, ticket_title, action, created_at)
+      VALUES (?1, ?2, ?3, ?4, ?5)
+      `,
+    )
+    .bind(ownerId, ticketId, ticketTitle, action, createdAt)
+    .run()
+}
+
 export async function createTicket(
   db: D1Database,
   ownerId: string,
@@ -1513,6 +1536,7 @@ export async function createTicket(
 
   if (result.meta.changes > 0 && result.meta.last_row_id) {
     await replaceTicketTags(db, ownerId, result.meta.last_row_id, tagIds)
+    await recordTicketLog(db, ownerId, result.meta.last_row_id, title, 'created', now)
     return { ticketId: result.meta.last_row_id, created: true }
   }
 
@@ -1574,6 +1598,7 @@ export async function updateTicket(
     .run()
   if (result.meta.changes === 0) return false
   await replaceTicketTags(db, ownerId, ticketId, tagIds)
+  await recordTicketLog(db, ownerId, ticketId, title, 'updated')
   return true
 }
 
@@ -1598,10 +1623,14 @@ export async function moveTicket(
     )
     .bind(lane, sortOrder, Date.now(), ticketId, ownerId)
     .run()
-  return result.meta.changes > 0
+  if (result.meta.changes === 0) return false
+  await recordTicketLog(db, ownerId, ticketId, ticket.title, 'moved')
+  return true
 }
 
 export async function deleteTicket(db: D1Database, ownerId: string, ticketId: number): Promise<boolean> {
+  const ticket = await getTicket(db, ownerId, ticketId)
+  if (!ticket) return false
   const deletedAt = Date.now()
   const result = await db
     .prepare(
@@ -1613,7 +1642,9 @@ export async function deleteTicket(db: D1Database, ownerId: string, ticketId: nu
     )
     .bind(ticketId, ownerId, deletedAt, deletedAt + TICKET_TRASH_RETENTION_MS)
     .run()
-  return result.meta.changes > 0
+  if (result.meta.changes === 0) return false
+  await recordTicketLog(db, ownerId, ticketId, ticket.title, 'deleted', deletedAt)
+  return true
 }
 
 export async function purgeExpiredTickets(
@@ -1621,10 +1652,34 @@ export async function purgeExpiredTickets(
   ownerId: string,
   now = Date.now(),
 ): Promise<number> {
+  const expired = await db
+    .prepare(
+      `
+      SELECT id, title
+      FROM tickets
+      WHERE owner_id = ?1 AND deleted_at IS NOT NULL AND purge_after <= ?2
+      `,
+    )
+    .bind(ownerId, now)
+    .all<{ id: number; title: string }>()
   const result = await db
     .prepare('DELETE FROM tickets WHERE owner_id = ?1 AND deleted_at IS NOT NULL AND purge_after <= ?2')
     .bind(ownerId, now)
     .run()
+  if (result.meta.changes > 0) {
+    await db.batch(
+      expired.results.map((ticket) =>
+        db
+          .prepare(
+            `
+            INSERT INTO ticket_logs (owner_id, ticket_id, ticket_title, action, created_at)
+            VALUES (?1, ?2, ?3, 'purged', ?4)
+            `,
+          )
+          .bind(ownerId, ticket.id, ticket.title, now),
+      ),
+    )
+  }
   return result.meta.changes
 }
 
@@ -1653,6 +1708,10 @@ export async function listAllTicketsForExport(db: D1Database, ownerId: string): 
 export async function restoreTicket(db: D1Database, ownerId: string, ticketId: number): Promise<boolean> {
   const now = Date.now()
   await purgeExpiredTickets(db, ownerId, now)
+  const trashedTicket = await db
+    .prepare('SELECT id, title FROM tickets WHERE id = ?1 AND owner_id = ?2 AND deleted_at IS NOT NULL LIMIT 1')
+    .bind(ticketId, ownerId)
+    .first<{ id: number; title: string }>()
   const result = await db
     .prepare(
       `
@@ -1681,7 +1740,10 @@ export async function restoreTicket(db: D1Database, ownerId: string, ticketId: n
     .bind(ticketId, ownerId, now, MAX_TICKETS_PER_USER)
     .run()
 
-  if (result.meta.changes > 0) return true
+  if (result.meta.changes > 0) {
+    await recordTicketLog(db, ownerId, ticketId, trashedTicket?.title ?? '', 'restored', now)
+    return true
+  }
 
   const trashed = await db
     .prepare('SELECT id FROM tickets WHERE id = ?1 AND owner_id = ?2 AND deleted_at IS NOT NULL LIMIT 1')
@@ -1698,11 +1760,18 @@ export async function permanentlyDeleteTicket(
   ownerId: string,
   ticketId: number,
 ): Promise<boolean> {
+  const ticket = await db
+    .prepare('SELECT id, title FROM tickets WHERE id = ?1 AND owner_id = ?2 AND deleted_at IS NOT NULL LIMIT 1')
+    .bind(ticketId, ownerId)
+    .first<{ id: number; title: string }>()
+  if (!ticket) return false
   const result = await db
     .prepare('DELETE FROM tickets WHERE id = ?1 AND owner_id = ?2 AND deleted_at IS NOT NULL')
     .bind(ticketId, ownerId)
     .run()
-  return result.meta.changes > 0
+  if (result.meta.changes === 0) return false
+  await recordTicketLog(db, ownerId, ticketId, ticket.title, 'purged')
+  return true
 }
 
 export async function reorderTickets(
@@ -1715,9 +1784,9 @@ export async function reorderTickets(
   if (new Set(incoming).size !== incoming.length) throw new Error('중복된 티켓 ID가 있습니다.')
 
   const existingResult = await db
-    .prepare('SELECT id FROM tickets WHERE owner_id = ?1 AND deleted_at IS NULL ORDER BY id')
+    .prepare('SELECT id, title, lane FROM tickets WHERE owner_id = ?1 AND deleted_at IS NULL ORDER BY id')
     .bind(ownerId)
-    .all<{ id: number }>()
+    .all<{ id: number; title: string; lane: TicketLane }>()
   const existing = existingResult.results.map((row) => row.id).sort((a, b) => a - b)
   const sortedIncoming = [...incoming].sort((a, b) => a - b)
 
@@ -1727,21 +1796,81 @@ export async function reorderTickets(
   if (incoming.length === 0) return
 
   const now = Date.now()
-  const statements = (Object.entries(lanes) as [TicketLane, number[]][]).flatMap(([lane, ids]) =>
-    ids.map((id, index) =>
-      db
-        .prepare(
-          `
-          UPDATE tickets
-          SET lane = ?1, sort_order = ?2, updated_at = ?3
-          WHERE id = ?4 AND owner_id = ?5 AND deleted_at IS NULL
-          `,
+  const currentById = new Map(existingResult.results.map((row) => [row.id, row]))
+  const statements: D1PreparedStatement[] = []
+  for (const [lane, ids] of Object.entries(lanes) as [TicketLane, number[]][]) {
+    ids.forEach((id, index) => {
+      statements.push(
+        db
+          .prepare(
+            `
+            UPDATE tickets
+            SET lane = ?1, sort_order = ?2, updated_at = ?3
+            WHERE id = ?4 AND owner_id = ?5 AND deleted_at IS NULL
+            `,
+          )
+          .bind(lane, (index + 1) * 1000, now, id, ownerId),
+      )
+      const current = currentById.get(id)
+      if (current && current.lane !== lane) {
+        statements.push(
+          db
+            .prepare(
+              `
+              INSERT INTO ticket_logs (owner_id, ticket_id, ticket_title, action, created_at)
+              VALUES (?1, ?2, ?3, 'moved', ?4)
+              `,
+            )
+            .bind(ownerId, id, current.title, now),
         )
-        .bind(lane, (index + 1) * 1000, now, id, ownerId),
-    ),
-  )
+      }
+    })
+  }
 
   await db.batch(statements)
+}
+
+export async function listTicketLogs(
+  db: D1Database,
+  ownerId: string,
+  requestedPage: number,
+  pageSize: number,
+): Promise<PaginatedResult<TicketLogRow>> {
+  const count = await db
+    .prepare('SELECT COUNT(*) AS total_items FROM ticket_logs WHERE owner_id = ?1')
+    .bind(ownerId)
+    .first<{ total_items: number }>()
+  const totalItems = count?.total_items ?? 0
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize))
+  const page = Math.min(Math.max(requestedPage, 1), totalPages)
+  const result = await db
+    .prepare(
+      `
+      SELECT id, owner_id, ticket_id, ticket_title, action, created_at
+      FROM ticket_logs
+      WHERE owner_id = ?1
+      ORDER BY created_at DESC, id DESC
+      LIMIT ?2 OFFSET ?3
+      `,
+    )
+    .bind(ownerId, pageSize, (page - 1) * pageSize)
+    .all<TicketLogRow>()
+  return { items: result.results, page, pageSize, totalItems, totalPages }
+}
+
+export async function listAllTicketLogsForExport(db: D1Database, ownerId: string): Promise<TicketLogRow[]> {
+  const result = await db
+    .prepare(
+      `
+      SELECT id, owner_id, ticket_id, ticket_title, action, created_at
+      FROM ticket_logs
+      WHERE owner_id = ?1
+      ORDER BY created_at DESC, id DESC
+      `,
+    )
+    .bind(ownerId)
+    .all<TicketLogRow>()
+  return result.results
 }
 
 export async function listMemos(db: D1Database, ownerId: string): Promise<MemoRow[]> {

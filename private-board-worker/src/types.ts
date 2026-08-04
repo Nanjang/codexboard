@@ -289,6 +289,17 @@ export interface TicketRow {
   tags?: TicketTagRow[]
 }
 
+export type TicketLogAction = 'created' | 'moved' | 'updated' | 'deleted' | 'restored' | 'purged'
+
+export interface TicketLogRow {
+  id: number
+  owner_id: string
+  ticket_id: number
+  ticket_title: string
+  action: TicketLogAction
+  created_at: number
+}
+
 export interface TicketTagRow {
   id: number
   owner_id: string
