@@ -93,6 +93,10 @@ export function offsetDate(date: string, days: number): string {
   return value.toISOString().slice(0, 10)
 }
 
+export function kmaDateParameter(date: string): string {
+  return date.replace(/-/gu, '')
+}
+
 export function weatherLocationId(value: string | null | undefined): WeatherLocationId {
   const location = WEATHER_LOCATIONS.find((candidate) => candidate.id === value)
   return location?.id ?? 'seoul'
@@ -189,8 +193,8 @@ async function fetchKmaDailyValues(
   observation: 'ta_max' | 'ta_min',
 ): Promise<DailyValue[]> {
   const url = new URL(KMA_DAILY_URL)
-  url.searchParams.set('tm1', from)
-  url.searchParams.set('tm2', to)
+  url.searchParams.set('tm1', kmaDateParameter(from))
+  url.searchParams.set('tm2', kmaDateParameter(to))
   url.searchParams.set('obs', observation)
   url.searchParams.set('stn', String(stationId))
   url.searchParams.set('disp', '0')
