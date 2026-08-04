@@ -37,7 +37,7 @@ import { LoginPage } from '../src/views/login'
 import { PrivateImagesPage } from '../src/views/images'
 import { PersonalBookmarksPage } from '../src/views/personal-bookmarks'
 import { composeMemoUrl, MemoBoardPage, MemoSettingsPage } from '../src/views/memos'
-import { TicketsPage, TicketTrashPage } from '../src/views/tickets'
+import { TicketTagsPage, TicketsPage, TicketTrashPage } from '../src/views/tickets'
 
 const ticketCreationRequestId = 'f47ac10b-58cc-4372-a567-0e02b2c3d479'
 
@@ -967,7 +967,31 @@ describe('핵심 화면', () => {
         deployInfo,
         user,
         csrfToken: 'csrf-test',
-        tickets: [ticket],
+        tickets: [
+          {
+            ...ticket,
+            tags: [
+              {
+                id: 7,
+                owner_id: user.id,
+                name: '긴급',
+                color: 'coral',
+                created_at: 1,
+                updated_at: 1,
+              },
+            ],
+          },
+        ],
+        availableTags: [
+          {
+            id: 7,
+            owner_id: user.id,
+            name: '긴급',
+            color: 'coral',
+            created_at: 1,
+            updated_at: 1,
+          },
+        ],
         creationRequestId: ticketCreationRequestId,
       }),
     )
@@ -975,6 +999,11 @@ describe('핵심 화면', () => {
     expect(html).toContain(`name="creation_request_id" value="${ticketCreationRequestId}"`)
     expect(html).toContain('data-prevent-double-submit')
     expect(html).toContain('href="/tickets/trash"')
+    expect(html).toContain('href="/tickets/tags"')
+    expect(html).toContain('class="ticket-tag ticket-tag-color-coral"')
+    expect(html).toContain('data-ticket-tag-ids="7"')
+    expect(html).toContain('class="ticket-drop-zone"')
+    expect(html).toContain('name="tag_ids"')
     expect(html).toContain('aria-label="문서 검토 수정"')
     expect(html).not.toContain('>열기</a>')
     expect(html).not.toContain('ticket-card-footer')
@@ -1001,6 +1030,33 @@ describe('핵심 화면', () => {
     expect(html).toContain('action="/tickets/1/restore"')
     expect(html).toContain('action="/tickets/1/purge"')
     expect(html).toContain('이 작업은 되돌릴 수 없습니다')
+  })
+
+  it('개인 티켓 태그 관리 화면은 생성·삭제 폼과 색상 토큰을 표시한다', async () => {
+    const html = String(
+      await TicketTagsPage({
+        appName: 'Private Board',
+        deployInfo,
+        user,
+        csrfToken: 'csrf-test',
+        tags: [
+          {
+            id: 7,
+            owner_id: user.id,
+            name: '긴급',
+            color: 'coral',
+            created_at: 1,
+            updated_at: 1,
+          },
+        ],
+      }),
+    )
+
+    expect(html).toContain('action="/tickets/tags"')
+    expect(html).toContain('name="color"')
+    expect(html).toContain('value="coral"')
+    expect(html).toContain('class="ticket-tag ticket-tag-color-coral"')
+    expect(html).toContain('action="/tickets/tags/7/delete"')
   })
 
   it('개인 메모는 상세 페이지 없이 값과 조합된 링크를 목록에 표시한다', async () => {

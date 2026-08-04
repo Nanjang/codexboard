@@ -25,6 +25,8 @@ import type {
   PostImageLinkRow,
   TicketLane,
   TicketRow,
+  TicketTagColor,
+  TicketTagRow,
   TrashedTicketRow,
 } from '../types'
 import { firstDevlogImageSource } from './devlog-preview'
@@ -37,6 +39,7 @@ import {
 export const POSTS_PER_PAGE = 20
 export const DASHBOARD_POSTS_LIMIT = 5
 export const MAX_TICKETS_PER_USER = 200
+export const MAX_TICKET_TAGS_PER_USER = 50
 export const TICKET_TRASH_RETENTION_MS = 14 * 24 * 60 * 60 * 1000
 export const MAX_MEMOS_PER_USER = 1000
 export const MAX_MEMO_PATTERNS_PER_USER = 50
@@ -1326,7 +1329,120 @@ export async function listTickets(db: D1Database, ownerId: string): Promise<Tick
   if (result.results.length > MAX_TICKETS_PER_USER) {
     throw new Error(`작업 티켓은 사용자당 최대 ${MAX_TICKETS_PER_USER}개까지 지원합니다.`)
   }
+  return attachTicketTags(db, result.results)
+}
+
+export async function listTicketTags(db: D1Database, ownerId: string): Promise<TicketTagRow[]> {
+  const result = await db
+    .prepare(
+      `
+      SELECT id, owner_id, name, color, created_at, updated_at
+      FROM ticket_tags
+      WHERE owner_id = ?1
+      ORDER BY name COLLATE NOCASE, id
+      LIMIT ?2
+      `,
+    )
+    .bind(ownerId, MAX_TICKET_TAGS_PER_USER + 1)
+    .all<TicketTagRow>()
+  if (result.results.length > MAX_TICKET_TAGS_PER_USER) {
+    throw new Error(`태그는 사용자당 최대 ${MAX_TICKET_TAGS_PER_USER}개까지 지원합니다.`)
+  }
   return result.results
+}
+
+export async function createTicketTag(
+  db: D1Database,
+  ownerId: string,
+  name: string,
+  color: TicketTagColor,
+): Promise<number> {
+  const now = Date.now()
+  const result = await db
+    .prepare(
+      `
+      INSERT INTO ticket_tags (owner_id, name, color, created_at, updated_at)
+      SELECT ?1, ?2, ?3, ?4, ?4
+      WHERE (SELECT COUNT(*) FROM ticket_tags WHERE owner_id = ?1) < ?5
+        AND NOT EXISTS (
+          SELECT 1 FROM ticket_tags WHERE owner_id = ?1 AND name = ?2 COLLATE NOCASE
+        )
+      `,
+    )
+    .bind(ownerId, name, color, now, MAX_TICKET_TAGS_PER_USER)
+    .run()
+  if (result.meta.changes > 0 && result.meta.last_row_id) return result.meta.last_row_id
+
+  const duplicate = await db
+    .prepare('SELECT id FROM ticket_tags WHERE owner_id = ?1 AND name = ?2 COLLATE NOCASE LIMIT 1')
+    .bind(ownerId, name)
+    .first<{ id: number }>()
+  if (duplicate) throw new Error('같은 이름의 태그가 이미 있습니다.')
+  throw new Error(`태그는 사용자당 최대 ${MAX_TICKET_TAGS_PER_USER}개까지 만들 수 있습니다.`)
+}
+
+export async function deleteTicketTag(db: D1Database, ownerId: string, tagId: number): Promise<boolean> {
+  const result = await db
+    .prepare('DELETE FROM ticket_tags WHERE id = ?1 AND owner_id = ?2')
+    .bind(tagId, ownerId)
+    .run()
+  return result.meta.changes > 0
+}
+
+async function attachTicketTags<T extends TicketRow>(db: D1Database, tickets: T[]): Promise<T[]> {
+  if (tickets.length === 0) return tickets
+  const placeholders = tickets.map(() => '?').join(', ')
+  const result = await db
+    .prepare(
+      `
+      SELECT links.ticket_id, tags.id, tags.owner_id, tags.name, tags.color, tags.created_at, tags.updated_at
+      FROM ticket_tag_links AS links
+      INNER JOIN ticket_tags AS tags ON tags.id = links.tag_id
+      WHERE links.ticket_id IN (${placeholders})
+      ORDER BY tags.name COLLATE NOCASE, tags.id
+      `,
+    )
+    .bind(...tickets.map((ticket) => ticket.id))
+    .all<TicketTagRow & { ticket_id: number }>()
+  const byTicket = new Map<number, TicketTagRow[]>()
+  for (const row of result.results) {
+    const tags = byTicket.get(row.ticket_id) ?? []
+    tags.push({
+      id: row.id,
+      owner_id: row.owner_id,
+      name: row.name,
+      color: row.color,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+    })
+    byTicket.set(row.ticket_id, tags)
+  }
+  return tickets.map((ticket) => ({ ...ticket, tags: byTicket.get(ticket.id) ?? [] }))
+}
+
+async function assertOwnedTicketTags(db: D1Database, ownerId: string, tagIds: number[]): Promise<void> {
+  if (tagIds.length > 10) throw new Error('티켓에는 태그를 최대 10개까지 추가할 수 있습니다.')
+  if (new Set(tagIds).size !== tagIds.length) throw new Error('중복된 태그가 있습니다.')
+  if (tagIds.length > 0) {
+    const owned = await db
+      .prepare(
+        `SELECT id FROM ticket_tags WHERE owner_id = ?1 AND id IN (${tagIds.map((_, index) => `?${index + 2}`).join(', ')})`,
+      )
+      .bind(ownerId, ...tagIds)
+      .all<{ id: number }>()
+    if (owned.results.length !== tagIds.length) throw new Error('선택한 태그를 찾을 수 없습니다.')
+  }
+}
+
+async function replaceTicketTags(db: D1Database, ownerId: string, ticketId: number, tagIds: number[]): Promise<void> {
+  await assertOwnedTicketTags(db, ownerId, tagIds)
+  await db.prepare('DELETE FROM ticket_tag_links WHERE ticket_id = ?1').bind(ticketId).run()
+  if (tagIds.length === 0) return
+  await db.batch(
+    tagIds.map((tagId) =>
+      db.prepare('INSERT INTO ticket_tag_links (ticket_id, tag_id) VALUES (?1, ?2)').bind(ticketId, tagId),
+    ),
+  )
 }
 
 async function nextTicketOrder(db: D1Database, ownerId: string, lane: TicketLane): Promise<number> {
@@ -1350,7 +1466,9 @@ export async function createTicket(
   note: string,
   lane: TicketLane,
   creationRequestId: string,
+  tagIds: number[] = [],
 ): Promise<{ ticketId: number; created: boolean }> {
+  await assertOwnedTicketTags(db, ownerId, tagIds)
   const now = Date.now()
   const result = await db
     .prepare(
@@ -1390,6 +1508,7 @@ export async function createTicket(
     .run()
 
   if (result.meta.changes > 0 && result.meta.last_row_id) {
+    await replaceTicketTags(db, ownerId, result.meta.last_row_id, tagIds)
     return { ticketId: result.meta.last_row_id, created: true }
   }
 
@@ -1410,7 +1529,7 @@ export async function createTicket(
 }
 
 export async function getTicket(db: D1Database, ownerId: string, ticketId: number): Promise<TicketRow | null> {
-  return db
+  const ticket = await db
     .prepare(
       `
       SELECT id, owner_id, title, note, lane, sort_order, created_at, updated_at, deleted_at, purge_after
@@ -1421,6 +1540,8 @@ export async function getTicket(db: D1Database, ownerId: string, ticketId: numbe
     )
     .bind(ticketId, ownerId)
     .first<TicketRow>()
+  if (!ticket) return null
+  return (await attachTicketTags(db, [ticket]))[0] ?? null
 }
 
 export async function updateTicket(
@@ -1430,7 +1551,9 @@ export async function updateTicket(
   title: string,
   note: string,
   lane: TicketLane,
+  tagIds: number[] = [],
 ): Promise<boolean> {
+  await assertOwnedTicketTags(db, ownerId, tagIds)
   const current = await getTicket(db, ownerId, ticketId)
   if (!current) return false
 
@@ -1445,7 +1568,9 @@ export async function updateTicket(
     )
     .bind(title, note, lane, sortOrder, Date.now(), ticketId, ownerId)
     .run()
-  return result.meta.changes > 0
+  if (result.meta.changes === 0) return false
+  await replaceTicketTags(db, ownerId, ticketId, tagIds)
+  return true
 }
 
 export async function moveTicket(
@@ -1512,7 +1637,7 @@ export async function listTrashedTickets(db: D1Database, ownerId: string): Promi
     )
     .bind(ownerId)
     .all<TrashedTicketRow>()
-  return result.results
+  return attachTicketTags(db, result.results)
 }
 
 export async function restoreTicket(db: D1Database, ownerId: string, ticketId: number): Promise<boolean> {

@@ -12,6 +12,8 @@ import {
   singleLine,
   ticketCreationRequestId,
   ticketLane,
+  ticketTagColor,
+  ticketTagIds,
   validateMemoUrlTemplate,
   ValidationError,
 } from '../src/lib/validation'
@@ -44,6 +46,14 @@ describe('입력 검증', () => {
     expect(ticketLane('doing')).toBe('doing')
     expect(() => boardSlug('admin')).toThrow(ValidationError)
     expect(() => ticketLane('archived')).toThrow(ValidationError)
+  })
+
+  it('태그 색상과 복수 태그 ID를 제한한다', () => {
+    expect(ticketTagColor('blue')).toBe('blue')
+    expect(ticketTagIds(['2', '7'])).toEqual([2, 7])
+    expect(() => ticketTagColor('rainbow')).toThrow(ValidationError)
+    expect(() => ticketTagIds(['2', '2'])).toThrow(ValidationError)
+    expect(() => ticketTagIds(Array.from({ length: 11 }, (_, index) => String(index + 1)))).toThrow(ValidationError)
   })
 
   it('티켓 생성 요청값은 UUID v4만 허용한다', () => {

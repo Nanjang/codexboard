@@ -9,6 +9,8 @@ const NOTICE_MESSAGES: Record<string, string> = {
   'comment-deleted': '댓글을 삭제했습니다.',
   'ticket-created': '작업 티켓을 추가했습니다.',
   'ticket-updated': '작업 티켓을 수정했습니다.',
+  'ticket-tag-created': '태그를 만들었습니다.',
+  'ticket-tag-deleted': '태그를 삭제했습니다.',
   'ticket-deleted': '작업 티켓을 휴지통으로 이동했습니다. 14일 후 영구 삭제됩니다.',
   'ticket-restored': '작업 티켓을 복원했습니다.',
   'ticket-purged': '작업 티켓을 영구 삭제했습니다.',

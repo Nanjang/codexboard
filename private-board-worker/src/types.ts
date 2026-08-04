@@ -4,6 +4,7 @@ export type UserRole = 'user' | 'admin'
 export type UserStatus = 'active' | 'blocked'
 export type RegistrationMode = 'open' | 'allowlist' | 'domain'
 export type TicketLane = 'todo' | 'doing' | 'done'
+export type TicketTagColor = 'coral' | 'orange' | 'green' | 'blue' | 'purple'
 export type BoardSlug = 'free' | 'development' | 'news' | 'inquiry'
 export type PostBodyFormat = 'plain' | 'rich'
 export type PostVisibility = 'public' | 'private'
@@ -283,6 +284,16 @@ export interface TicketRow {
   updated_at: number
   deleted_at: number | null
   purge_after: number | null
+  tags?: TicketTagRow[]
+}
+
+export interface TicketTagRow {
+  id: number
+  owner_id: string
+  name: string
+  color: TicketTagColor
+  created_at: number
+  updated_at: number
 }
 
 export interface TrashedTicketRow extends TicketRow {

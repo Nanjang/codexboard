@@ -1,4 +1,4 @@
-import type { CurrentUser, DeployInfo, TicketLane, TicketRow, TrashedTicketRow } from '../types'
+import type { CurrentUser, DeployInfo, TicketLane, TicketRow, TicketTagColor, TicketTagRow, TrashedTicketRow } from '../types'
 import { CsrfInput, EmptyState } from './components'
 import { formatDateTime, laneLabel } from './format'
 import { AppLayout } from './layout'
@@ -11,7 +11,173 @@ interface TicketPageProps {
   notice?: string | null
 }
 
+export interface TicketTagsPageProps {
+  appName: string
+  deployInfo: DeployInfo
+  user: CurrentUser
+  csrfToken: string
+  tags: TicketTagRow[]
+  error?: string | null
+  notice?: string | null
+}
+
+export function TicketTagsPage({
+  appName,
+  deployInfo,
+  user,
+  csrfToken,
+  tags,
+  error = null,
+  notice = null,
+}: TicketTagsPageProps) {
+  return (
+    <AppLayout
+      appName={appName}
+      deployInfo={deployInfo}
+      documentTitle="티켓 태그 관리"
+      topbarTitle="티켓 태그 관리"
+      user={user}
+      csrfToken={csrfToken}
+      activeNav="tickets"
+      backHref="/tickets"
+      notice={notice}
+    >
+      <section class="page-heading">
+        <div>
+          <p class="eyebrow">개인 작업 보드</p>
+          <h2>티켓 태그 관리</h2>
+          <p>나만 사용하는 태그를 만들어 티켓을 쉽게 분류해 보세요.</p>
+        </div>
+        <a class="button button-secondary button-compact" href="/tickets">
+          작업 보드
+        </a>
+      </section>
+
+      <section class="ticket-tags-layout">
+        <div class="form-card ticket-tag-create-card">
+          {error ? <div class="notice notice-error">{error}</div> : null}
+          <h2>태그 만들기</h2>
+          <p>태그 이름과 카드에 표시할 색상을 정하세요.</p>
+          <form action="/tickets/tags" method="post" class="stack-form">
+            <CsrfInput token={csrfToken} />
+            <label>
+              <span>태그 이름</span>
+              <input type="text" name="name" maxlength={32} required autocomplete="off" />
+            </label>
+            <label>
+              <span>태그 색상</span>
+              <select name="color" required>
+                {ticketTagColors.map((color) => (
+                  <option value={color.value} selected={color.value === 'blue'}>
+                    {color.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div class="form-actions">
+              <button class="button" type="submit">
+                태그 추가
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <section class="ticket-tag-list-card" aria-labelledby="ticket-tag-list-title">
+          <div class="ticket-tag-list-heading">
+            <div>
+              <p class="eyebrow">현재 태그</p>
+              <h2 id="ticket-tag-list-title">내 태그</h2>
+            </div>
+            <span>{tags.length}개</span>
+          </div>
+          {tags.length ? (
+            <div class="ticket-tags-management-list">
+              {tags.map((tag) => (
+                <article class="ticket-tag-management-row" key={tag.id}>
+                  <span class={`ticket-tag ticket-tag-color-${tag.color}`}>
+                    {tag.name}
+                  </span>
+                  <form
+                    action={`/tickets/tags/${tag.id}/delete`}
+                    method="post"
+                    data-confirm={`'${tag.name}' 태그를 삭제할까요? 연결된 티켓에서는 태그가 해제됩니다.`}
+                  >
+                    <CsrfInput token={csrfToken} />
+                    <button class="button button-danger button-small" type="submit">
+                      삭제
+                    </button>
+                  </form>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <EmptyState title="아직 태그가 없습니다" description="위에서 첫 태그를 만들어 보세요." />
+          )}
+        </section>
+      </section>
+    </AppLayout>
+  )
+}
+
+interface TicketBoardPageProps extends TicketPageProps {
+  availableTags?: TicketTagRow[]
+}
+
 const lanes: TicketLane[] = ['todo', 'doing', 'done']
+
+const ticketTagColors: Array<{ value: TicketTagColor; label: string }> = [
+  { value: 'coral', label: '산호' },
+  { value: 'orange', label: '주황' },
+  { value: 'green', label: '초록' },
+  { value: 'blue', label: '파랑' },
+  { value: 'purple', label: '보라' },
+]
+
+function TicketTags({ tags }: { tags: TicketTagRow[] | undefined }) {
+  if (!tags?.length) return null
+
+  return (
+    <div class="ticket-tags" aria-label="연결된 태그">
+      {tags.map((tag) => (
+        <span class={`ticket-tag ticket-tag-color-${tag.color}`} key={tag.id}>
+          {tag.name}
+        </span>
+      ))}
+    </div>
+  )
+}
+
+function TicketTagSelect({
+  availableTags,
+  selectedTags = [],
+  selectedTagIds,
+}: {
+  availableTags: TicketTagRow[]
+  selectedTags?: TicketTagRow[]
+  selectedTagIds?: Array<number | string>
+}) {
+  const selectedIds = new Set((selectedTagIds ?? selectedTags.map((tag) => tag.id)).map(String))
+
+  return (
+    <label>
+      <span>태그</span>
+      <select class="ticket-tag-select" name="tag_ids" multiple size={Math.min(Math.max(availableTags.length, 3), 6)}>
+        {availableTags.length ? (
+          availableTags.map((tag) => (
+            <option value={tag.id} selected={selectedIds.has(String(tag.id))} key={tag.id}>
+              {tag.name}
+            </option>
+          ))
+        ) : (
+          <option value="" disabled>
+            아직 만든 태그가 없습니다
+          </option>
+        )}
+      </select>
+      <span class="form-hint">Ctrl 또는 ⌘를 누른 채 여러 태그를 선택할 수 있습니다.</span>
+    </label>
+  )
+}
 
 function TicketCard({ ticket }: { ticket: TicketRow }) {
   return (
@@ -21,6 +187,7 @@ function TicketCard({ ticket }: { ticket: TicketRow }) {
       data-ticket-title={ticket.title}
       data-ticket-note={ticket.note}
       data-ticket-lane={ticket.lane}
+      data-ticket-tag-ids={ticket.tags?.map((tag) => String(tag.id)).join(',') ?? ''}
     >
       <div class="ticket-card-top">
         <a
@@ -35,6 +202,7 @@ function TicketCard({ ticket }: { ticket: TicketRow }) {
           <span aria-hidden="true">⠿</span>
         </button>
       </div>
+      <TicketTags tags={ticket.tags ?? []} />
       {ticket.note ? <p class="ticket-note">{ticket.note}</p> : <p class="ticket-note ticket-note-empty">메모 없음</p>}
     </article>
   )
@@ -48,7 +216,8 @@ export function TicketsPage({
   notice = null,
   tickets,
   creationRequestId,
-}: TicketPageProps & { tickets: TicketRow[]; creationRequestId: string }) {
+  availableTags = [],
+}: TicketBoardPageProps & { tickets: TicketRow[]; creationRequestId: string }) {
   const byLane = Object.fromEntries(lanes.map((lane) => [lane, tickets.filter((ticket) => ticket.lane === lane)])) as Record<
     TicketLane,
     TicketRow[]
@@ -72,9 +241,14 @@ export function TicketsPage({
           <h2>내 작업</h2>
           <p>이 페이지의 티켓은 현재 로그인한 본인에게만 보입니다. 카드를 끌어 상태와 순서를 바꿀 수 있습니다.</p>
         </div>
-        <a class="button button-secondary button-compact" href="/tickets/trash">
-          휴지통
-        </a>
+        <div class="ticket-page-heading-actions">
+          <a class="button button-secondary button-compact" href="/tickets/tags">
+            태그 관리
+          </a>
+          <a class="button button-secondary button-compact" href="/tickets/trash">
+            휴지통
+          </a>
+        </div>
       </section>
 
       {tickets.length === 0 ? (
@@ -92,6 +266,9 @@ export function TicketsPage({
               {byLane[lane].map((ticket) => (
                 <TicketCard key={ticket.id} ticket={ticket} />
               ))}
+              <div class="ticket-drop-zone" data-ticket-drop-zone>
+                <span>여기에 놓아 상태를 변경</span>
+              </div>
             </div>
           </section>
         ))}
@@ -123,6 +300,7 @@ export function TicketsPage({
               <option value="done">완료</option>
             </select>
           </label>
+          <TicketTagSelect availableTags={availableTags} />
           <div class="form-actions">
             <button type="button" class="button button-secondary" data-dialog-close>
               취소
@@ -159,6 +337,7 @@ export function TicketsPage({
               <option value="done">완료</option>
             </select>
           </label>
+          <TicketTagSelect availableTags={availableTags} />
           <div class="form-actions form-actions-split">
             <button type="button" class="button button-secondary" data-dialog-close>
               취소
@@ -194,11 +373,15 @@ export function TicketFormPage({
   ticket,
   error,
   creationRequestId,
+  availableTags = [],
+  selectedTagIds,
 }: TicketPageProps & {
   mode: 'create' | 'edit'
   ticket?: TicketRow
   error?: string | null
   creationRequestId?: string
+  availableTags?: TicketTagRow[]
+  selectedTagIds?: Array<number | string>
 }) {
   const isEdit = mode === 'edit'
   const heading = isEdit ? '티켓 수정' : '티켓 추가'
@@ -253,6 +436,11 @@ export function TicketFormPage({
               ))}
             </select>
           </label>
+          <TicketTagSelect
+            availableTags={availableTags}
+            selectedTags={ticket?.tags ?? []}
+            {...(selectedTagIds ? { selectedTagIds } : {})}
+          />
           <div class="form-actions">
             <a class="button button-secondary" href="/tickets">
               취소
@@ -322,6 +510,7 @@ export function TicketTrashPage({
                   <strong>{ticket.title}</strong>
                   <span>{laneLabel(ticket.lane)}</span>
                 </div>
+                <TicketTags tags={ticket.tags ?? []} />
                 {ticket.note ? <p class="ticket-note">{ticket.note}</p> : null}
                 <p class="ticket-trash-meta">
                   삭제 <time datetime={new Date(ticket.deleted_at).toISOString()}>{formatDateTime(ticket.deleted_at)}</time>

@@ -151,9 +151,16 @@ function setupTicketEditing(): void {
     const titleInput = editForm.elements.namedItem('title')
     const noteInput = editForm.elements.namedItem('note')
     const laneInput = editForm.elements.namedItem('lane')
+    const tagInput = editForm.elements.namedItem('tag_ids')
+    const tagIds = (card.dataset.ticketTagIds ?? '').split(',').filter(Boolean)
     if (titleInput instanceof HTMLInputElement) titleInput.value = title
     if (noteInput instanceof HTMLTextAreaElement) noteInput.value = note
     if (laneInput instanceof HTMLSelectElement) laneInput.value = lane
+    if (tagInput instanceof HTMLSelectElement && tagInput.multiple) {
+      Array.from(tagInput.options).forEach((option) => {
+        option.selected = tagIds.includes(option.value)
+      })
+    }
 
     openDialog(dialog)
   })

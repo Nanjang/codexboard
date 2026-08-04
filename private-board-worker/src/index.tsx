@@ -26,6 +26,7 @@ import {
   createPost,
   createReadyPrivateImage,
   createTicket,
+  createTicketTag,
   deleteComment,
   deleteMemo,
   deleteMemoUrlPattern,
@@ -33,6 +34,7 @@ import {
   deletePrivateImageRecord,
   deletePost,
   deleteTicket,
+  deleteTicketTag,
   getBoardBySlug,
   getComment,
   getDevlogAuthor,
@@ -60,6 +62,7 @@ import {
   listPosts,
   listRecentPostsByBoardSlug,
   listTickets,
+  listTicketTags,
   listTrashedTickets,
   MAX_MEMO_PATTERNS_PER_USER,
   MAX_RSS_WIDGETS_PER_USER,
@@ -184,6 +187,8 @@ import {
   singleLine,
   ticketLane,
   ticketCreationRequestId,
+  ticketTagColor,
+  ticketTagIds,
   validateMemoUrlTemplate,
   ValidationError,
 } from './lib/validation'
@@ -223,7 +228,7 @@ import { LoginPage } from './views/login'
 import { PrivateImagesPage } from './views/images'
 import { MemoBoardPage, MemoSettingsPage, type MemoPatternDraft } from './views/memos'
 import { PersonalBookmarksPage } from './views/personal-bookmarks'
-import { TicketFormPage, TicketsPage, TicketTrashPage } from './views/tickets'
+import { TicketFormPage, TicketTagsPage, TicketsPage, TicketTrashPage } from './views/tickets'
 import {
   DEVLOG_IMAGE_FILENAME_PATTERN,
   MAX_IMAGE_BYTES,
@@ -512,7 +517,17 @@ function draftTicket(ownerId: string, title: string, note: string, lane: TicketL
     updated_at: 0,
     deleted_at: null,
     purge_after: null,
+    tags: [],
   }
+}
+
+function isTicketFormError(error: unknown): error is Error {
+  if (error instanceof ValidationError) return true
+  return error instanceof Error && (
+    error.message.startsWith('티켓에는 태그')
+    || error.message.startsWith('중복된 태그')
+    || error.message.startsWith('선택한 태그')
+  )
 }
 
 function rawFormString(value: FormDataEntryValue | null): string {
@@ -2314,7 +2329,10 @@ app.post('/memos/patterns/:id/delete', async (c) => {
 
 app.get('/tickets', async (c) => {
   const auth = requireActiveAuth(c)
-  const tickets = await listTickets(c.env.DB, auth.user.id)
+  const [tickets, availableTags] = await Promise.all([
+    listTickets(c.env.DB, auth.user.id),
+    listTicketTags(c.env.DB, auth.user.id),
+  ])
   return c.html(
     <TicketsPage
       {...viewMeta(c)}
@@ -2322,19 +2340,22 @@ app.get('/tickets', async (c) => {
       csrfToken={auth.csrfToken}
       notice={noticeFromRequest(c)}
       tickets={tickets}
+      availableTags={availableTags}
       creationRequestId={crypto.randomUUID()}
     />,
   )
 })
 
-app.get('/tickets/new', (c) => {
+app.get('/tickets/new', async (c) => {
   const auth = requireActiveAuth(c)
+  const availableTags = await listTicketTags(c.env.DB, auth.user.id)
   return c.html(
     <TicketFormPage
       {...viewMeta(c)}
       user={auth.user}
       csrfToken={auth.csrfToken}
       mode="create"
+      availableTags={availableTags}
       creationRequestId={crypto.randomUUID()}
     />,
   )
@@ -2347,16 +2368,19 @@ app.post('/tickets', async (c) => {
   const rawTitle = typeof form.get('title') === 'string' ? String(form.get('title')) : ''
   const rawNote = typeof form.get('note') === 'string' ? String(form.get('note')) : ''
   let rawLane: TicketLane = 'todo'
+  let rawTagIds: number[] = []
   let creationRequestId: string = crypto.randomUUID()
   try {
     rawLane = ticketLane(form.get('lane'))
+    rawTagIds = ticketTagIds(form.getAll('tag_ids'))
     creationRequestId = ticketCreationRequestId(form.get('creation_request_id'))
     const title = singleLine(form.get('title'), '제목', 120)
     const note = multiline(form.get('note'), '메모', 4000, false)
-    await createTicket(c.env.DB, auth.user.id, title, note, rawLane, creationRequestId)
+    await createTicket(c.env.DB, auth.user.id, title, note, rawLane, creationRequestId, rawTagIds)
     return redirectWithNotice(c, '/tickets', 'ticket-created')
   } catch (error) {
-    if (!(error instanceof ValidationError)) throw error
+    if (!isTicketFormError(error)) throw error
+    const availableTags = await listTicketTags(c.env.DB, auth.user.id)
     return c.html(
       <TicketFormPage
         {...viewMeta(c)}
@@ -2364,12 +2388,65 @@ app.post('/tickets', async (c) => {
         csrfToken={auth.csrfToken}
         mode="create"
         ticket={draftTicket(auth.user.id, rawTitle, rawNote, rawLane)}
+        availableTags={availableTags}
+        selectedTagIds={rawTagIds}
         creationRequestId={creationRequestId}
         error={error.message}
       />,
       400,
     )
   }
+})
+
+app.get('/tickets/tags', async (c) => {
+  const auth = requireActiveAuth(c)
+  const tags = await listTicketTags(c.env.DB, auth.user.id)
+  return c.html(
+    <TicketTagsPage
+      {...viewMeta(c)}
+      user={auth.user}
+      csrfToken={auth.csrfToken}
+      tags={tags}
+      notice={noticeFromRequest(c)}
+    />,
+  )
+})
+
+app.post('/tickets/tags', async (c) => {
+  const auth = requireActiveAuth(c)
+  await enforceWriteRateLimit(c, 'ticket-tag')
+  const form = await readForm(c)
+  try {
+    const name = singleLine(form.get('name'), '태그 이름', 32)
+    const color = ticketTagColor(form.get('color'))
+    await createTicketTag(c.env.DB, auth.user.id, name, color)
+    return redirectWithNotice(c, '/tickets/tags', 'ticket-tag-created')
+  } catch (error) {
+    const isTagInputError =
+      error instanceof ValidationError
+      || (error instanceof Error && (error.message.startsWith('같은 이름의 태그') || error.message.startsWith('태그는')))
+    if (!isTagInputError) throw error
+    return c.html(
+      <TicketTagsPage
+        {...viewMeta(c)}
+        user={auth.user}
+        csrfToken={auth.csrfToken}
+        tags={await listTicketTags(c.env.DB, auth.user.id)}
+        error={error.message}
+      />,
+      400,
+    )
+  }
+})
+
+app.post('/tickets/tags/:id/delete', async (c) => {
+  const auth = requireActiveAuth(c)
+  await enforceWriteRateLimit(c, 'ticket-tag')
+  const tagId = positiveInteger(c.req.param('id'), '태그 ID')
+  await readForm(c)
+  const deleted = await deleteTicketTag(c.env.DB, auth.user.id, tagId)
+  if (!deleted) throw new HTTPException(404, { message: '태그를 찾을 수 없습니다.' })
+  return redirectWithNotice(c, '/tickets/tags', 'ticket-tag-deleted')
 })
 
 app.get('/tickets/trash', async (c) => {
@@ -2391,6 +2468,7 @@ app.get('/tickets/:id/edit', async (c) => {
   const ticketId = positiveInteger(c.req.param('id'), '티켓 ID')
   const ticket = await getTicket(c.env.DB, auth.user.id, ticketId)
   if (!ticket) throw new HTTPException(404, { message: '티켓을 찾을 수 없습니다.' })
+  const availableTags = await listTicketTags(c.env.DB, auth.user.id)
   return c.html(
     <TicketFormPage
       {...viewMeta(c)}
@@ -2398,6 +2476,7 @@ app.get('/tickets/:id/edit', async (c) => {
       csrfToken={auth.csrfToken}
       mode="edit"
       ticket={ticket}
+      availableTags={availableTags}
     />,
   )
 })
@@ -2412,15 +2491,18 @@ app.post('/tickets/:id/update', async (c) => {
   const rawTitle = typeof form.get('title') === 'string' ? String(form.get('title')) : ''
   const rawNote = typeof form.get('note') === 'string' ? String(form.get('note')) : ''
   let rawLane: TicketLane = ticket.lane
+  let rawTagIds = (ticket.tags ?? []).map((tag) => tag.id)
 
   try {
     rawLane = ticketLane(form.get('lane'))
+    rawTagIds = ticketTagIds(form.getAll('tag_ids'))
     const title = singleLine(form.get('title'), '제목', 120)
     const note = multiline(form.get('note'), '메모', 4000, false)
-    await updateTicket(c.env.DB, auth.user.id, ticketId, title, note, rawLane)
+    await updateTicket(c.env.DB, auth.user.id, ticketId, title, note, rawLane, rawTagIds)
     return redirectWithNotice(c, '/tickets', 'ticket-updated')
   } catch (error) {
-    if (!(error instanceof ValidationError)) throw error
+    if (!isTicketFormError(error)) throw error
+    const availableTags = await listTicketTags(c.env.DB, auth.user.id)
     return c.html(
       <TicketFormPage
         {...viewMeta(c)}
@@ -2428,6 +2510,8 @@ app.post('/tickets/:id/update', async (c) => {
         csrfToken={auth.csrfToken}
         mode="edit"
         ticket={draftTicket(auth.user.id, rawTitle, rawNote, rawLane, ticketId)}
+        availableTags={availableTags}
+        selectedTagIds={rawTagIds}
         error={error.message}
       />,
       400,

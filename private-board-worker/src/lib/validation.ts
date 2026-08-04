@@ -1,4 +1,4 @@
-import type { BoardSlug, BookmarkIconColor } from '../types'
+import type { BoardSlug, BookmarkIconColor, TicketTagColor } from '../types'
 import { isBookmarkIconColor } from './bookmark-icon-palette'
 import { normalizeRssUrl, RssFeedError } from './rss'
 
@@ -71,6 +71,23 @@ export function positiveInteger(value: string, fieldName = 'ID'): number {
 export function ticketLane(value: FormDataEntryValue | string | null): 'todo' | 'doing' | 'done' {
   if (value === 'todo' || value === 'doing' || value === 'done') return value
   throw new ValidationError('작업 상태가 올바르지 않습니다.')
+}
+
+export function ticketTagColor(value: FormDataEntryValue | string | null): TicketTagColor {
+  if (value === 'coral' || value === 'orange' || value === 'green' || value === 'blue' || value === 'purple') {
+    return value
+  }
+  throw new ValidationError('태그 색상이 올바르지 않습니다.')
+}
+
+export function ticketTagIds(values: FormDataEntryValue[]): number[] {
+  if (values.length > 10) throw new ValidationError('티켓에는 태그를 최대 10개까지 추가할 수 있습니다.')
+  const ids = values.map((value) => {
+    if (typeof value !== 'string') throw new ValidationError('태그 ID 형식이 올바르지 않습니다.')
+    return positiveInteger(value, '태그 ID')
+  })
+  if (new Set(ids).size !== ids.length) throw new ValidationError('중복된 태그가 있습니다.')
+  return ids
 }
 
 export function ticketCreationRequestId(value: FormDataEntryValue | null): string {
