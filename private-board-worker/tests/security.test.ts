@@ -76,6 +76,7 @@ describe('공개 경로', () => {
   it('손님 홈과 공개 개발일지만 공개한다', () => {
     const imageHash = 'a'.repeat(64)
     expect(isPublicPath('/')).toBe(true)
+    expect(isPublicPath('/visitor.png')).toBe(true)
     expect(isPublicPath('/boards/free')).toBe(false)
     expect(isPublicPath('/boards/development')).toBe(true)
     expect(isPublicPath('/boards/development/new')).toBe(false)

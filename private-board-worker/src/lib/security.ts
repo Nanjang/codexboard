@@ -3,6 +3,7 @@ import type { AppContext, AuthContext } from '../types'
 import { sha256Hex, safeEqual } from './crypto'
 import { getBaseUrl, secureCookies, turnstileEnabled, validateRuntimeConfig } from './env'
 import { isDevlogImagePath } from '../shared/images'
+import { isVisitorPixelPath } from './visitor-pixel'
 
 const UNSAFE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 const GOOGLE_AUTHORIZATION_ORIGIN = 'https://accounts.google.com'
@@ -40,6 +41,7 @@ export function isPublicPath(path: string): boolean {
     path === '/privacy' ||
     path === '/terms' ||
     path === '/health' ||
+    isVisitorPixelPath(path) ||
     path === '/auth/google/start' ||
     path === '/auth/google/callback' ||
     path === '/devlogs' ||
@@ -162,6 +164,7 @@ export async function securityMiddleware(c: AppContext, next: () => Promise<void
 
   const isAsset = c.req.path.startsWith('/assets/')
   const isDevlogImage = isPublicDevlogImagePath(c.req.path)
+  const isVisitorPixel = isVisitorPixelPath(c.req.path)
   const policy = contentSecurityPolicy(turnstileEnabled(c.env))
 
   c.header('Content-Security-Policy', policy)
@@ -171,7 +174,7 @@ export async function securityMiddleware(c: AppContext, next: () => Promise<void
   c.header('X-Robots-Tag', 'noindex, nofollow, noarchive')
   c.header('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=()')
   c.header('Cross-Origin-Opener-Policy', 'same-origin')
-  c.header('Cross-Origin-Resource-Policy', isDevlogImage ? 'cross-origin' : 'same-origin')
+  c.header('Cross-Origin-Resource-Policy', isDevlogImage || isVisitorPixel ? 'cross-origin' : 'same-origin')
 
   if (secureCookies(c.env)) {
     c.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')

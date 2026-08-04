@@ -178,6 +178,32 @@ describe('devlog image cache helpers', () => {
 })
 
 describe('devlog image route cache', () => {
+  it('외부 페이지용 방문자 PNG를 반환하고 유니크 방문 기록을 예약한다', async () => {
+    const { db, env } = createEnv(async () => new Response(null, { status: 404 }))
+    const execution = new TestExecutionContext(async () => new Response(null, { status: 404 }))
+
+    const response = await app.request(
+      'https://board.oc7.workers.dev/visitor.png?source=landing',
+      {
+        headers: {
+          'CF-Connecting-IP': '203.0.113.25',
+          Referer: 'https://example.com/landing',
+        },
+      },
+      env,
+      workerExecutionContext(execution),
+    )
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('Content-Type')).toBe('image/png')
+    expect(response.headers.get('Cross-Origin-Resource-Policy')).toBe('cross-origin')
+    expect(response.headers.get('Cache-Control')).toContain('no-store')
+    expect(new Uint8Array(await response.arrayBuffer())).toHaveLength(67)
+
+    await settlePending(execution.pending)
+    expect(db.batchCalls).toBe(1)
+  })
+
   it('tracks a cached entrypoint miss then hit without a second VPC fetch', async () => {
     const imageBytes = new Uint8Array([137, 80, 78, 71])
     const imageVaultFetch = vi.fn<Fetcher['fetch']>(async () => {

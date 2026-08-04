@@ -119,6 +119,7 @@ import {
   shouldTrackVisitor,
   visitorChartRange,
 } from './lib/visitor-stats'
+import { isVisitorPixelPath, queueVisitorPixelVisit, visitorPixelResponse } from './lib/visitor-pixel'
 import {
   DEVLOG_IMAGE_CACHE_HEADER,
   adminPageNumber,
@@ -746,7 +747,11 @@ app.use('*', securityMiddleware)
 app.use('*', async (c, next) => {
   c.set('auth', null)
 
-  if (!c.req.path.startsWith('/assets/') && !isPublicDevlogImagePath(c.req.path)) {
+  if (
+    !c.req.path.startsWith('/assets/')
+    && !isPublicDevlogImagePath(c.req.path)
+    && !isVisitorPixelPath(c.req.path)
+  ) {
     const auth = await loadAuthContext(c)
     if (auth) {
       const imageService = await getImageServiceSettings(c.env.DB)
@@ -786,6 +791,10 @@ app.use('*', async (c, next) => {
 
 app.get('/assets/*', (c) => c.env.ASSETS.fetch(c.req.raw))
 app.get('/health', (c) => c.json({ ok: true }))
+app.get('/visitor.png', (c) => {
+  queueVisitorPixelVisit(c)
+  return visitorPixelResponse()
+})
 app.on(['GET', 'HEAD'], '/devlog-images/i/:image', (c) => {
   return c.redirect(`/i/${encodeURIComponent(c.req.param('image'))}`, 308)
 })
