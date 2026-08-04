@@ -120,6 +120,7 @@ import {
   visitorChartRange,
 } from './lib/visitor-stats'
 import { isVisitorPixelPath, queueVisitorPixelVisit, visitorPixelResponse } from './lib/visitor-pixel'
+import { loadWeatherPayload, weatherLocationId } from './lib/weather'
 import {
   DEVLOG_IMAGE_CACHE_HEADER,
   adminPageNumber,
@@ -231,6 +232,7 @@ import { PrivateImagesPage } from './views/images'
 import { MemoBoardPage, MemoSettingsPage, type MemoPatternDraft } from './views/memos'
 import { PersonalBookmarksPage } from './views/personal-bookmarks'
 import { TicketFormPage, TicketTagsPage, TicketsPage, TicketTrashPage } from './views/tickets'
+import { WeatherPage, weatherJsonUrl } from './views/weather'
 import {
   DEVLOG_IMAGE_FILENAME_PATTERN,
   MAX_IMAGE_BYTES,
@@ -791,6 +793,24 @@ app.use('*', async (c, next) => {
 
 app.get('/assets/*', (c) => c.env.ASSETS.fetch(c.req.raw))
 app.get('/health', (c) => c.json({ ok: true }))
+app.get('/weather.json', async (c) => {
+  const location = weatherLocationId(c.req.query('location'))
+  const payload = await loadWeatherPayload(c.env.DB, c.env, location)
+  c.header('Cache-Control', 'public, max-age=300, stale-while-revalidate=600')
+  c.header('Content-Type', 'application/json; charset=utf-8')
+  return c.body(JSON.stringify(payload, null, 2))
+})
+app.get('/weather', async (c) => {
+  const location = weatherLocationId(c.req.query('location'))
+  const payload = await loadWeatherPayload(c.env.DB, c.env, location)
+  return c.html(
+    <WeatherPage
+      {...viewMeta(c)}
+      data={payload}
+      jsonUrl={weatherJsonUrl(location)}
+    />,
+  )
+})
 app.get('/visitor.png', (c) => {
   queueVisitorPixelVisit(c)
   return visitorPixelResponse()

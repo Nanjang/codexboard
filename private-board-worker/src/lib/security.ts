@@ -41,6 +41,8 @@ export function isPublicPath(path: string): boolean {
     path === '/privacy' ||
     path === '/terms' ||
     path === '/health' ||
+    path === '/weather' ||
+    path === '/weather.json' ||
     isVisitorPixelPath(path) ||
     path === '/auth/google/start' ||
     path === '/auth/google/callback' ||
