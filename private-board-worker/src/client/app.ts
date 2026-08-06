@@ -233,17 +233,18 @@ function setupWeatherChart(): void {
     updateWeatherFocusPoints(svg, focus, null)
   }
 
-  const show = (target: EventTarget | null): void => {
-    if (!(target instanceof Element)) return
-    const zone = target.closest<SVGRectElement>('[data-weather-zone]')
+  const show = (target: EventTarget | null, event?: PointerEvent): void => {
+    const element = target instanceof Element ? target : null
+    const zone = element?.closest<SVGRectElement>('[data-weather-zone]')
+      ?? (event ? document.elementFromPoint(event.clientX, event.clientY)?.closest<SVGRectElement>('[data-weather-zone]') : null)
     if (!zone) return
     updateWeatherFocus(focus, zone)
     updateWeatherFocusPoints(svg, focus, zone)
   }
 
-  svg.addEventListener('pointerover', (event) => show(event.target))
-  svg.addEventListener('pointermove', (event) => show(event.target))
-  svg.addEventListener('pointerup', (event) => show(event.target))
+  svg.addEventListener('pointerover', (event) => show(event.target, event))
+  svg.addEventListener('pointermove', (event) => show(event.target, event))
+  svg.addEventListener('pointerup', (event) => show(event.target, event))
   svg.addEventListener('focusin', (event) => show(event.target))
   svg.addEventListener('pointerleave', (event) => {
     if (event.pointerType !== 'touch') reset()
@@ -285,6 +286,12 @@ interface WeatherZoomPoint {
   value: number
 }
 
+interface WeatherTouchPoint {
+  clientX: number
+  clientY: number
+  viewX: number
+}
+
 function weatherMonthOffset(date: Date, offset: number): Date {
   const result = new Date(date)
   const day = result.getUTCDate()
@@ -298,6 +305,16 @@ function weatherMonthOffset(date: Date, offset: number): Date {
 function weatherDayIndex(date: Date, year: number): number {
   const yearStart = Date.UTC(year, 0, 1)
   return Math.round((date.getTime() - yearStart) / 86400000)
+}
+
+function weatherPointerPoint(svg: SVGSVGElement, event: PointerEvent): WeatherTouchPoint {
+  const rect = svg.getBoundingClientRect()
+  const viewBox = svg.viewBox.baseVal
+  return {
+    clientX: event.clientX,
+    clientY: event.clientY,
+    viewX: viewBox.x + ((event.clientX - rect.left) / Math.max(rect.width, 1)) * viewBox.width,
+  }
 }
 
 function setupWeatherZoom(svg: SVGSVGElement): void {
@@ -321,8 +338,15 @@ function setupWeatherZoom(svg: SVGSVGElement): void {
   const plotHeight = chartBottom - chartTop
   let scale = 1
   let translate = 0
+  const touchPoints = new Map<number, WeatherTouchPoint>()
+  let pinchStartDistance = 0
+  let pinchStartScale = 1
+  let pinchStartDataX = 0
   const rangeButtons = Array.from(
     document.querySelectorAll<HTMLButtonElement>('[data-weather-range]'),
+  )
+  const monthLabels = Array.from(
+    svg.querySelectorAll<SVGTextElement>('[data-weather-month-label]'),
   )
   const asOf = data.weatherChartAsOf ? new Date(`${data.weatherChartAsOf}T00:00:00.000Z`) : null
   const todayIndex = Number(data.weatherChartTodayIndex)
@@ -348,8 +372,24 @@ function setupWeatherZoom(svg: SVGSVGElement): void {
     chartTop + ((max - value) / Math.max(max - min, 1)) * plotHeight
   )
 
+  const updateMonthLabels = (): void => {
+    monthLabels.forEach((label) => {
+      const x = Number(label.dataset.weatherMonthX)
+      if (!Number.isFinite(x) || scale === 1) {
+        label.removeAttribute('transform')
+        return
+      }
+      const inverseScale = (1 / scale).toFixed(4)
+      label.setAttribute(
+        'transform',
+        `translate(${x.toFixed(2)} 0) scale(${inverseScale} 1) translate(${(-x).toFixed(2)} 0)`,
+      )
+    })
+  }
+
   const update = (): void => {
     xLayer.setAttribute('transform', `translate(${translate.toFixed(2)} 0) scale(${scale.toFixed(4)} 1)`)
+    updateMonthLabels()
 
     const visibleStart = Math.max(0, (chartLeft - translate) / scale)
     const visibleEnd = Math.min(chartRight, (chartRight - translate) / scale)
@@ -416,6 +456,66 @@ function setupWeatherZoom(svg: SVGSVGElement): void {
   rangeButtons.forEach((button) => {
     button.addEventListener('click', () => setRange(button.dataset.weatherRange ?? ''))
   })
+
+  const setPinchOrigin = (): void => {
+    const activePoints = Array.from(touchPoints.values())
+    if (activePoints.length !== 2) {
+      pinchStartDistance = 0
+      return
+    }
+    const first = activePoints[0]
+    const second = activePoints[1]
+    if (!first || !second) return
+    const distance = Math.hypot(second.clientX - first.clientX, second.clientY - first.clientY)
+    if (distance <= 0) return
+    pinchStartDistance = distance
+    pinchStartScale = scale
+    const midpointX = (first.viewX + second.viewX) / 2
+    pinchStartDataX = (midpointX - translate) / scale
+  }
+
+  const handleTouchStart = (event: PointerEvent): void => {
+    if (event.pointerType !== 'touch') return
+    touchPoints.set(event.pointerId, weatherPointerPoint(svg, event))
+    svg.setPointerCapture(event.pointerId)
+    if (touchPoints.size === 2) setPinchOrigin()
+  }
+
+  const handleTouchMove = (event: PointerEvent): void => {
+    if (event.pointerType !== 'touch' || !touchPoints.has(event.pointerId)) return
+    touchPoints.set(event.pointerId, weatherPointerPoint(svg, event))
+    if (touchPoints.size !== 2 || pinchStartDistance <= 0) return
+
+    const activePoints = Array.from(touchPoints.values())
+    const first = activePoints[0]
+    const second = activePoints[1]
+    if (!first || !second) return
+    const distance = Math.hypot(second.clientX - first.clientX, second.clientY - first.clientY)
+    if (distance <= 0) return
+    const midpointX = (first.viewX + second.viewX) / 2
+    const nextScale = Math.min(12, Math.max(1, pinchStartScale * (distance / pinchStartDistance)))
+    const minTranslate = chartRight - nextScale * chartRight
+    const maxTranslate = chartLeft - nextScale * chartLeft
+    scale = nextScale
+    translate = midpointX - scale * pinchStartDataX
+    translate = Math.min(maxTranslate, Math.max(minTranslate, translate))
+    setRangeButtonState(scale === 1 && translate === 0 ? 'year' : null)
+    event.preventDefault()
+    update()
+  }
+
+  const handleTouchEnd = (event: PointerEvent): void => {
+    if (event.pointerType !== 'touch') return
+    touchPoints.delete(event.pointerId)
+    if (touchPoints.size === 2) setPinchOrigin()
+    else pinchStartDistance = 0
+    if (svg.hasPointerCapture(event.pointerId)) svg.releasePointerCapture(event.pointerId)
+  }
+
+  svg.addEventListener('pointerdown', handleTouchStart)
+  svg.addEventListener('pointermove', handleTouchMove, { passive: false })
+  svg.addEventListener('pointerup', handleTouchEnd)
+  svg.addEventListener('pointercancel', handleTouchEnd)
 
   svg.addEventListener('wheel', (event) => {
     event.preventDefault()

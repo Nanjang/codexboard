@@ -334,6 +334,11 @@ function WeatherChart({ data, comparison }: { data: WeatherPayload; comparison: 
               })),
             )}
           >
+            <defs>
+              <clipPath id="weather-chart-x-clip">
+                <rect x={CHART_LEFT} y={CHART_TOP} width={CHART_PLOT_WIDTH} height={CHART_HEIGHT - CHART_TOP} />
+              </clipPath>
+            </defs>
             <title id="weather-chart-title">{data.location.name} 일 최고·최저기온</title>
             <desc id="weather-chart-description">
               {leftYear}년은 최고·최저기온 사이의 반투명 범위, {rightYear}년은 실선으로 표시합니다.
@@ -354,20 +359,28 @@ function WeatherChart({ data, comparison }: { data: WeatherPayload; comparison: 
               )
             })}
 
-            <g data-weather-x-layer>
-              {model.monthStarts.map((month) => {
-                const x = xPosition(month.index, model.days.length - 1)
-                return (
-                  <g key={month.label}>
-                    <line x1={x} x2={x} y1={CHART_TOP} y2={CHART_HEIGHT - CHART_BOTTOM} class="weather-month-line" />
-                    <text x={x} y={CHART_HEIGHT - 18} text-anchor="middle" class="weather-month-label">
-                      {month.label}
-                    </text>
-                  </g>
-                )
-              })}
+            <g clip-path="url(#weather-chart-x-clip)">
+              <g data-weather-x-layer>
+                {model.monthStarts.map((month) => {
+                  const x = xPosition(month.index, model.days.length - 1)
+                  return (
+                    <g key={month.label}>
+                      <line x1={x} x2={x} y1={CHART_TOP} y2={CHART_HEIGHT - CHART_BOTTOM} class="weather-month-line" />
+                      <text
+                        x={x}
+                        y={CHART_HEIGHT - 18}
+                        text-anchor="middle"
+                        class="weather-month-label"
+                        data-weather-month-label
+                        data-weather-month-x={String(x)}
+                      >
+                        {month.label}
+                      </text>
+                    </g>
+                  )
+                })}
 
-              <g data-weather-y-layer>
+                <g data-weather-y-layer>
                 {leftRangePath ? (
                   <path d={leftRangePath} class="weather-year-range" fill="#839b88" opacity="0.18" />
                 ) : null}
@@ -398,39 +411,40 @@ function WeatherChart({ data, comparison }: { data: WeatherPayload; comparison: 
                 </g>
               </g>
 
-              {model.days.map((key, index) => {
-                const currentDate = `${currentYear}-${key}`
-                const leftRecord = comparisonRecord(recordsByDate, key, currentYear, comparison.left)
-                const rightRecord = comparisonRecord(recordsByDate, key, currentYear, comparison.right)
-                const x = xPosition(index, model.days.length - 1)
-                const zoneX = index === 0 ? CHART_LEFT : x - chartStep / 2
-                const zoneWidth = index === 0 || index === model.days.length - 1 ? chartStep / 2 : chartStep
-                return (
-                  <rect
-                    class="weather-hover-zone"
-                    x={zoneX}
-                    y={CHART_TOP}
-                    width={zoneWidth}
-                    height={CHART_PLOT_HEIGHT}
-                    fill="transparent"
-                    data-weather-zone
-                    data-weather-index={String(index)}
-                    data-weather-date={currentDate}
-                    data-weather-left-year={String(leftYear)}
-                    data-weather-left-label={comparisonLabel(comparison.left)}
-                    data-weather-left-max={temperatureAttribute(leftRecord?.maxC)}
-                    data-weather-left-min={temperatureAttribute(leftRecord?.minC)}
-                    data-weather-left-status={leftRecord?.status ?? ''}
-                    data-weather-right-year={String(rightYear)}
-                    data-weather-right-label={comparisonLabel(comparison.right)}
-                    data-weather-right-max={temperatureAttribute(rightRecord?.maxC)}
-                    data-weather-right-min={temperatureAttribute(rightRecord?.minC)}
-                    data-weather-right-status={rightRecord?.status ?? ''}
-                    aria-label={`${currentDate} 날씨 데이터`}
-                    key={currentDate}
-                  />
-                )
-              })}
+                {model.days.map((key, index) => {
+                  const currentDate = `${currentYear}-${key}`
+                  const leftRecord = comparisonRecord(recordsByDate, key, currentYear, comparison.left)
+                  const rightRecord = comparisonRecord(recordsByDate, key, currentYear, comparison.right)
+                  const x = xPosition(index, model.days.length - 1)
+                  const zoneX = index === 0 ? CHART_LEFT : x - chartStep / 2
+                  const zoneWidth = index === 0 || index === model.days.length - 1 ? chartStep / 2 : chartStep
+                  return (
+                    <rect
+                      class="weather-hover-zone"
+                      x={zoneX}
+                      y={CHART_TOP}
+                      width={zoneWidth}
+                      height={CHART_PLOT_HEIGHT}
+                      fill="transparent"
+                      data-weather-zone
+                      data-weather-index={String(index)}
+                      data-weather-date={currentDate}
+                      data-weather-left-year={String(leftYear)}
+                      data-weather-left-label={comparisonLabel(comparison.left)}
+                      data-weather-left-max={temperatureAttribute(leftRecord?.maxC)}
+                      data-weather-left-min={temperatureAttribute(leftRecord?.minC)}
+                      data-weather-left-status={leftRecord?.status ?? ''}
+                      data-weather-right-year={String(rightYear)}
+                      data-weather-right-label={comparisonLabel(comparison.right)}
+                      data-weather-right-max={temperatureAttribute(rightRecord?.maxC)}
+                      data-weather-right-min={temperatureAttribute(rightRecord?.minC)}
+                      data-weather-right-status={rightRecord?.status ?? ''}
+                      aria-label={`${currentDate} 날씨 데이터`}
+                      key={currentDate}
+                    />
+                  )
+                })}
+              </g>
             </g>
           </svg>
         </div>

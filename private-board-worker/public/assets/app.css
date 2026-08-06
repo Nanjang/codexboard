@@ -262,6 +262,7 @@
 
 .weather-chart[data-weather-chart] {
   overscroll-behavior: contain;
+  touch-action: none;
 }
 
 .weather-grid-line {
@@ -273,6 +274,7 @@
   stroke: #b8c9b4;
   stroke-dasharray: 2 5;
   stroke-width: 1;
+  vector-effect: non-scaling-stroke;
 }
 
 .weather-axis-label,
@@ -290,6 +292,7 @@
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 2.5;
+  vector-effect: non-scaling-stroke;
 }
 
 .weather-series-previous {
@@ -311,6 +314,7 @@
   fill: var(--surface, #fff);
   pointer-events: none;
   stroke-width: 2.5;
+  vector-effect: non-scaling-stroke;
 }
 
 .weather-focus-point-left-max,

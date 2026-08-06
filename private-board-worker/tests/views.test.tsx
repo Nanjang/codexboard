@@ -1119,6 +1119,8 @@ describe('핵심 화면', () => {
     expect(html).toContain('data-weather-range="two-months"')
     expect(html).toContain('오늘 전후 2개월')
     expect(html).toContain('data-weather-chart-today-index="215"')
+    expect(html).toContain('id="weather-chart-x-clip"')
+    expect(html).toContain('data-weather-month-label')
     expect(html).not.toContain('data-weather-tooltip')
     expect(html).not.toContain('weather-tooltip')
   })
