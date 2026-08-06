@@ -364,6 +364,23 @@
   margin-right: 2px;
 }
 
+.weather-badge-toggle {
+  align-items: center;
+  color: var(--muted-text, #667466);
+  display: inline-flex;
+  font-size: 0.78rem;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.weather-badge-toggle input {
+  margin: 0;
+}
+
+.weather-badge-toggle:has(input:disabled) {
+  opacity: 0.55;
+}
+
 .weather-range-button[aria-pressed='true'] {
   border-color: var(--accent, #2f7a4a);
   color: #fff;

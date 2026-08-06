@@ -406,8 +406,24 @@ function setupWeatherZoom(svg: SVGSVGElement): void {
   const focusBadges = Array.from(
     svg.querySelectorAll<SVGGElement>('[data-weather-focus-badge]'),
   )
+  const focusBadgesToggle = document.querySelector<HTMLInputElement>('[data-weather-focus-badges-toggle]')
   const asOf = data.weatherChartAsOf ? new Date(`${data.weatherChartAsOf}T00:00:00.000Z`) : null
   const todayIndex = Number(data.weatherChartTodayIndex)
+
+  const updateFocusBadgeVisibility = (): void => {
+    if (!focusBadgesContainer) return
+    const visible = focusBadgesToggle?.checked === true
+    if (visible) {
+      focusBadgesContainer.removeAttribute('hidden')
+      focusBadgesContainer.style.display = ''
+    } else {
+      focusBadgesContainer.setAttribute('hidden', '')
+      focusBadgesContainer.style.display = 'none'
+    }
+  }
+
+  focusBadgesToggle?.addEventListener('change', updateFocusBadgeVisibility)
+  updateFocusBadgeVisibility()
 
   const setRangeButtonState = (activeRange: string | null): void => {
     rangeButtons.forEach((button) => {
