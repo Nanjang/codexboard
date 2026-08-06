@@ -183,6 +183,22 @@ function resetWeatherFocus(focus: HTMLElement): void {
   )
 }
 
+function updateWeatherFocusPointTransforms(svg: SVGSVGElement): void {
+  const xScale = Number(svg.dataset.weatherChartXScale ?? '1')
+  const yScale = Number(svg.dataset.weatherChartYScale ?? '1')
+  if (![xScale, yScale].every((value) => Number.isFinite(value) && value > 0)) return
+
+  svg.querySelectorAll<SVGCircleElement>('[data-weather-focus-point]').forEach((point) => {
+    const cx = Number(point.getAttribute('cx'))
+    const cy = Number(point.getAttribute('cy'))
+    if (![cx, cy].every(Number.isFinite)) return
+    point.setAttribute(
+      'transform',
+      `translate(${cx.toFixed(2)} ${cy.toFixed(2)}) scale(${(1 / xScale).toFixed(4)} ${(1 / yScale).toFixed(4)}) translate(${(-cx).toFixed(2)} ${(-cy).toFixed(2)})`,
+    )
+  })
+}
+
 function updateWeatherFocusPoints(
   svg: SVGSVGElement,
   focus: HTMLElement,
@@ -221,6 +237,7 @@ function updateWeatherFocusPoints(
     point.setAttribute('cy', y.toFixed(2))
     point.style.display = ''
   })
+  updateWeatherFocusPointTransforms(svg)
 }
 
 function setupWeatherChart(): void {
@@ -338,6 +355,7 @@ function setupWeatherZoom(svg: SVGSVGElement): void {
   const plotHeight = chartBottom - chartTop
   let scale = 1
   let translate = 0
+  let verticalScale = 1
   const touchPoints = new Map<number, WeatherTouchPoint>()
   let pinchStartDistance = 0
   let pinchStartScale = 1
@@ -389,6 +407,7 @@ function setupWeatherZoom(svg: SVGSVGElement): void {
 
   const update = (): void => {
     xLayer.setAttribute('transform', `translate(${translate.toFixed(2)} 0) scale(${scale.toFixed(4)} 1)`)
+    svg.dataset.weatherChartXScale = scale.toFixed(4)
     updateMonthLabels()
 
     const visibleStart = Math.max(0, (chartLeft - translate) / scale)
@@ -398,7 +417,11 @@ function setupWeatherZoom(svg: SVGSVGElement): void {
     const visibleValues = points
       .filter((point) => point.index >= startIndex && point.index <= endIndex)
       .map((point) => point.value)
-    if (visibleValues.length === 0) return
+    if (visibleValues.length === 0) {
+      svg.dataset.weatherChartYScale = verticalScale.toFixed(4)
+      updateWeatherFocusPointTransforms(svg)
+      return
+    }
 
     const dataMin = Math.min(...visibleValues)
     const dataMax = Math.max(...visibleValues)
@@ -412,7 +435,10 @@ function setupWeatherZoom(svg: SVGSVGElement): void {
 
     const yScale = (globalYMax - globalYMin) / Math.max(visibleMax - visibleMin, 1)
     const yTranslate = chartTop + ((visibleMax - globalYMax) / Math.max(visibleMax - visibleMin, 1)) * plotHeight - yScale * chartTop
+    verticalScale = yScale
+    svg.dataset.weatherChartYScale = verticalScale.toFixed(4)
     yLayer.setAttribute('transform', `translate(0 ${yTranslate.toFixed(2)}) scale(1 ${yScale.toFixed(4)})`)
+    updateWeatherFocusPointTransforms(svg)
 
     yTicks.forEach((tick) => {
       const value = Number(tick.dataset.weatherYValue)

@@ -311,26 +311,19 @@
 }
 
 .weather-focus-point {
-  fill: var(--surface, #fff);
+  fill: currentColor;
   pointer-events: none;
-  stroke-width: 2.5;
-  vector-effect: non-scaling-stroke;
+  stroke: none;
 }
 
 .weather-focus-point-left-max,
 .weather-focus-point-right-max {
-  stroke: #e45a42;
+  color: #e45a42;
 }
 
 .weather-focus-point-left-min,
 .weather-focus-point-right-min {
-  stroke: #3978bd;
-}
-
-.weather-focus-point-left-max,
-.weather-focus-point-left-min {
-  opacity: 0.64;
-  stroke-dasharray: 2 2;
+  color: #3978bd;
 }
 
 .weather-range-controls {

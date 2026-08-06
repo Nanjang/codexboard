@@ -1114,6 +1114,7 @@ describe('핵심 화면', () => {
     expect(html).toContain('2025년 전년')
     expect(html).toContain('2026년 올해')
     expect(html).toContain('data-weather-focus-point="right-max"')
+    expect(html).toContain('r="2.5"')
     expect(html).toContain('data-weather-range-controls')
     expect(html).toContain('data-weather-range="year"')
     expect(html).toContain('data-weather-range="two-months"')

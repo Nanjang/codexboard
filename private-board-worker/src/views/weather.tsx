@@ -404,7 +404,7 @@ function WeatherChart({ data, comparison }: { data: WeatherPayload; comparison: 
                         data-weather-default-value={String(value)}
                         cx={xPosition(model.todayIndex, model.days.length - 1)}
                         cy={yPosition(value, model)}
-                        r="4.5"
+                        r="2.5"
                       />
                     ) : null
                   ))}
