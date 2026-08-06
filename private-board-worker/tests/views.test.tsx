@@ -1115,6 +1115,7 @@ describe('핵심 화면', () => {
     expect(html).toContain('2026년 올해')
     expect(html).toContain('data-weather-focus-badge="max"')
     expect(html).toContain('data-weather-focus-badge="min"')
+    expect(html).toContain('data-weather-badge-width="60"')
     expect(html).toContain('data-weather-badge-height="20"')
     expect(html).not.toContain('data-weather-focus-point="left-max"')
     expect(html).toContain('data-weather-range-controls')

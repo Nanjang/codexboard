@@ -56,7 +56,7 @@ const CHART_TOP = 30
 const CHART_BOTTOM = 56
 const CHART_PLOT_WIDTH = CHART_WIDTH - CHART_LEFT - CHART_RIGHT
 const CHART_PLOT_HEIGHT = CHART_HEIGHT - CHART_TOP - CHART_BOTTOM
-const WEATHER_BADGE_WIDTH = 120
+const WEATHER_BADGE_WIDTH = 60
 const WEATHER_BADGE_HEIGHT = 20
 
 function dateKeys(year: number): string[] {
@@ -391,10 +391,29 @@ function WeatherChart({ data, comparison }: { data: WeatherPayload; comparison: 
 
                 <g data-weather-y-layer>
                 {leftRangePath ? (
-                  <path d={leftRangePath} class="weather-year-range" fill="#839b88" opacity="0.18" />
+                  <path
+                    d={leftRangePath}
+                    class="weather-year-range"
+                    fill="#839b88"
+                    opacity="0.18"
+                    data-weather-range-max={JSON.stringify(leftMax)}
+                    data-weather-range-min={JSON.stringify(leftMin)}
+                  />
                 ) : null}
-                {rightMaxPath ? <path d={rightMaxPath} class="weather-series weather-series-max weather-series-current" /> : null}
-                {rightMinPath ? <path d={rightMinPath} class="weather-series weather-series-min weather-series-current" /> : null}
+                {rightMaxPath ? (
+                  <path
+                    d={rightMaxPath}
+                    class="weather-series weather-series-max weather-series-current"
+                    data-weather-points={JSON.stringify(rightMax)}
+                  />
+                ) : null}
+                {rightMinPath ? (
+                  <path
+                    d={rightMinPath}
+                    class="weather-series weather-series-min weather-series-current"
+                    data-weather-points={JSON.stringify(rightMin)}
+                  />
+                ) : null}
 
                 {!showCurrentBadges ? (
                   <g class="weather-focus-points" data-weather-focus-points aria-hidden="true">

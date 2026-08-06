@@ -184,17 +184,26 @@ function resetWeatherFocus(focus: HTMLElement): void {
 }
 
 function updateWeatherFocusPointTransforms(svg: SVGSVGElement): void {
-  const xScale = Number(svg.dataset.weatherChartXScale ?? '1')
   const yScale = Number(svg.dataset.weatherChartYScale ?? '1')
-  if (![xScale, yScale].every((value) => Number.isFinite(value) && value > 0)) return
+  const chartLeft = Number(svg.dataset.weatherChartLeft)
+  const chartRight = Number(svg.dataset.weatherChartRight)
+  const days = Number(svg.dataset.weatherChartDays)
+  const focusIndex = Number(svg.dataset.weatherFocusIndex)
+  const xScale = Number(svg.dataset.weatherChartXScale ?? '1')
+  const xTranslate = Number(svg.dataset.weatherChartXTranslate ?? '0')
+  if (![chartLeft, chartRight, days, focusIndex, xTranslate].every(Number.isFinite)) return
+  if (![yScale, xScale].every((value) => Number.isFinite(value) && value > 0)) return
+
+  const baseX = chartLeft + (focusIndex / Math.max(days - 1, 1)) * (chartRight - chartLeft)
+  const x = xTranslate + xScale * baseX
 
   svg.querySelectorAll<SVGCircleElement>('[data-weather-focus-point]').forEach((point) => {
-    const cx = Number(point.getAttribute('cx'))
     const cy = Number(point.getAttribute('cy'))
-    if (![cx, cy].every(Number.isFinite)) return
+    if (!Number.isFinite(cy)) return
+    point.setAttribute('cx', x.toFixed(2))
     point.setAttribute(
       'transform',
-      `translate(${cx.toFixed(2)} ${cy.toFixed(2)}) scale(${(1 / xScale).toFixed(4)} ${(1 / yScale).toFixed(4)}) translate(${(-cx).toFixed(2)} ${(-cy).toFixed(2)})`,
+      `translate(${x.toFixed(2)} ${cy.toFixed(2)}) scale(1 ${(1 / yScale).toFixed(4)}) translate(${(-x).toFixed(2)} ${(-cy).toFixed(2)})`,
     )
   })
 }
@@ -218,7 +227,11 @@ function updateWeatherFocusPoints(
   const index = Number(zone?.dataset.weatherIndex ?? focus.dataset.weatherFocusDefaultIndex)
   if (![chartLeft, chartRight, chartTop, chartBottom, yMin, yMax, days, index].every(Number.isFinite)) return
 
-  const x = chartLeft + (index / Math.max(days - 1, 1)) * (chartRight - chartLeft)
+  svg.dataset.weatherFocusIndex = String(index)
+  const xScale = Number(data.weatherChartXScale ?? '1')
+  const xTranslate = Number(data.weatherChartXTranslate ?? '0')
+  const baseX = chartLeft + (index / Math.max(days - 1, 1)) * (chartRight - chartLeft)
+  const x = xTranslate + xScale * baseX
   points.forEach((point) => {
     const pointName = point.dataset.weatherFocusPoint ?? ''
     const [side, kind] = pointName.split('-')
@@ -367,6 +380,28 @@ function setupWeatherZoom(svg: SVGSVGElement): void {
   const monthLabels = Array.from(
     svg.querySelectorAll<SVGTextElement>('[data-weather-month-label]'),
   )
+  const monthLines = Array.from(
+    svg.querySelectorAll<SVGLineElement>('.weather-month-line'),
+  )
+  const hoverZones = Array.from(
+    svg.querySelectorAll<SVGRectElement>('[data-weather-zone]'),
+  )
+  const rangePathElement = svg.querySelector<SVGPathElement>('[data-weather-range-max]')
+  const rightMaxPathElement = svg.querySelector<SVGPathElement>('.weather-series-max')
+  const rightMinPathElement = svg.querySelector<SVGPathElement>('.weather-series-min')
+  const parsePathPoints = (raw: string | undefined): WeatherZoomPoint[] => {
+    if (!raw) return []
+    try {
+      const parsed = JSON.parse(raw) as WeatherZoomPoint[]
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
+  }
+  const rangeMaxPoints = parsePathPoints(rangePathElement?.dataset.weatherRangeMax)
+  const rangeMinPoints = parsePathPoints(rangePathElement?.dataset.weatherRangeMin)
+  const rightMaxPoints = parsePathPoints(rightMaxPathElement?.dataset.weatherPoints)
+  const rightMinPoints = parsePathPoints(rightMinPathElement?.dataset.weatherPoints)
   const focusBadgesContainer = svg.querySelector<SVGGElement>('[data-weather-focus-badges]')
   const focusBadges = Array.from(
     svg.querySelectorAll<SVGGElement>('[data-weather-focus-badge]'),
@@ -395,18 +430,84 @@ function setupWeatherZoom(svg: SVGSVGElement): void {
     chartTop + ((max - value) / Math.max(max - min, 1)) * plotHeight
   )
 
+  const chartX = (index: number): number => (
+    translate + scale * (chartLeft + (index / Math.max(days - 1, 1)) * plotWidth)
+  )
+  const chartY = (value: number): number => (
+    chartTop + ((globalYMax - value) / Math.max(globalYMax - globalYMin, 1)) * plotHeight
+  )
+
+  const linePath = (series: WeatherZoomPoint[]): string => {
+    let path = ''
+    let previousIndex = -2
+    series.forEach((point) => {
+      const command = point.index === previousIndex + 1 ? 'L' : 'M'
+      path += `${command}${chartX(point.index).toFixed(2)},${chartY(point.value).toFixed(2)} `
+      previousIndex = point.index
+    })
+    return path.trim()
+  }
+
+  const rangePath = (maxSeries: WeatherZoomPoint[], minSeries: WeatherZoomPoint[]): string => {
+    const maxByIndex = new Map(maxSeries.map((point) => [point.index, point]))
+    const minByIndex = new Map(minSeries.map((point) => [point.index, point]))
+    const indices = [...maxByIndex.keys()]
+      .filter((index) => minByIndex.has(index))
+      .sort((left, right) => left - right)
+    const paths: string[] = []
+    let segment: number[] = []
+
+    const flush = (): void => {
+      if (segment.length === 0) return
+      const upper = segment.map((index) => {
+        const point = maxByIndex.get(index)!
+        return `${chartX(index).toFixed(2)},${chartY(point.value).toFixed(2)}`
+      })
+      const lower = [...segment].reverse().map((index) => {
+        const point = minByIndex.get(index)!
+        return `${chartX(index).toFixed(2)},${chartY(point.value).toFixed(2)}`
+      })
+      paths.push(`M${upper.join(' L')} L${lower.join(' L')} Z`)
+      segment = []
+    }
+
+    indices.forEach((index) => {
+      if (segment.length > 0 && index !== segment[segment.length - 1]! + 1) flush()
+      segment.push(index)
+    })
+    flush()
+    return paths.join(' ')
+  }
+
+  const updateChartPaths = (): void => {
+    if (rangePathElement) rangePathElement.setAttribute('d', rangePath(rangeMaxPoints, rangeMinPoints))
+    if (rightMaxPathElement) rightMaxPathElement.setAttribute('d', linePath(rightMaxPoints))
+    if (rightMinPathElement) rightMinPathElement.setAttribute('d', linePath(rightMinPoints))
+  }
+
   const updateMonthLabels = (): void => {
-    monthLabels.forEach((label) => {
-      const x = Number(label.dataset.weatherMonthX)
-      if (!Number.isFinite(x) || scale === 1) {
-        label.removeAttribute('transform')
-        return
-      }
-      const inverseScale = (1 / scale).toFixed(4)
-      label.setAttribute(
-        'transform',
-        `translate(${x.toFixed(2)} 0) scale(${inverseScale} 1) translate(${(-x).toFixed(2)} 0)`,
-      )
+    monthLabels.forEach((label, index) => {
+      const baseX = Number(label.dataset.weatherMonthX)
+      if (!Number.isFinite(baseX)) return
+      const x = translate + scale * baseX
+      label.setAttribute('x', x.toFixed(2))
+      const line = monthLines[index]
+      line?.setAttribute('x1', x.toFixed(2))
+      line?.setAttribute('x2', x.toFixed(2))
+      label.removeAttribute('transform')
+    })
+  }
+
+  const updateHoverZones = (): void => {
+    const chartStep = plotWidth / Math.max(days - 1, 1)
+    hoverZones.forEach((zone) => {
+      const index = Number(zone.dataset.weatherIndex)
+      if (!Number.isFinite(index)) return
+      const point = chartLeft + (index / Math.max(days - 1, 1)) * plotWidth
+      const zoneX = index === 0 ? chartLeft : point - chartStep / 2
+      const zoneWidth = index === 0 || index === days - 1 ? chartStep / 2 : chartStep
+      zone.setAttribute('x', (translate + scale * zoneX).toFixed(2))
+      zone.setAttribute('width', (scale * zoneWidth).toFixed(2))
     })
   }
 
@@ -533,10 +634,12 @@ function setupWeatherZoom(svg: SVGSVGElement): void {
   }
 
   const update = (): void => {
-    xLayer.setAttribute('transform', `translate(${translate.toFixed(2)} 0) scale(${scale.toFixed(4)} 1)`)
+    xLayer.removeAttribute('transform')
     svg.dataset.weatherChartXScale = scale.toFixed(4)
     svg.dataset.weatherChartXTranslate = translate.toFixed(4)
+    updateChartPaths()
     updateMonthLabels()
+    updateHoverZones()
 
     const visibleStart = Math.max(0, (chartLeft - translate) / scale)
     const visibleEnd = Math.min(chartRight, (chartRight - translate) / scale)
