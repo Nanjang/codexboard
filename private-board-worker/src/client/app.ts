@@ -413,11 +413,11 @@ function setupWeatherZoom(svg: SVGSVGElement): void {
   const updateFocusBadges = (): void => {
     if (!focusBadgesContainer || focusBadges.length === 0 || !Number.isFinite(todayIndex)) return
 
-    const xScale = Number(svg.dataset.weatherChartXScale ?? '1')
+    const xScale = scale
     const yScale = Number(svg.dataset.weatherChartYScale ?? '1')
     const yTranslate = Number(svg.dataset.weatherChartYTranslate ?? '0')
     const badgeWidth = Number(focusBadgesContainer.dataset.weatherBadgeWidth ?? '120')
-    const badgeHeight = Number(focusBadgesContainer.dataset.weatherBadgeHeight ?? '48')
+    const badgeHeight = Number(focusBadgesContainer.dataset.weatherBadgeHeight ?? '20')
     if (![xScale, yScale, yTranslate, badgeWidth, badgeHeight].every((value) => Number.isFinite(value) && value > 0)) return
 
     const pointX = (index: number): number => (
@@ -427,13 +427,14 @@ function setupWeatherZoom(svg: SVGSVGElement): void {
       chartTop + ((globalYMax - value) / Math.max(globalYMax - globalYMin, 1)) * plotHeight
     )
     const displayedY = (value: number): number => yTranslate + yScale * baseY(value)
-    const localBadgeHalfWidth = badgeWidth / (2 * xScale)
+    const badgeHalfWidth = badgeWidth / 2
     const badgeHalfHeight = badgeHeight / 2
     const badgeGap = 10
-    const chartStep = plotWidth / Math.max(days - 1, 1)
+    const chartStep = xScale * plotWidth / Math.max(days - 1, 1)
+    const displayedX = (index: number): number => translate + xScale * pointX(index)
     const badgeX = Math.min(
-      chartRight - localBadgeHalfWidth,
-      Math.max(chartLeft + localBadgeHalfWidth, pointX(todayIndex)),
+      chartRight - badgeHalfWidth,
+      Math.max(chartLeft + badgeHalfWidth, displayedX(todayIndex)),
     )
     const graphValuesByIndex = new Map<number, number[]>()
     points.forEach((point) => {
@@ -444,7 +445,7 @@ function setupWeatherZoom(svg: SVGSVGElement): void {
 
     const intersectsGraph = (rect: { left: number; right: number; top: number; bottom: number }): boolean => {
       for (const [index, values] of graphValuesByIndex) {
-        const x = pointX(index)
+        const x = displayedX(index)
         if (x < rect.left - chartStep || x > rect.right + chartStep) continue
         const ys = values.map(displayedY)
         const graphTop = Math.min(...ys) - 8
@@ -497,8 +498,8 @@ function setupWeatherZoom(svg: SVGSVGElement): void {
         if (seen.has(roundedY)) continue
         seen.add(roundedY)
         const rect = {
-          left: badgeX - localBadgeHalfWidth,
-          right: badgeX + localBadgeHalfWidth,
+          left: badgeX - badgeHalfWidth,
+          right: badgeX + badgeHalfWidth,
           top: roundedY - badgeHalfHeight,
           bottom: roundedY + badgeHalfHeight,
         }
@@ -517,15 +518,15 @@ function setupWeatherZoom(svg: SVGSVGElement): void {
       }
       const centerY = findBadgeY(kind, value, placed)
       const rect = {
-        left: badgeX - localBadgeHalfWidth,
-        right: badgeX + localBadgeHalfWidth,
+        left: badgeX - badgeHalfWidth,
+        right: badgeX + badgeHalfWidth,
         top: centerY - badgeHalfHeight,
         bottom: centerY + badgeHalfHeight,
       }
       placed.push(rect)
       badge.setAttribute(
         'transform',
-        `translate(${badgeX.toFixed(2)} ${centerY.toFixed(2)}) scale(${(1 / xScale).toFixed(4)} 1)`,
+        `translate(${badgeX.toFixed(2)} ${centerY.toFixed(2)})`,
       )
       badge.style.display = ''
     })
@@ -534,6 +535,7 @@ function setupWeatherZoom(svg: SVGSVGElement): void {
   const update = (): void => {
     xLayer.setAttribute('transform', `translate(${translate.toFixed(2)} 0) scale(${scale.toFixed(4)} 1)`)
     svg.dataset.weatherChartXScale = scale.toFixed(4)
+    svg.dataset.weatherChartXTranslate = translate.toFixed(4)
     updateMonthLabels()
 
     const visibleStart = Math.max(0, (chartLeft - translate) / scale)

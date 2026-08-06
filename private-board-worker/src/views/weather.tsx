@@ -57,7 +57,7 @@ const CHART_BOTTOM = 56
 const CHART_PLOT_WIDTH = CHART_WIDTH - CHART_LEFT - CHART_RIGHT
 const CHART_PLOT_HEIGHT = CHART_HEIGHT - CHART_TOP - CHART_BOTTOM
 const WEATHER_BADGE_WIDTH = 120
-const WEATHER_BADGE_HEIGHT = 48
+const WEATHER_BADGE_HEIGHT = 20
 
 function dateKeys(year: number): string[] {
   const result: string[] = []
@@ -420,54 +420,6 @@ function WeatherChart({ data, comparison }: { data: WeatherPayload; comparison: 
                 ) : null}
               </g>
 
-                {showCurrentBadges ? (
-                  <g
-                    class="weather-focus-badges"
-                    data-weather-focus-badges
-                    data-weather-badge-index={String(model.todayIndex)}
-                    data-weather-badge-width={String(WEATHER_BADGE_WIDTH)}
-                    data-weather-badge-height={String(WEATHER_BADGE_HEIGHT)}
-                    aria-hidden="true"
-                  >
-                    {rightTodayMax !== null ? (
-                      <g
-                        class="weather-focus-badge weather-focus-badge-max"
-                        data-weather-focus-badge="max"
-                        data-weather-badge-value={String(rightTodayMax)}
-                        transform={`translate(${xPosition(model.todayIndex, model.days.length - 1)} ${yPosition(rightTodayMax, model)})`}
-                      >
-                        <rect
-                          class="weather-focus-badge-body"
-                          x={-WEATHER_BADGE_WIDTH / 2}
-                          y={-WEATHER_BADGE_HEIGHT / 2}
-                          width={WEATHER_BADGE_WIDTH}
-                          height={WEATHER_BADGE_HEIGHT}
-                          rx="16"
-                        />
-                        <text class="weather-focus-badge-text" x="0" y="1">{badgeTemperatureLabel(rightTodayMax)}</text>
-                      </g>
-                    ) : null}
-                    {rightTodayMin !== null ? (
-                      <g
-                        class="weather-focus-badge weather-focus-badge-min"
-                        data-weather-focus-badge="min"
-                        data-weather-badge-value={String(rightTodayMin)}
-                        transform={`translate(${xPosition(model.todayIndex, model.days.length - 1)} ${yPosition(rightTodayMin, model)})`}
-                      >
-                        <rect
-                          class="weather-focus-badge-body"
-                          x={-WEATHER_BADGE_WIDTH / 2}
-                          y={-WEATHER_BADGE_HEIGHT / 2}
-                          width={WEATHER_BADGE_WIDTH}
-                          height={WEATHER_BADGE_HEIGHT}
-                          rx="16"
-                        />
-                        <text class="weather-focus-badge-text" x="0" y="1">{badgeTemperatureLabel(rightTodayMin)}</text>
-                      </g>
-                    ) : null}
-                  </g>
-                ) : null}
-
                 {model.days.map((key, index) => {
                   const currentDate = `${currentYear}-${key}`
                   const leftRecord = comparisonRecord(recordsByDate, key, currentYear, comparison.left)
@@ -502,6 +454,54 @@ function WeatherChart({ data, comparison }: { data: WeatherPayload; comparison: 
                   )
                 })}
               </g>
+
+              {showCurrentBadges ? (
+                <g
+                  class="weather-focus-badges"
+                  data-weather-focus-badges
+                  data-weather-badge-index={String(model.todayIndex)}
+                  data-weather-badge-width={String(WEATHER_BADGE_WIDTH)}
+                  data-weather-badge-height={String(WEATHER_BADGE_HEIGHT)}
+                  aria-hidden="true"
+                >
+                  {rightTodayMax !== null ? (
+                    <g
+                      class="weather-focus-badge weather-focus-badge-max"
+                      data-weather-focus-badge="max"
+                      data-weather-badge-value={String(rightTodayMax)}
+                      transform={`translate(${xPosition(model.todayIndex, model.days.length - 1)} ${yPosition(rightTodayMax, model)})`}
+                    >
+                      <rect
+                        class="weather-focus-badge-body"
+                        x={-WEATHER_BADGE_WIDTH / 2}
+                        y={-WEATHER_BADGE_HEIGHT / 2}
+                        width={WEATHER_BADGE_WIDTH}
+                        height={WEATHER_BADGE_HEIGHT}
+                        rx="10"
+                      />
+                      <text class="weather-focus-badge-text" x="0" y="1">{badgeTemperatureLabel(rightTodayMax)}</text>
+                    </g>
+                  ) : null}
+                  {rightTodayMin !== null ? (
+                    <g
+                      class="weather-focus-badge weather-focus-badge-min"
+                      data-weather-focus-badge="min"
+                      data-weather-badge-value={String(rightTodayMin)}
+                      transform={`translate(${xPosition(model.todayIndex, model.days.length - 1)} ${yPosition(rightTodayMin, model)})`}
+                    >
+                      <rect
+                        class="weather-focus-badge-body"
+                        x={-WEATHER_BADGE_WIDTH / 2}
+                        y={-WEATHER_BADGE_HEIGHT / 2}
+                        width={WEATHER_BADGE_WIDTH}
+                        height={WEATHER_BADGE_HEIGHT}
+                        rx="10"
+                      />
+                      <text class="weather-focus-badge-text" x="0" y="1">{badgeTemperatureLabel(rightTodayMin)}</text>
+                    </g>
+                  ) : null}
+                </g>
+              ) : null}
             </g>
           </svg>
         </div>
