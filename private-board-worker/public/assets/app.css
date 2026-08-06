@@ -326,6 +326,30 @@
   color: #3978bd;
 }
 
+.weather-focus-badges {
+  pointer-events: none;
+}
+
+.weather-focus-badge-body {
+  stroke: none;
+}
+
+.weather-focus-badge-max .weather-focus-badge-body {
+  fill: #ff7627;
+}
+
+.weather-focus-badge-min .weather-focus-badge-body {
+  fill: #079fdf;
+}
+
+.weather-focus-badge-text {
+  fill: #fff;
+  font-size: 26px;
+  font-weight: 800;
+  text-anchor: middle;
+  dominant-baseline: middle;
+}
+
 .weather-range-controls {
   align-items: center;
   display: flex;
