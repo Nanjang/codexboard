@@ -22,6 +22,7 @@ import type {
 } from '../src/types'
 import type { ThemeLibrary } from '../src/lib/themes'
 import { BUILTIN_THEMES } from '../src/lib/themes'
+import type { WeatherPayload } from '../src/lib/weather'
 import { AccountPage } from '../src/views/account'
 import type { DatabaseUsageStats } from '../src/lib/database-usage'
 import { AdminDatabasePage, AdminPage } from '../src/views/admin'
@@ -39,6 +40,7 @@ import { PrivateImagesPage } from '../src/views/images'
 import { PersonalBookmarksPage } from '../src/views/personal-bookmarks'
 import { composeMemoUrl, MemoBoardPage, MemoSettingsPage } from '../src/views/memos'
 import { TicketLogsPage, TicketTagsPage, TicketsPage, TicketTrashPage } from '../src/views/tickets'
+import { WeatherPage } from '../src/views/weather'
 
 const ticketCreationRequestId = 'f47ac10b-58cc-4372-a567-0e02b2c3d479'
 
@@ -1079,6 +1081,39 @@ describe('핵심 화면', () => {
     expect(html).toContain('href="/tickets/logs?page=2&amp;pageSize=50"')
     expect(html.indexOf('문서 검토 수정본')).toBeLessThan(html.indexOf('문서 검토</span>'))
     expect(html).not.toContain('간단한 메모')
+  })
+
+  it('날씨 그래프는 부유 툴팁 없이 오늘 기준 고정 정보 행을 표시한다', async () => {
+    const data: WeatherPayload = {
+      version: 1,
+      location: { id: 'seoul', name: '서울', stationId: 108, stationType: 'ASOS' },
+      asOf: '2026-08-04',
+      range: { from: '2021-01-01', to: '2026-08-04' },
+      dataAvailable: true,
+      source: { provider: 'KMA API Hub', endpoint: 'sfc_aws_day.php', stationId: 108, stationType: 'ASOS' },
+      records: [
+        { date: '2025-08-04', maxC: 30, minC: 22, status: 'confirmed' },
+        { date: '2026-08-04', maxC: 31, minC: 25, status: 'provisional' },
+      ],
+      warning: null,
+    }
+    const html = String(
+      await WeatherPage({
+        appName: 'Private Board',
+        deployInfo,
+        data,
+        jsonUrl: '/weather.json?location=seoul',
+        comparison: { left: 'previous', right: 'current' },
+      }),
+    )
+
+    expect(html).toContain('data-weather-focus')
+    expect(html).toContain('2026년 8월 4일')
+    expect(html).toContain('2025년 전년')
+    expect(html).toContain('2026년 올해')
+    expect(html).toContain('data-weather-focus-point="right-max"')
+    expect(html).not.toContain('data-weather-tooltip')
+    expect(html).not.toContain('weather-tooltip')
   })
 
   it('티켓 휴지통은 복원 기한과 영구 삭제 동작을 표시한다', async () => {

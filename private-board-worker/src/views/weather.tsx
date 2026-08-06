@@ -218,6 +218,10 @@ function comparisonRecord(
   return recordsByDate.get(`${comparisonYear(choice, currentYear)}-${key}`)
 }
 
+function weatherFocusSeriesText(year: number, label: string, record: WeatherRecord | undefined): string {
+  return `${year}년 ${label} · 최고 ${temperatureLabel(record?.maxC ?? null)} · 최저 ${temperatureLabel(record?.minC ?? null)}`
+}
+
 function comparisonPoints(
   model: ChartModel,
   currentYear: number,
@@ -239,6 +243,12 @@ function WeatherChart({ data, comparison }: { data: WeatherPayload; comparison: 
   const rightMax = comparisonPoints(model, currentYear, comparison.right, 'maxC')
   const rightMin = comparisonPoints(model, currentYear, comparison.right, 'minC')
   const rightToday = comparisonRecord(recordsByDate, data.asOf.slice(5), currentYear, comparison.right)
+  const leftToday = comparisonRecord(recordsByDate, data.asOf.slice(5), currentYear, comparison.left)
+  const focusLeftText = weatherFocusSeriesText(leftYear, comparisonLabel(comparison.left), leftToday)
+  const focusRightText = weatherFocusSeriesText(rightYear, comparisonLabel(comparison.right), rightToday)
+  const focusStatus = leftToday?.status === 'provisional' || rightToday?.status === 'provisional'
+    ? '오늘 값은 잠정값입니다.'
+    : ''
   const leftRangePath = rangePath(leftMax, leftMin, model)
   const rightMaxPath = linePath(rightMax, model)
   const rightMinPath = linePath(rightMin, model)
@@ -279,6 +289,22 @@ function WeatherChart({ data, comparison }: { data: WeatherPayload; comparison: 
         <span><i class="weather-legend-line weather-legend-min" /> 최저기온</span>
         <span><i class="weather-legend-range" /> {leftYear}년 기온 범위</span>
         <span><i class="weather-legend-line weather-legend-current" /> {rightYear}년</span>
+      </div>
+      <div
+        class="weather-focus"
+        data-weather-focus
+        data-weather-focus-default-index={String(model.todayIndex)}
+        data-weather-focus-default-date={data.asOf}
+        data-weather-focus-default-left={focusLeftText}
+        data-weather-focus-default-right={focusRightText}
+        data-weather-focus-default-status={focusStatus}
+        role="status"
+        aria-live="polite"
+      >
+        <strong data-weather-focus-date>{dateLabel(data.asOf)}</strong>
+        <span class="weather-focus-series weather-focus-series-left" data-weather-focus-left>{focusLeftText}</span>
+        <span class="weather-focus-series weather-focus-series-right" data-weather-focus-right>{focusRightText}</span>
+        <small data-weather-focus-status>{focusStatus}</small>
       </div>
       <div class="weather-chart-layout">
         <div class="weather-chart-plot">
@@ -342,22 +368,28 @@ function WeatherChart({ data, comparison }: { data: WeatherPayload; comparison: 
                 {rightMaxPath ? <path d={rightMaxPath} class="weather-series weather-series-max weather-series-current" /> : null}
                 {rightMinPath ? <path d={rightMinPath} class="weather-series weather-series-min weather-series-current" /> : null}
 
-                {rightToday?.maxC !== null && rightToday?.maxC !== undefined ? (
-                  <circle
-                    cx={xPosition(model.todayIndex, model.days.length - 1)}
-                    cy={yPosition(rightToday.maxC, model)}
-                    r="4"
-                    class="weather-today-dot weather-today-dot-max"
-                  />
-                ) : null}
-                {rightToday?.minC !== null && rightToday?.minC !== undefined ? (
-                  <circle
-                    cx={xPosition(model.todayIndex, model.days.length - 1)}
-                    cy={yPosition(rightToday.minC, model)}
-                    r="4"
-                    class="weather-today-dot weather-today-dot-min"
-                  />
-                ) : null}
+                <g class="weather-focus-points" data-weather-focus-points aria-hidden="true">
+                  {(
+                    [
+                      ['left-max', leftToday?.maxC],
+                      ['left-min', leftToday?.minC],
+                      ['right-max', rightToday?.maxC],
+                      ['right-min', rightToday?.minC],
+                    ] as const
+                  ).map(([point, value]) => (
+                    value !== null && value !== undefined ? (
+                      <circle
+                        key={point}
+                        class={`weather-focus-point weather-focus-point-${point}`}
+                        data-weather-focus-point={point}
+                        data-weather-default-value={String(value)}
+                        cx={xPosition(model.todayIndex, model.days.length - 1)}
+                        cy={yPosition(value, model)}
+                        r="4.5"
+                      />
+                    ) : null
+                  ))}
+                </g>
               </g>
 
               {model.days.map((key, index) => {
@@ -376,6 +408,7 @@ function WeatherChart({ data, comparison }: { data: WeatherPayload; comparison: 
                     height={CHART_PLOT_HEIGHT}
                     fill="transparent"
                     data-weather-zone
+                    data-weather-index={String(index)}
                     data-weather-date={currentDate}
                     data-weather-left-year={String(leftYear)}
                     data-weather-left-label={comparisonLabel(comparison.left)}
@@ -395,9 +428,6 @@ function WeatherChart({ data, comparison }: { data: WeatherPayload; comparison: 
             </g>
           </svg>
         </div>
-        <aside class="weather-tooltip" data-weather-tooltip role="status" aria-live="polite">
-          <p class="weather-tooltip-empty">그래프의 날짜에 마우스를 올리거나 터치하세요.</p>
-        </aside>
       </div>
       <p class="weather-chart-caption">전년은 최고·최저기온 사이의 범위로 표시하며, 세로선은 월 시작점입니다. 그래프에서 휠을 굴리면 날짜 구간이 확대·축소되고 Y축은 보이는 값에 맞춰 조정됩니다.</p>
     </div>

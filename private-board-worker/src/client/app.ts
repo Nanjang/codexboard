@@ -123,96 +123,134 @@ function setupValueCopies(): void {
   })
 }
 
-function weatherTemperatureLabel(value: string | undefined): string {
-  return value ? `${Number(value).toFixed(1)}℃` : '—'
-}
-
 function weatherDateLabel(date: string): string {
   const parts = date.split('-')
   return `${parts[0] ?? ''}년 ${Number(parts[1] ?? 0)}월 ${Number(parts[2] ?? 0)}일`
 }
 
-function resetWeatherTooltip(tooltip: HTMLElement): void {
-  tooltip.classList.remove('is-active')
-  tooltip.style.removeProperty('left')
-  tooltip.style.removeProperty('top')
-  tooltip.style.removeProperty('right')
-  tooltip.replaceChildren()
-  const empty = document.createElement('p')
-  empty.className = 'weather-tooltip-empty'
-  empty.textContent = '그래프의 날짜에 마우스를 올리거나 터치하세요.'
-  tooltip.appendChild(empty)
+function weatherTemperatureLabel(value: string | undefined): string {
+  return value ? `${Number(value).toFixed(1)}℃` : '—'
 }
 
-function positionWeatherTooltip(tooltip: HTMLElement, event: PointerEvent): void {
-  const host = tooltip.parentElement
-  if (!host) return
-  const hostRect = host.getBoundingClientRect()
-  const offset = 30
-  const padding = 8
-  const desiredLeft = event.clientX - hostRect.left + offset
-  const desiredTop = event.clientY - hostRect.top - tooltip.offsetHeight / 2
-  const maxLeft = Math.max(padding, hostRect.width - tooltip.offsetWidth - padding)
-  const maxTop = Math.max(padding, hostRect.height - tooltip.offsetHeight - padding)
-  const leftOfPointer = event.clientX - hostRect.left - offset - tooltip.offsetWidth
-  const tooltipLeft = desiredLeft <= maxLeft ? desiredLeft : Math.max(padding, leftOfPointer)
-  tooltip.style.left = `${Math.min(maxLeft, Math.max(padding, tooltipLeft))}px`
-  tooltip.style.top = `${Math.min(maxTop, Math.max(padding, desiredTop))}px`
-  tooltip.style.right = 'auto'
+function setWeatherFocusText(
+  focus: HTMLElement,
+  date: string,
+  left: string,
+  right: string,
+  status: string,
+): void {
+  const dateElement = focus.querySelector<HTMLElement>('[data-weather-focus-date]')
+  const leftElement = focus.querySelector<HTMLElement>('[data-weather-focus-left]')
+  const rightElement = focus.querySelector<HTMLElement>('[data-weather-focus-right]')
+  const statusElement = focus.querySelector<HTMLElement>('[data-weather-focus-status]')
+  if (dateElement) dateElement.textContent = weatherDateLabel(date)
+  if (leftElement) leftElement.textContent = left
+  if (rightElement) rightElement.textContent = right
+  if (statusElement) statusElement.textContent = status
 }
 
-function updateWeatherTooltip(tooltip: HTMLElement, zone: SVGRectElement, event?: PointerEvent): void {
+function weatherFocusSeriesText(
+  year: string | undefined,
+  label: string | undefined,
+  max: string | undefined,
+  min: string | undefined,
+): string {
+  return `${year ?? ''}년 ${label ?? ''} · 최고 ${weatherTemperatureLabel(max)} · 최저 ${weatherTemperatureLabel(min)}`
+}
+
+function updateWeatherFocus(focus: HTMLElement, zone: SVGRectElement): void {
   const data = zone.dataset
-  tooltip.replaceChildren()
 
-  const title = document.createElement('strong')
-  title.className = 'weather-tooltip-date'
-  title.textContent = weatherDateLabel(data.weatherDate ?? '')
-  tooltip.appendChild(title)
+  setWeatherFocusText(
+    focus,
+    data.weatherDate ?? '',
+    weatherFocusSeriesText(data.weatherLeftYear, data.weatherLeftLabel, data.weatherLeftMax, data.weatherLeftMin),
+    weatherFocusSeriesText(data.weatherRightYear, data.weatherRightLabel, data.weatherRightMax, data.weatherRightMin),
+    data.weatherLeftStatus === 'provisional' || data.weatherRightStatus === 'provisional'
+      ? '오늘 값은 잠정값입니다.'
+      : '',
+  )
+}
 
-  for (const item of [
-    { year: data.weatherLeftYear, label: data.weatherLeftLabel ?? '좌측', max: data.weatherLeftMax, min: data.weatherLeftMin },
-    { year: data.weatherRightYear, label: data.weatherRightLabel ?? '우측', max: data.weatherRightMax, min: data.weatherRightMin },
-  ]) {
-    const section = document.createElement('div')
-    section.className = 'weather-tooltip-year'
-    const heading = document.createElement('span')
-    heading.textContent = `${item.year ?? ''}년 ${item.label}`
-    section.appendChild(heading)
-    const values = document.createElement('strong')
-    values.textContent = `최고 ${weatherTemperatureLabel(item.max)} · 최저 ${weatherTemperatureLabel(item.min)}`
-    section.appendChild(values)
-    tooltip.appendChild(section)
-  }
+function resetWeatherFocus(focus: HTMLElement): void {
+  const data = focus.dataset
+  setWeatherFocusText(
+    focus,
+    data.weatherFocusDefaultDate ?? '',
+    data.weatherFocusDefaultLeft ?? '',
+    data.weatherFocusDefaultRight ?? '',
+    data.weatherFocusDefaultStatus ?? '',
+  )
+}
 
-  if (data.weatherLeftStatus === 'provisional' || data.weatherRightStatus === 'provisional') {
-    const status = document.createElement('small')
-    status.textContent = '오늘 값은 잠정값입니다.'
-    tooltip.appendChild(status)
-  }
-  tooltip.classList.add('is-active')
-  if (event) positionWeatherTooltip(tooltip, event)
+function updateWeatherFocusPoints(
+  svg: SVGSVGElement,
+  focus: HTMLElement,
+  zone: SVGRectElement | null,
+): void {
+  const points = svg.querySelectorAll<SVGCircleElement>('[data-weather-focus-point]')
+  if (points.length === 0) return
+
+  const data = svg.dataset
+  const chartLeft = Number(data.weatherChartLeft)
+  const chartRight = Number(data.weatherChartRight)
+  const chartTop = Number(data.weatherChartTop)
+  const chartBottom = Number(data.weatherChartBottom)
+  const yMin = Number(data.weatherChartYMin)
+  const yMax = Number(data.weatherChartYMax)
+  const days = Number(data.weatherChartDays)
+  const index = Number(zone?.dataset.weatherIndex ?? focus.dataset.weatherFocusDefaultIndex)
+  if (![chartLeft, chartRight, chartTop, chartBottom, yMin, yMax, days, index].every(Number.isFinite)) return
+
+  const x = chartLeft + (index / Math.max(days - 1, 1)) * (chartRight - chartLeft)
+  points.forEach((point) => {
+    const pointName = point.dataset.weatherFocusPoint ?? ''
+    const [side, kind] = pointName.split('-')
+    const value = zone
+      ? side === 'left'
+        ? kind === 'max' ? zone.dataset.weatherLeftMax : zone.dataset.weatherLeftMin
+        : kind === 'max' ? zone.dataset.weatherRightMax : zone.dataset.weatherRightMin
+      : point.dataset.weatherDefaultValue
+    const numericValue = value === undefined || value === '' ? Number.NaN : Number(value)
+    if (!Number.isFinite(numericValue)) {
+      point.style.display = 'none'
+      return
+    }
+    const y = chartTop + ((yMax - numericValue) / Math.max(yMax - yMin, 1)) * (chartBottom - chartTop)
+    point.setAttribute('cx', x.toFixed(2))
+    point.setAttribute('cy', y.toFixed(2))
+    point.style.display = ''
+  })
 }
 
 function setupWeatherChart(): void {
   const svg = document.querySelector<SVGSVGElement>('[data-weather-chart]')
-  const tooltip = document.querySelector<HTMLElement>('[data-weather-tooltip]')
-  if (!svg) return
+  const focus = document.querySelector<HTMLElement>('[data-weather-focus]')
+  if (!svg || !focus) return
 
-  if (tooltip) {
-    const show = (target: EventTarget | null, event?: PointerEvent): void => {
-      if (!(target instanceof Element)) return
-      const zone = target.closest<SVGRectElement>('[data-weather-zone]')
-      if (zone) updateWeatherTooltip(tooltip, zone, event)
-    }
-
-    svg.addEventListener('pointerover', (event) => show(event.target, event))
-    svg.addEventListener('pointermove', (event) => show(event.target, event))
-    svg.addEventListener('pointerup', (event) => show(event.target, event))
-    svg.addEventListener('focusin', (event) => show(event.target))
-    svg.addEventListener('pointerleave', () => resetWeatherTooltip(tooltip))
+  const reset = (): void => {
+    resetWeatherFocus(focus)
+    updateWeatherFocusPoints(svg, focus, null)
   }
 
+  const show = (target: EventTarget | null): void => {
+    if (!(target instanceof Element)) return
+    const zone = target.closest<SVGRectElement>('[data-weather-zone]')
+    if (!zone) return
+    updateWeatherFocus(focus, zone)
+    updateWeatherFocusPoints(svg, focus, zone)
+  }
+
+  svg.addEventListener('pointerover', (event) => show(event.target))
+  svg.addEventListener('pointermove', (event) => show(event.target))
+  svg.addEventListener('pointerup', (event) => show(event.target))
+  svg.addEventListener('focusin', (event) => show(event.target))
+  svg.addEventListener('pointerleave', (event) => {
+    if (event.pointerType !== 'touch') reset()
+  })
+  svg.addEventListener('pointercancel', reset)
+  svg.addEventListener('focusout', reset)
+  reset()
   setupWeatherZoom(svg)
 }
 
