@@ -285,6 +285,21 @@ interface WeatherZoomPoint {
   value: number
 }
 
+function weatherMonthOffset(date: Date, offset: number): Date {
+  const result = new Date(date)
+  const day = result.getUTCDate()
+  result.setUTCDate(1)
+  result.setUTCMonth(result.getUTCMonth() + offset)
+  const lastDay = new Date(Date.UTC(result.getUTCFullYear(), result.getUTCMonth() + 1, 0)).getUTCDate()
+  result.setUTCDate(Math.min(day, lastDay))
+  return result
+}
+
+function weatherDayIndex(date: Date, year: number): number {
+  const yearStart = Date.UTC(year, 0, 1)
+  return Math.round((date.getTime() - yearStart) / 86400000)
+}
+
 function setupWeatherZoom(svg: SVGSVGElement): void {
   const xLayer = svg.querySelector<SVGGElement>('[data-weather-x-layer]')
   const yLayer = svg.querySelector<SVGGElement>('[data-weather-y-layer]')
@@ -306,6 +321,28 @@ function setupWeatherZoom(svg: SVGSVGElement): void {
   const plotHeight = chartBottom - chartTop
   let scale = 1
   let translate = 0
+  const rangeButtons = Array.from(
+    document.querySelectorAll<HTMLButtonElement>('[data-weather-range]'),
+  )
+  const asOf = data.weatherChartAsOf ? new Date(`${data.weatherChartAsOf}T00:00:00.000Z`) : null
+  const todayIndex = Number(data.weatherChartTodayIndex)
+
+  const setRangeButtonState = (activeRange: string | null): void => {
+    rangeButtons.forEach((button) => {
+      button.setAttribute('aria-pressed', String(button.dataset.weatherRange === activeRange))
+    })
+  }
+
+  const rangeForToday = (): { startIndex: number; endIndex: number } | null => {
+    if (!asOf || Number.isNaN(asOf.getTime())) return null
+    const year = asOf.getUTCFullYear()
+    const startDate = weatherMonthOffset(asOf, -2)
+    const endDate = weatherMonthOffset(asOf, 2)
+    return {
+      startIndex: Math.max(0, weatherDayIndex(startDate, year)),
+      endIndex: Math.min(days - 1, weatherDayIndex(endDate, year)),
+    }
+  }
 
   const yForValue = (value: number, min: number, max: number): number => (
     chartTop + ((max - value) / Math.max(max - min, 1)) * plotHeight
@@ -353,6 +390,33 @@ function setupWeatherZoom(svg: SVGSVGElement): void {
     })
   }
 
+  const setRange = (range: string): void => {
+    if (range === 'year') {
+      scale = 1
+      translate = 0
+      setRangeButtonState('year')
+      update()
+      return
+    }
+
+    if (range !== 'two-months' || !Number.isFinite(todayIndex)) return
+    const selectedRange = rangeForToday()
+    if (!selectedRange || selectedRange.endIndex <= selectedRange.startIndex) return
+    const startX = chartLeft + (selectedRange.startIndex / Math.max(days - 1, 1)) * plotWidth
+    const endX = chartLeft + (selectedRange.endIndex / Math.max(days - 1, 1)) * plotWidth
+    scale = Math.min(12, Math.max(1, plotWidth / Math.max(endX - startX, 1)))
+    const minTranslate = chartRight - scale * chartRight
+    const maxTranslate = chartLeft - scale * chartLeft
+    translate = chartLeft - scale * startX
+    translate = Math.min(maxTranslate, Math.max(minTranslate, translate))
+    setRangeButtonState('two-months')
+    update()
+  }
+
+  rangeButtons.forEach((button) => {
+    button.addEventListener('click', () => setRange(button.dataset.weatherRange ?? ''))
+  })
+
   svg.addEventListener('wheel', (event) => {
     event.preventDefault()
     const rect = svg.getBoundingClientRect()
@@ -368,9 +432,11 @@ function setupWeatherZoom(svg: SVGSVGElement): void {
     scale = nextScale
     translate = pointerX - scale * dataX
     translate = Math.min(maxTranslate, Math.max(minTranslate, translate))
+    setRangeButtonState(scale === 1 && translate === 0 ? 'year' : null)
     update()
   }, { passive: false })
 
+  setRangeButtonState('year')
   update()
 }
 

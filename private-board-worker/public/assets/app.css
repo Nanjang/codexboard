@@ -314,6 +314,26 @@
   stroke-dasharray: 2 2;
 }
 
+.weather-range-controls {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin: 8px 4px 0;
+}
+
+.weather-range-label {
+  color: var(--muted-text, #667466);
+  font-size: 0.78rem;
+  margin-right: 2px;
+}
+
+.weather-range-button[aria-pressed='true'] {
+  border-color: var(--accent, #2f7a4a);
+  color: #fff;
+  background: var(--accent, #2f7a4a);
+}
+
 .weather-chart-caption,
 .weather-source-note {
   color: var(--muted-text, #667466);

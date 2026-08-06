@@ -321,6 +321,8 @@ function WeatherChart({ data, comparison }: { data: WeatherPayload; comparison: 
             data-weather-chart-right={String(CHART_WIDTH - CHART_RIGHT)}
             data-weather-chart-top={String(CHART_TOP)}
             data-weather-chart-bottom={String(CHART_HEIGHT - CHART_BOTTOM)}
+            data-weather-chart-as-of={data.asOf}
+            data-weather-chart-today-index={String(model.todayIndex)}
             data-weather-chart-points={JSON.stringify(
               [...leftMax, ...leftMin, ...rightMax, ...rightMin].map((point) => ({
                 index: point.index,
@@ -429,7 +431,16 @@ function WeatherChart({ data, comparison }: { data: WeatherPayload; comparison: 
           </svg>
         </div>
       </div>
-      <p class="weather-chart-caption">전년은 최고·최저기온 사이의 범위로 표시하며, 세로선은 월 시작점입니다. 그래프에서 휠을 굴리면 날짜 구간이 확대·축소되고 Y축은 보이는 값에 맞춰 조정됩니다.</p>
+      <div class="weather-range-controls" data-weather-range-controls aria-label="그래프 표시 범위">
+        <span class="weather-range-label">표시 범위</span>
+        <button class="button button-secondary button-small weather-range-button" type="button" data-weather-range="year" aria-pressed="true">
+          1년
+        </button>
+        <button class="button button-secondary button-small weather-range-button" type="button" data-weather-range="two-months" aria-pressed="false">
+          오늘 전후 2개월
+        </button>
+      </div>
+      <p class="weather-chart-caption">전년은 최고·최저기온 사이의 범위로 표시하며, 세로선은 월 시작점입니다. 범위 버튼이나 그래프 휠로 날짜 구간을 조정할 수 있고 Y축은 보이는 값에 맞춰 자동 조정됩니다.</p>
     </div>
   )
 }
