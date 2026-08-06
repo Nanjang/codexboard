@@ -1108,6 +1108,8 @@ describe('핵심 화면', () => {
     )
 
     expect(html).toContain('data-weather-focus')
+    expect(html).toContain('class="weather-focus-grid"')
+    expect(html).toContain('class="weather-focus-heading"')
     expect(html).toContain('2026년 8월 4일')
     expect(html).toContain('2025년 전년')
     expect(html).toContain('2026년 올해')

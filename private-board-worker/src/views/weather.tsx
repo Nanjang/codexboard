@@ -301,10 +301,14 @@ function WeatherChart({ data, comparison }: { data: WeatherPayload; comparison: 
         role="status"
         aria-live="polite"
       >
-        <strong data-weather-focus-date>{dateLabel(data.asOf)}</strong>
-        <span class="weather-focus-series weather-focus-series-left" data-weather-focus-left>{focusLeftText}</span>
-        <span class="weather-focus-series weather-focus-series-right" data-weather-focus-right>{focusRightText}</span>
-        <small data-weather-focus-status>{focusStatus}</small>
+        <div class="weather-focus-heading">
+          <strong data-weather-focus-date>{dateLabel(data.asOf)}</strong>
+          <small data-weather-focus-status>{focusStatus}</small>
+        </div>
+        <div class="weather-focus-grid">
+          <span class="weather-focus-series weather-focus-series-left" data-weather-focus-left>{focusLeftText}</span>
+          <span class="weather-focus-series weather-focus-series-right" data-weather-focus-right>{focusRightText}</span>
+        </div>
       </div>
       <div class="weather-chart-layout">
         <div class="weather-chart-plot">
