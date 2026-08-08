@@ -811,49 +811,6 @@ function setupWeatherZoom(svg: SVGSVGElement): void {
   update()
 }
 
-function setupTicketEditing(): void {
-  const dialog = document.querySelector<HTMLDialogElement>('#ticket-edit-dialog')
-  const editForm = document.querySelector<HTMLFormElement>('[data-ticket-edit-form]')
-  const deleteForm = document.querySelector<HTMLFormElement>('[data-ticket-delete-form]')
-  if (!dialog || !editForm || !deleteForm) return
-
-  document.addEventListener('click', (event) => {
-    const target = event.target
-    if (!(target instanceof Element)) return
-    const link = target.closest<HTMLElement>('[data-ticket-edit]')
-    if (!link) return
-
-    const card = link.closest<HTMLElement>('[data-ticket-id]')
-    if (!card) return
-
-    const id = card.dataset.ticketId
-    const title = card.dataset.ticketTitle ?? ''
-    const note = card.dataset.ticketNote ?? ''
-    const lane = card.dataset.ticketLane ?? 'todo'
-    if (!id) return
-
-    event.preventDefault()
-    editForm.action = `/tickets/${encodeURIComponent(id)}/update`
-    deleteForm.action = `/tickets/${encodeURIComponent(id)}/delete`
-
-    const titleInput = editForm.elements.namedItem('title')
-    const noteInput = editForm.elements.namedItem('note')
-    const laneInput = editForm.elements.namedItem('lane')
-    const tagInput = editForm.elements.namedItem('tag_ids')
-    const tagIds = (card.dataset.ticketTagIds ?? '').split(',').filter(Boolean)
-    if (titleInput instanceof HTMLInputElement) titleInput.value = title
-    if (noteInput instanceof HTMLTextAreaElement) noteInput.value = note
-    if (laneInput instanceof HTMLSelectElement) laneInput.value = lane
-    if (tagInput instanceof HTMLSelectElement && tagInput.multiple) {
-      Array.from(tagInput.options).forEach((option) => {
-        option.selected = tagIds.includes(option.value)
-      })
-    }
-
-    openDialog(dialog)
-  })
-}
-
 function setupTicketCreateDropZones(): void {
   const dialog = document.querySelector<HTMLDialogElement>('#ticket-create-dialog')
   const form = dialog?.querySelector<HTMLFormElement>('form')
@@ -872,6 +829,30 @@ function setupTicketCreateDropZones(): void {
     form.reset()
     laneInput.value = lane
     openDialog(dialog)
+  })
+}
+
+function setupTicketFormProtection(): void {
+  const form = document.querySelector<HTMLFormElement>('[data-ticket-form-page]')
+  if (!form) return
+
+  const snapshot = (): string => JSON.stringify(
+    Array.from(new FormData(form).entries()).map(([name, value]) => [
+      name,
+      typeof value === 'string' ? value : value.name,
+    ]),
+  )
+  const initialSnapshot = snapshot()
+  let submitting = false
+
+  window.addEventListener('beforeunload', (event) => {
+    if (submitting || snapshot() === initialSnapshot) return
+    event.preventDefault()
+    event.returnValue = ''
+  })
+
+  form.addEventListener('submit', () => {
+    submitting = true
   })
 }
 
@@ -2033,8 +2014,8 @@ function setupPersonalBookmarks(): void {
 function initialize(): void {
   setupMenu()
   setupDialogs()
-  setupTicketEditing()
   setupTicketCreateDropZones()
+  setupTicketFormProtection()
   setupConfirmations()
   setupRichEditor()
   setupDevlogArchiveToggle()

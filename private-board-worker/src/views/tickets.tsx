@@ -214,7 +214,6 @@ function TicketCard({ ticket }: { ticket: TicketRow }) {
           <a
             class="ticket-card-open"
             href={`/tickets/${ticket.id}/edit`}
-            data-ticket-edit
             aria-label={`${ticket.title} 수정`}
           >
             <strong>{ticket.title}</strong>
@@ -348,72 +347,6 @@ export function TicketsPage({
         </form>
       </dialog>
 
-      <dialog id="ticket-edit-dialog" class="ticket-dialog">
-        <form
-          id="ticket-delete-form"
-          action="/tickets/0/delete"
-          method="post"
-          class="dialog-delete-form"
-          data-ticket-delete-form
-          data-confirm="티켓을 휴지통으로 이동할까요?"
-        >
-          <CsrfInput token={csrfToken} />
-        </form>
-        <form action="/tickets/0/update" method="post" class="stack-form" data-ticket-edit-form>
-          <CsrfInput token={csrfToken} />
-          <div class="dialog-header">
-            <h2>티켓 수정</h2>
-            <div class="dialog-header-actions">
-              <button
-                type="submit"
-                form="ticket-delete-form"
-                class="icon-button icon-button-small dialog-delete-button"
-                aria-label="티켓 삭제"
-                title="티켓 삭제"
-              >
-                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                  <path
-                    d="M5 7h14m-9 4v6m4-6v6M8 7l1 13h6l1-13M9 7V4h6v3"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="1.8"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  />
-                </svg>
-              </button>
-              <button type="button" class="icon-button" aria-label="닫기" data-dialog-close>
-                ×
-              </button>
-            </div>
-          </div>
-          <label>
-            <span>제목</span>
-            <input type="text" name="title" maxlength={120} required autocomplete="off" />
-          </label>
-          <label>
-            <span>메모</span>
-            <textarea name="note" rows={6} maxlength={4000}></textarea>
-          </label>
-          <label>
-            <span>상태</span>
-            <select name="lane">
-              <option value="todo">할 일</option>
-              <option value="doing">진행 중</option>
-              <option value="done">완료</option>
-            </select>
-          </label>
-          <TicketTagSelect availableTags={availableTags} />
-          <div class="form-actions form-actions-split">
-            <button type="button" class="button button-secondary" data-dialog-close>
-              취소
-            </button>
-            <button type="submit" class="button">
-              저장
-            </button>
-          </div>
-        </form>
-      </dialog>
     </AppLayout>
   )
 }
@@ -563,6 +496,8 @@ export function TicketFormPage({
           action={action}
           method="post"
           class="stack-form"
+          data-ticket-form-page
+          data-ticket-form-mode={mode}
           data-prevent-double-submit={isEdit ? undefined : true}
         >
           <CsrfInput token={csrfToken} />

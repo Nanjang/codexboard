@@ -1029,6 +1029,8 @@ describe('핵심 화면', () => {
     expect(html).toContain('href="/tickets/tags"')
     expect(html).toContain('class="ticket-tag ticket-tag-color-coral"')
     expect(html).toContain('data-ticket-tag-ids="7"')
+    expect(html).toContain('href="/tickets/1/edit"')
+    expect(html).not.toContain('data-ticket-edit')
     expect(html).toContain('class="ticket-drop-zone"')
     expect(html).toContain('aria-label="할 일 상태에 티켓 추가"')
     expect(html).toContain('data-ticket-create-lane="todo"')
