@@ -422,9 +422,6 @@ function setupWeatherZoom(svg: SVGSVGElement): void {
     }
   }
 
-  focusBadgesToggle?.addEventListener('change', updateFocusBadgeVisibility)
-  updateFocusBadgeVisibility()
-
   const setRangeButtonState = (activeRange: string | null): void => {
     rangeButtons.forEach((button) => {
       button.setAttribute('aria-pressed', String(button.dataset.weatherRange === activeRange))
@@ -641,6 +638,12 @@ function setupWeatherZoom(svg: SVGSVGElement): void {
       badge.style.display = ''
     })
   }
+
+  focusBadgesToggle?.addEventListener('change', () => {
+    updateFocusBadgeVisibility()
+    updateFocusBadges()
+  })
+  updateFocusBadgeVisibility()
 
   const update = (): void => {
     xLayer.removeAttribute('transform')

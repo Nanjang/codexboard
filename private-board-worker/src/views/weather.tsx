@@ -527,15 +527,16 @@ function WeatherChart({ data, comparison }: { data: WeatherPayload; comparison: 
         </div>
       </div>
       <div class="weather-range-controls" data-weather-range-controls aria-label="그래프 표시 범위">
-        <span class="weather-range-label">표시 범위</span>
         <label class="weather-badge-toggle">
           <input
             type="checkbox"
             data-weather-focus-badges-toggle
+            checked={showCurrentBadges}
             disabled={!showCurrentBadges}
           />
           <span>오늘 기온 강조</span>
         </label>
+        <span class="weather-range-label">표시 범위</span>
         <button class="button button-secondary button-small weather-range-button" type="button" data-weather-range="year" aria-pressed="true">
           1년
         </button>
