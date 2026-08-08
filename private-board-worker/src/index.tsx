@@ -195,7 +195,9 @@ import {
   ticketLane,
   ticketCreationRequestId,
   ticketTagColor,
+  ticketTagTextColor,
   ticketTagIds,
+  optionalHexColor,
   validateMemoUrlTemplate,
   ValidationError,
 } from './lib/validation'
@@ -2482,7 +2484,10 @@ app.post('/tickets/tags', async (c) => {
   try {
     const name = singleLine(form.get('name'), '태그 이름', 32)
     const color = ticketTagColor(form.get('color'))
-    await createTicketTag(c.env.DB, auth.user.id, name, color)
+    const backgroundHex = optionalHexColor(form.get('background_hex'), '배경색')
+    const textColor = ticketTagTextColor(form.get('text_color'))
+    const textHex = optionalHexColor(form.get('text_hex'), '글자색')
+    await createTicketTag(c.env.DB, auth.user.id, name, color, backgroundHex, textColor, textHex)
     return redirectWithNotice(c, '/tickets/tags', 'ticket-tag-created')
   } catch (error) {
     const isTagInputError =
@@ -2525,7 +2530,14 @@ app.get('/tickets/export', async (c) => {
       note: ticket.note,
       lane: ticket.lane,
       status: ticket.deleted_at === null ? 'active' : 'trashed',
-      tags: (ticket.tags ?? []).map((tag) => ({ id: tag.id, name: tag.name, color: tag.color })),
+      tags: (ticket.tags ?? []).map((tag) => ({
+        id: tag.id,
+        name: tag.name,
+        color: tag.color,
+        backgroundColor: tag.background_hex,
+        textColor: tag.text_color,
+        textHex: tag.text_hex,
+      })),
       createdAt: new Date(ticket.created_at).toISOString(),
       updatedAt: new Date(ticket.updated_at).toISOString(),
       deletedAt: ticket.deleted_at === null ? null : new Date(ticket.deleted_at).toISOString(),

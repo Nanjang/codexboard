@@ -13,7 +13,9 @@ import {
   ticketCreationRequestId,
   ticketLane,
   ticketTagColor,
+  ticketTagTextColor,
   ticketTagIds,
+  optionalHexColor,
   validateMemoUrlTemplate,
   ValidationError,
 } from '../src/lib/validation'
@@ -50,8 +52,16 @@ describe('입력 검증', () => {
 
   it('태그 색상과 복수 태그 ID를 제한한다', () => {
     expect(ticketTagColor('blue')).toBe('blue')
+    expect(ticketTagColor('yellow')).toBe('yellow')
+    expect(ticketTagColor('gray-dark')).toBe('gray-dark')
+    expect(ticketTagTextColor('black')).toBe('black')
+    expect(optionalHexColor('FFFFFF', '배경색')).toBe('#FFFFFF')
+    expect(optionalHexColor('#f6e7a6', '배경색')).toBe('#F6E7A6')
+    expect(optionalHexColor('', '배경색')).toBeNull()
     expect(ticketTagIds(['2', '7'])).toEqual([2, 7])
     expect(() => ticketTagColor('rainbow')).toThrow(ValidationError)
+    expect(() => ticketTagTextColor('yellow')).toThrow(ValidationError)
+    expect(() => optionalHexColor('FFFFF', '배경색')).toThrow(ValidationError)
     expect(() => ticketTagIds(['2', '2'])).toThrow(ValidationError)
     expect(() => ticketTagIds(Array.from({ length: 11 }, (_, index) => String(index + 1)))).toThrow(ValidationError)
   })

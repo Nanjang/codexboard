@@ -4,7 +4,8 @@ export type UserRole = 'user' | 'admin'
 export type UserStatus = 'active' | 'blocked'
 export type RegistrationMode = 'open' | 'allowlist' | 'domain'
 export type TicketLane = 'todo' | 'doing' | 'done'
-export type TicketTagColor = 'coral' | 'orange' | 'green' | 'blue' | 'purple'
+export type TicketTagColor = 'coral' | 'orange' | 'green' | 'blue' | 'purple' | 'yellow' | 'gray-light' | 'gray' | 'gray-dark'
+export type TicketTagTextColor = 'white' | 'black'
 export type BoardSlug = 'free' | 'development' | 'news' | 'inquiry'
 export type PostBodyFormat = 'plain' | 'rich'
 export type PostVisibility = 'public' | 'private'
@@ -305,6 +306,9 @@ export interface TicketTagRow {
   owner_id: string
   name: string
   color: TicketTagColor
+  background_hex: string | null
+  text_color: TicketTagTextColor
+  text_hex: string | null
   created_at: number
   updated_at: number
 }

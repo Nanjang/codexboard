@@ -2453,6 +2453,26 @@ select:focus {
   background: #7c3aed;
 }
 
+.ticket-tag-color-yellow {
+  background: #f6e7a6;
+}
+
+.ticket-tag-color-gray-light {
+  background: #e4e9e7;
+}
+
+.ticket-tag-color-gray {
+  background: #c8d0cd;
+}
+
+.ticket-tag-color-gray-dark {
+  background: #8d9994;
+}
+
+.ticket-tag-text-black {
+  color: #111827;
+}
+
 .ticket-card-top {
   display: flex;
   align-items: center;

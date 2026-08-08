@@ -1,4 +1,4 @@
-import type { BoardSlug, BookmarkIconColor, TicketTagColor } from '../types'
+import type { BoardSlug, BookmarkIconColor, TicketTagColor, TicketTagTextColor } from '../types'
 import { isBookmarkIconColor } from './bookmark-icon-palette'
 import { normalizeRssUrl, RssFeedError } from './rss'
 
@@ -74,10 +74,38 @@ export function ticketLane(value: FormDataEntryValue | string | null): 'todo' | 
 }
 
 export function ticketTagColor(value: FormDataEntryValue | string | null): TicketTagColor {
-  if (value === 'coral' || value === 'orange' || value === 'green' || value === 'blue' || value === 'purple') {
+  if (
+    value === 'coral'
+    || value === 'orange'
+    || value === 'green'
+    || value === 'blue'
+    || value === 'purple'
+    || value === 'yellow'
+    || value === 'gray-light'
+    || value === 'gray'
+    || value === 'gray-dark'
+  ) {
     return value
   }
   throw new ValidationError('태그 색상이 올바르지 않습니다.')
+}
+
+export function ticketTagTextColor(value: FormDataEntryValue | string | null): TicketTagTextColor {
+  if (value === 'white' || value === 'black') return value
+  throw new ValidationError('태그 글자색이 올바르지 않습니다.')
+}
+
+export function optionalHexColor(
+  value: FormDataEntryValue | string | null,
+  fieldName: string,
+): string | null {
+  if (value === null || value === '') return null
+  if (typeof value !== 'string') throw new ValidationError(`${fieldName} 형식이 올바르지 않습니다.`)
+  const normalized = value.trim().replace(/^#/u, '')
+  if (!/^[0-9a-f]{6}$/iu.test(normalized)) {
+    throw new ValidationError(`${fieldName}는 6자리 헥스 코드로 입력해 주세요.`)
+  }
+  return `#${normalized.toUpperCase()}`
 }
 
 export function ticketTagIds(values: FormDataEntryValue[]): number[] {

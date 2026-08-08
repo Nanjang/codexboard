@@ -29,6 +29,7 @@ import type {
   TicketRow,
   TicketTagColor,
   TicketTagRow,
+  TicketTagTextColor,
   TrashedTicketRow,
 } from '../types'
 import { firstDevlogImageSource } from './devlog-preview'
@@ -1344,7 +1345,7 @@ export async function listTicketTags(db: D1Database, ownerId: string): Promise<T
   const result = await db
     .prepare(
       `
-      SELECT id, owner_id, name, color, created_at, updated_at
+      SELECT id, owner_id, name, color, background_hex, text_color, text_hex, created_at, updated_at
       FROM ticket_tags
       WHERE owner_id = ?1
       ORDER BY name COLLATE NOCASE, id
@@ -1364,20 +1365,23 @@ export async function createTicketTag(
   ownerId: string,
   name: string,
   color: TicketTagColor,
+  backgroundHex: string | null,
+  textColor: TicketTagTextColor,
+  textHex: string | null,
 ): Promise<number> {
   const now = Date.now()
   const result = await db
     .prepare(
       `
-      INSERT INTO ticket_tags (owner_id, name, color, created_at, updated_at)
-      SELECT ?1, ?2, ?3, ?4, ?4
-      WHERE (SELECT COUNT(*) FROM ticket_tags WHERE owner_id = ?1) < ?5
+      INSERT INTO ticket_tags (owner_id, name, color, background_hex, text_color, text_hex, created_at, updated_at)
+      SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7
+      WHERE (SELECT COUNT(*) FROM ticket_tags WHERE owner_id = ?1) < ?8
         AND NOT EXISTS (
           SELECT 1 FROM ticket_tags WHERE owner_id = ?1 AND name = ?2 COLLATE NOCASE
         )
       `,
     )
-    .bind(ownerId, name, color, now, MAX_TICKET_TAGS_PER_USER)
+    .bind(ownerId, name, color, backgroundHex, textColor, textHex, now, MAX_TICKET_TAGS_PER_USER)
     .run()
   if (result.meta.changes > 0 && result.meta.last_row_id) return result.meta.last_row_id
 
@@ -1403,7 +1407,7 @@ async function attachTicketTags<T extends TicketRow>(db: D1Database, tickets: T[
   const result = await db
     .prepare(
       `
-      SELECT links.ticket_id, tags.id, tags.owner_id, tags.name, tags.color, tags.created_at, tags.updated_at
+      SELECT links.ticket_id, tags.id, tags.owner_id, tags.name, tags.color, tags.background_hex, tags.text_color, tags.text_hex, tags.created_at, tags.updated_at
       FROM ticket_tag_links AS links
       INNER JOIN ticket_tags AS tags ON tags.id = links.tag_id
       WHERE links.ticket_id IN (${placeholders})
@@ -1420,6 +1424,9 @@ async function attachTicketTags<T extends TicketRow>(db: D1Database, tickets: T[
       owner_id: row.owner_id,
       name: row.name,
       color: row.color,
+      background_hex: row.background_hex,
+      text_color: row.text_color,
+      text_hex: row.text_hex,
       created_at: row.created_at,
       updated_at: row.updated_at,
     })

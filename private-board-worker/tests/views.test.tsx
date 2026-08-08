@@ -1001,6 +1001,9 @@ describe('핵심 화면', () => {
                 owner_id: user.id,
                 name: '긴급',
                 color: 'coral',
+                background_hex: null,
+                text_color: 'white',
+                text_hex: null,
                 created_at: 1,
                 updated_at: 1,
               },
@@ -1013,6 +1016,9 @@ describe('핵심 화면', () => {
             owner_id: user.id,
             name: '긴급',
             color: 'coral',
+            background_hex: null,
+            text_color: 'white',
+            text_hex: null,
             created_at: 1,
             updated_at: 1,
           },
@@ -1169,6 +1175,9 @@ describe('핵심 화면', () => {
             owner_id: user.id,
             name: '긴급',
             color: 'coral',
+            background_hex: '#F6E7A6',
+            text_color: 'black',
+            text_hex: null,
             created_at: 1,
             updated_at: 1,
           },
@@ -1179,7 +1188,16 @@ describe('핵심 화면', () => {
     expect(html).toContain('action="/tickets/tags"')
     expect(html).toContain('name="color"')
     expect(html).toContain('value="coral"')
-    expect(html).toContain('class="ticket-tag ticket-tag-color-coral"')
+    expect(html).toContain('value="yellow"')
+    expect(html).toContain('value="gray-light"')
+    expect(html).toContain('value="gray"')
+    expect(html).toContain('value="gray-dark"')
+    expect(html).toContain('name="background_hex"')
+    expect(html).toContain('name="text_color"')
+    expect(html).toContain('value="black"')
+    expect(html).toContain('name="text_hex"')
+    expect(html).toContain('class="ticket-tag ticket-tag-color-coral ticket-tag-text-black"')
+    expect(html).toContain('style="background-color:#F6E7A6"')
     expect(html).toContain('action="/tickets/tags/7/delete"')
   })
 

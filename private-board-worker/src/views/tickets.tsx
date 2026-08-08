@@ -76,7 +76,7 @@ export function TicketTagsPage({
               <input type="text" name="name" maxlength={32} required autocomplete="off" />
             </label>
             <label>
-              <span>태그 색상</span>
+              <span>배경색</span>
               <select name="color" required>
                 {ticketTagColors.map((color) => (
                   <option value={color.value} selected={color.value === 'blue'}>
@@ -84,6 +84,42 @@ export function TicketTagsPage({
                   </option>
                 ))}
               </select>
+            </label>
+            <label>
+              <span>배경색 직접 입력 (선택)</span>
+              <input
+                type="text"
+                name="background_hex"
+                maxlength={7}
+                pattern="#?[0-9A-Fa-f]{6}"
+                placeholder="FFFFFF 또는 #FFFFFF"
+                autocomplete="off"
+                spellcheck={false}
+              />
+              <span class="form-hint">입력하면 선택한 배경색 프리셋보다 우선 적용됩니다.</span>
+            </label>
+            <label>
+              <span>글자색</span>
+              <select name="text_color" required>
+                {ticketTagTextColors.map((color) => (
+                  <option value={color.value} selected={color.value === 'white'}>
+                    {color.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>글자색 직접 입력 (선택)</span>
+              <input
+                type="text"
+                name="text_hex"
+                maxlength={7}
+                pattern="#?[0-9A-Fa-f]{6}"
+                placeholder="FFFFFF 또는 #FFFFFF"
+                autocomplete="off"
+                spellcheck={false}
+              />
+              <span class="form-hint">입력하면 흰색·검정 프리셋보다 우선 적용됩니다.</span>
             </label>
             <div class="form-actions">
               <button class="button" type="submit">
@@ -105,7 +141,7 @@ export function TicketTagsPage({
             <div class="ticket-tags-management-list">
               {tags.map((tag) => (
                 <article class="ticket-tag-management-row" key={tag.id}>
-                  <span class={`ticket-tag ticket-tag-color-${tag.color}`}>
+                  <span class={ticketTagClass(tag)} style={ticketTagStyle(tag)}>
                     {tag.name}
                   </span>
                   <form
@@ -142,6 +178,15 @@ const ticketTagColors: Array<{ value: TicketTagColor; label: string }> = [
   { value: 'green', label: '초록' },
   { value: 'blue', label: '파랑' },
   { value: 'purple', label: '보라' },
+  { value: 'yellow', label: '노랑' },
+  { value: 'gray-light', label: '연회색' },
+  { value: 'gray', label: '중회색' },
+  { value: 'gray-dark', label: '진회색' },
+]
+
+const ticketTagTextColors: Array<{ value: 'white' | 'black'; label: string }> = [
+  { value: 'white', label: '흰색' },
+  { value: 'black', label: '검정' },
 ]
 
 const ticketLogActionLabels: Record<TicketLogAction, string> = {
@@ -159,12 +204,23 @@ function TicketTags({ tags }: { tags: TicketTagRow[] | undefined }) {
   return (
     <div class="ticket-tags" aria-label="연결된 태그">
       {tags.map((tag) => (
-        <span class={`ticket-tag ticket-tag-color-${tag.color}`} key={tag.id}>
+        <span class={ticketTagClass(tag)} style={ticketTagStyle(tag)} key={tag.id}>
           {tag.name}
         </span>
       ))}
     </div>
   )
+}
+
+function ticketTagClass(tag: TicketTagRow): string {
+  return `ticket-tag ticket-tag-color-${tag.color}${tag.text_color === 'black' ? ' ticket-tag-text-black' : ''}`
+}
+
+function ticketTagStyle(tag: TicketTagRow): string | undefined {
+  const declarations: string[] = []
+  if (tag.background_hex) declarations.push(`background-color:${tag.background_hex}`)
+  if (tag.text_hex) declarations.push(`color:${tag.text_hex}`)
+  return declarations.length ? declarations.join(';') : undefined
 }
 
 function TicketTagSelect({
