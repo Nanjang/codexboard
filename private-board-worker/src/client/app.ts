@@ -12,7 +12,7 @@ import {
   localImageValidationError,
   normalizedDevlogImageSource,
 } from '../shared/images'
-import { weatherBadgeCollisionCandidates } from '../shared/weather-chart'
+import { weatherBadgeCollisionCandidates, weatherChartYBounds } from '../shared/weather-chart'
 
 function showToast(message: string, tone: 'success' | 'error' = 'success'): void {
   const region = document.querySelector<HTMLElement>('[data-toast-region]')
@@ -596,6 +596,7 @@ function setupWeatherZoom(svg: SVGSVGElement): void {
         minCenterY,
         maxCenterY,
         direction,
+        badgeHeight + badgeGap,
       )
 
       const seen = new Set<number>()
@@ -611,6 +612,7 @@ function setupWeatherZoom(svg: SVGSVGElement): void {
         }
         if (!intersectsGraph(rect) && !intersectsPlaced(rect, placed)) return roundedY
       }
+      // Keep the badge attached to its endpoint when no nearby collision-free position exists.
       return preferred
     }
 
@@ -669,13 +671,7 @@ function setupWeatherZoom(svg: SVGSVGElement): void {
 
     const dataMin = Math.min(...visibleValues)
     const dataMax = Math.max(...visibleValues)
-    let visibleMin = Math.floor((dataMin - 5) / 5) * 5
-    let visibleMax = Math.ceil((dataMax + 5) / 5) * 5
-    if (visibleMax - visibleMin < 20) {
-      const center = (visibleMax + visibleMin) / 2
-      visibleMin = Math.floor((center - 10) / 5) * 5
-      visibleMax = visibleMin + 20
-    }
+    const { min: visibleMin, max: visibleMax } = weatherChartYBounds(dataMin, dataMax)
 
     const yScale = (globalYMax - globalYMin) / Math.max(visibleMax - visibleMin, 1)
     const yTranslate = chartTop + ((visibleMax - globalYMax) / Math.max(visibleMax - visibleMin, 1)) * plotHeight - yScale * chartTop

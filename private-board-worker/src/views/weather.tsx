@@ -1,5 +1,6 @@
 import type { WeatherPayload, WeatherRecord, WeatherLocationId } from '../lib/weather'
 import { WEATHER_LOCATIONS } from '../lib/weather'
+import { weatherChartYBounds } from '../shared/weather-chart'
 import type { DeployInfo } from '../types'
 import { PublicLayout } from './layout'
 
@@ -106,13 +107,7 @@ function buildChartModel(data: WeatherPayload): ChartModel {
   const values = finiteValues(data.records)
   const dataMin = values.length > 0 ? Math.min(...values) : 0
   const dataMax = values.length > 0 ? Math.max(...values) : 30
-  let yMin = Math.floor((dataMin - 5) / 5) * 5
-  let yMax = Math.ceil((dataMax + 5) / 5) * 5
-  if (yMax - yMin < 20) {
-    const center = (yMax + yMin) / 2
-    yMin = Math.floor((center - 10) / 5) * 5
-    yMax = yMin + 20
-  }
+  const { min: yMin, max: yMax } = weatherChartYBounds(dataMin, dataMax)
 
   const yTicks: number[] = []
   for (let value = yMin; value <= yMax; value += 5) yTicks.push(value)
