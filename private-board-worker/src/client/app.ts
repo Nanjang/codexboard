@@ -12,6 +12,7 @@ import {
   localImageValidationError,
   normalizedDevlogImageSource,
 } from '../shared/images'
+import { weatherBadgeCollisionCandidates } from '../shared/weather-chart'
 
 function showToast(message: string, tone: 'success' | 'error' = 'success'): void {
   const region = document.querySelector<HTMLElement>('[data-toast-region]')
@@ -590,14 +591,12 @@ function setupWeatherZoom(svg: SVGSVGElement): void {
         ),
       )
       const direction = kind === 'max' ? -1 : 1
-      const candidates: number[] = []
-      const addCandidates = (start: number, end: number, step: number): void => {
-        for (let candidate = start; step < 0 ? candidate >= end : candidate <= end; candidate += step) {
-          candidates.push(candidate)
-        }
-      }
-      addCandidates(preferred, direction < 0 ? minCenterY : maxCenterY, direction * 8)
-      addCandidates(preferred, direction < 0 ? maxCenterY : minCenterY, direction * -8)
+      const candidates = weatherBadgeCollisionCandidates(
+        preferred,
+        minCenterY,
+        maxCenterY,
+        direction,
+      )
 
       const seen = new Set<number>()
       for (const candidateY of candidates) {
