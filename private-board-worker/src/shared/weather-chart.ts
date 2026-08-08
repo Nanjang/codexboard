@@ -18,12 +18,10 @@ export function weatherBadgeCollisionCandidates(
   minCenter: number,
   maxCenter: number,
   direction: -1 | 1,
-  maxDisplacement = Number.POSITIVE_INFINITY,
 ): number[] {
   const candidates: number[] = []
   const addCandidates = (start: number, end: number, step: number): void => {
     for (let candidate = start; step < 0 ? candidate >= end : candidate <= end; candidate += step) {
-      if (Math.abs(candidate - preferred) > maxDisplacement) break
       candidates.push(candidate)
     }
   }
@@ -31,8 +29,8 @@ export function weatherBadgeCollisionCandidates(
   const fallbackBoundary = direction < 0 ? maxCenter : minCenter
 
   addCandidates(preferred, preferredBoundary, direction * 8)
-  if (Math.abs(preferredBoundary - preferred) <= maxDisplacement) candidates.push(preferredBoundary)
+  candidates.push(preferredBoundary)
   addCandidates(preferred, fallbackBoundary, direction * -8)
-  if (Math.abs(fallbackBoundary - preferred) <= maxDisplacement) candidates.push(fallbackBoundary)
+  candidates.push(fallbackBoundary)
   return candidates
 }

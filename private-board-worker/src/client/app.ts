@@ -596,7 +596,6 @@ function setupWeatherZoom(svg: SVGSVGElement): void {
         minCenterY,
         maxCenterY,
         direction,
-        badgeHeight + badgeGap,
       )
 
       const seen = new Set<number>()
@@ -612,7 +611,6 @@ function setupWeatherZoom(svg: SVGSVGElement): void {
         }
         if (!intersectsGraph(rect) && !intersectsPlaced(rect, placed)) return roundedY
       }
-      // Keep the badge attached to its endpoint when no nearby collision-free position exists.
       return preferred
     }
 

@@ -19,11 +19,4 @@ describe('weatherBadgeCollisionCandidates', () => {
 
     expect(candidates.indexOf(394)).toBeLessThan(candidates.indexOf(141.25))
   })
-
-  it('keeps collision avoidance within the endpoint attachment distance', () => {
-    const candidates = weatherBadgeCollisionCandidates(149.25, 50, 394, 1, 30)
-
-    expect(candidates.every((candidate) => Math.abs(candidate - 149.25) <= 30)).toBe(true)
-    expect(candidates).not.toContain(181.25)
-  })
 })
