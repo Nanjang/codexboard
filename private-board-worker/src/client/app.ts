@@ -530,16 +530,13 @@ function setupWeatherZoom(svg: SVGSVGElement): void {
   const updateFocusBadges = (): void => {
     if (!focusBadgesContainer || focusBadges.length === 0 || !Number.isFinite(todayIndex)) return
 
-    const xScale = scale
     const yScale = Number(svg.dataset.weatherChartYScale ?? '1')
     const yTranslate = Number(svg.dataset.weatherChartYTranslate ?? '0')
     const badgeWidth = Number(focusBadgesContainer.dataset.weatherBadgeWidth ?? '120')
     const badgeHeight = Number(focusBadgesContainer.dataset.weatherBadgeHeight ?? '20')
-    if (![xScale, yScale, yTranslate, badgeWidth, badgeHeight].every((value) => Number.isFinite(value) && value > 0)) return
+    if (!Number.isFinite(yTranslate)) return
+    if (![scale, yScale, badgeWidth, badgeHeight].every((value) => Number.isFinite(value) && value > 0)) return
 
-    const pointX = (index: number): number => (
-      chartLeft + (index / Math.max(days - 1, 1)) * plotWidth
-    )
     const baseY = (value: number): number => (
       chartTop + ((globalYMax - value) / Math.max(globalYMax - globalYMin, 1)) * plotHeight
     )
@@ -547,12 +544,8 @@ function setupWeatherZoom(svg: SVGSVGElement): void {
     const badgeHalfWidth = badgeWidth / 2
     const badgeHalfHeight = badgeHeight / 2
     const badgeGap = 10
-    const chartStep = xScale * plotWidth / Math.max(days - 1, 1)
-    const displayedX = (index: number): number => translate + xScale * pointX(index)
-    const badgeX = Math.min(
-      chartRight - badgeHalfWidth,
-      Math.max(chartLeft + badgeHalfWidth, displayedX(todayIndex)),
-    )
+    const chartStep = scale * plotWidth / Math.max(days - 1, 1)
+    const badgeX = chartX(todayIndex)
     const graphValuesByIndex = new Map<number, number[]>()
     points.forEach((point) => {
       const values = graphValuesByIndex.get(point.index) ?? []
@@ -562,7 +555,7 @@ function setupWeatherZoom(svg: SVGSVGElement): void {
 
     const intersectsGraph = (rect: { left: number; right: number; top: number; bottom: number }): boolean => {
       for (const [index, values] of graphValuesByIndex) {
-        const x = displayedX(index)
+        const x = chartX(index)
         if (x < rect.left - chartStep || x > rect.right + chartStep) continue
         const ys = values.map(displayedY)
         const graphTop = Math.min(...ys) - 8
