@@ -77,6 +77,8 @@ describe('공개 경로', () => {
     const imageHash = 'a'.repeat(64)
     expect(isPublicPath('/')).toBe(true)
     expect(isPublicPath('/visitor.png')).toBe(true)
+    expect(isPublicPath('/deploy-status')).toBe(true)
+    expect(isPublicPath('/favicon.png')).toBe(true)
     expect(isPublicPath('/boards/free')).toBe(false)
     expect(isPublicPath('/boards/development')).toBe(true)
     expect(isPublicPath('/boards/development/new')).toBe(false)

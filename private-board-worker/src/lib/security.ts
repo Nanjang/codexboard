@@ -41,6 +41,11 @@ export function isPublicPath(path: string): boolean {
     path === '/privacy' ||
     path === '/terms' ||
     path === '/health' ||
+    path === '/deploy-status' ||
+    path === '/app-icon-512.png' ||
+    path === '/apple-touch-icon.png' ||
+    path === '/favicon.ico' ||
+    path === '/favicon.png' ||
     path === '/weather' ||
     path === '/weather.json' ||
     isVisitorPixelPath(path) ||

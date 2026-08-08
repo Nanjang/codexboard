@@ -4,9 +4,11 @@
 
 ```bash
 npm ci
-git config core.hooksPath .githooks
+git config core.hooksPath private-board-worker/.githooks
 npm run check
 ```
+
+커밋 hook은 클라이언트 자산을 다시 빌드한 뒤 `public` 아래 배포 자산의 SHA-256 통합 manifest를 갱신하고 스테이징합니다. CI와 배포 전 검사는 `npm run assets:manifest:check`로 manifest가 최신인지 확인합니다.
 
 로컬 실행에는 Git에서 제외되는 `wrangler.jsonc`, `.dev.vars`, 로컬 D1 마이그레이션이 필요합니다. [docs/INSTALLATION.md](docs/INSTALLATION.md)를 따르세요.
 

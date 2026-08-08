@@ -26,10 +26,10 @@ cd private-board-worker
 npm ci
 ```
 
-커밋 직전에 비밀정보 검사를 자동 실행하려면 저장소 전용 Git hook을 활성화합니다.
+커밋 직전에 비밀정보 검사와 정적 자산 manifest 갱신·검증을 자동 실행하려면 저장소 전용 Git hook을 활성화합니다.
 
 ```bash
-git config core.hooksPath .githooks
+git config core.hooksPath private-board-worker/.githooks
 ```
 
 ## 3. Cloudflare 로그인과 D1 생성
@@ -144,8 +144,9 @@ npm run deploy:dry
 
 1. 비밀정보 의심 패턴 검사
 2. SortableJS를 포함한 브라우저 스크립트 번들
-3. TypeScript 엄격 타입 검사
-4. Vitest 테스트
+3. `public` 정적 자산 manifest 최신 상태 검사
+4. TypeScript 엄격 타입 검사
+5. Vitest 테스트
 
 ## 9. 초기화
 

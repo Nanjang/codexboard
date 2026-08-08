@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "generatedAt": "2026-08-08T07:58:10.992Z",
+  "files": [
+    {
+      "path": "/app-icon-512.png",
+      "sha256": "9909fa17aca8d4e9f69012dec96c2db3a6f50d36418f458ab43e8e4a9606eb23",
+      "size": 184737
+    },
+    {
+      "path": "/apple-touch-icon.png",
+      "sha256": "2ec4fb5f1e9258c4b5fe829e2ccb1492a0fde4e4879216079b0f394d3101e1de",
+      "size": 20941
+    },
+    {
+      "path": "/assets/app.css",
+      "sha256": "be15ea7cd9fe8b29eb06a893c8c64dbc4f812c15b608230333ac948474d8bac3",
+      "size": 107600
+    },
+    {
+      "path": "/assets/app.js",
+      "sha256": "0fb5a60d8c3877ae2217a059419968ed378686d4c0a571791a3c7c6a8c8d280f",
+      "size": 101636
+    },
+    {
+      "path": "/assets/gear-tilted.png",
+      "sha256": "c8e99e337bdbfcb0dd7152f249054e6d68d1c36167e43b66cdf4b5c57b9b669a",
+      "size": 14845
+    },
+    {
+      "path": "/favicon.ico",
+      "sha256": "576432fcf16d5ed9fd1797617d99438a98a0b61d1537151aa4b4f674b88c60e9",
+      "size": 8251
+    },
+    {
+      "path": "/favicon.png",
+      "sha256": "37e3e2cb306bc2b601d731c7f6368376bf3b52f4be6b0ed158a6106fd91907a9",
+      "size": 3670
+    }
+  ]
+}
