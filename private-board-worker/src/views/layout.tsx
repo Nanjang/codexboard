@@ -2,6 +2,10 @@ import type { Child } from 'hono/jsx'
 import type { CurrentUser, DeployInfo } from '../types'
 import { CsrfInput, DeployFooter, Notice, PrivateEmail, UserBadge } from './components'
 
+function versionedAsset(path: string, deployInfo: DeployInfo): string {
+  return `${path}?v=${encodeURIComponent(deployInfo.version)}`
+}
+
 type ActiveNav =
   | 'dashboard'
   | 'free'
@@ -63,9 +67,9 @@ export function AppLayout({
         <link rel="icon" href="/favicon.ico" sizes="any" />
         <link rel="icon" type="image/png" href="/favicon.png" sizes="64x64" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
-        <link rel="stylesheet" href="/assets/app.css" />
+        <link rel="stylesheet" href={versionedAsset('/assets/app.css', deployInfo)} />
         <link rel="stylesheet" href="/account/theme.css" />
-        <script src="/assets/app.js" defer></script>
+        <script src={versionedAsset('/assets/app.js', deployInfo)} defer></script>
       </head>
       <body class="app-body">
         <header class="topbar">
@@ -224,8 +228,8 @@ export function PublicLayout({ appName, deployInfo, documentTitle, children, inc
         <link rel="icon" href="/favicon.ico" sizes="any" />
         <link rel="icon" type="image/png" href="/favicon.png" sizes="64x64" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
-        <link rel="stylesheet" href="/assets/app.css" />
-        <script src="/assets/app.js" defer></script>
+        <link rel="stylesheet" href={versionedAsset('/assets/app.css', deployInfo)} />
+        <script src={versionedAsset('/assets/app.js', deployInfo)} defer></script>
         {includeTurnstile ? (
           <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
         ) : null}

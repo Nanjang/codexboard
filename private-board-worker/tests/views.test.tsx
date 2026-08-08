@@ -331,6 +331,8 @@ describe('핵심 화면', () => {
       }),
     )
 
+    expect(html).toContain('href="/assets/app.css?v=0d2e4a11"')
+    expect(html).toContain('src="/assets/app.js?v=0d2e4a11"')
     expect(html).toContain('개인 북마크')
     expect(html).toContain('나만 보는 링크 메모장')
     expect(html).toContain('data-personal-bookmarks')
@@ -571,6 +573,8 @@ describe('핵심 화면', () => {
     expect(html).toContain('손님 홈에서는 공용 게시판의 최근 글을 미리 볼 수 있습니다')
     expect(html).toContain('deploy 0d2e4a11')
     expect(html).toContain('2026. 07. 25. 17:28 KST')
+    expect(html).toContain('href="/assets/app.css?v=0d2e4a11"')
+    expect(html).toContain('src="/assets/app.js?v=0d2e4a11"')
     expect(html).toContain('data-database-usage')
     expect(html).not.toContain('data-ticket-board')
     expect(html).not.toContain('<img')
