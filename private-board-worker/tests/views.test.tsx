@@ -32,6 +32,7 @@ import { BoardListPage, PostDetailPage, PostFormPage } from '../src/views/boards
 import { DeployFooter } from '../src/views/components'
 import { DevlogExportPage, DevlogPostPage, UserDevlogPage } from '../src/views/devlogs'
 import { DashboardPage } from '../src/views/dashboard'
+import { DeploymentStatusPage } from '../src/views/deployment-status'
 import { AppErrorPage, PublicErrorPage } from '../src/views/errors'
 import { GuestHomePage } from '../src/views/home'
 import { DevlogImageCacheFilesPage, DevlogImageCacheRequestsPage } from '../src/views/image-cache'
@@ -39,7 +40,7 @@ import { LoginPage } from '../src/views/login'
 import { PrivateImagesPage } from '../src/views/images'
 import { PersonalBookmarksPage } from '../src/views/personal-bookmarks'
 import { composeMemoUrl, MemoBoardPage, MemoSettingsPage } from '../src/views/memos'
-import { TicketLogsPage, TicketTagsPage, TicketsPage, TicketTrashPage } from '../src/views/tickets'
+import { TicketFormPage, TicketLogsPage, TicketTagsPage, TicketsPage, TicketTrashPage } from '../src/views/tickets'
 import { WeatherPage } from '../src/views/weather'
 
 const ticketCreationRequestId = 'f47ac10b-58cc-4372-a567-0e02b2c3d479'
@@ -73,10 +74,12 @@ const ticket: TicketRow = {
   note: '간단한 메모',
   lane: 'todo',
   sort_order: 1000,
+  checklist_enabled: 0,
   created_at: 1,
   updated_at: 1,
   deleted_at: null,
   purge_after: null,
+  checklist_items: [],
 }
 
 const board: BoardRow = {
@@ -1050,6 +1053,73 @@ describe('핵심 화면', () => {
     expect(html).not.toContain('>열기</a>')
     expect(html).not.toContain('ticket-card-footer')
     expect(html).not.toContain('ticket-move-actions')
+  })
+
+  it('체크리스트는 수정 화면에서 활성화·항목 완료·진행률을 표시하고 카드에는 한 줄 요약만 표시한다', async () => {
+    const checklistTicket: TicketRow = {
+      ...ticket,
+      checklist_enabled: 1,
+      checklist_items: [
+        {
+          id: 21,
+          ticket_id: ticket.id,
+          title: '비공개 체크 항목',
+          completed: 1,
+          sort_order: 1000,
+          created_at: 1,
+          updated_at: 1,
+        },
+        {
+          id: 22,
+          ticket_id: ticket.id,
+          title: '두 번째 체크 항목',
+          completed: 0,
+          sort_order: 2000,
+          created_at: 1,
+          updated_at: 1,
+        },
+      ],
+    }
+    const formHtml = String(
+      await TicketFormPage({
+        appName: 'Private Board',
+        deployInfo,
+        user,
+        csrfToken: 'csrf-test',
+        mode: 'edit',
+        ticket: checklistTicket,
+      }),
+    )
+    const boardHtml = String(
+      await TicketsPage({
+        appName: 'Private Board',
+        deployInfo,
+        user,
+        csrfToken: 'csrf-test',
+        tickets: [checklistTicket],
+        creationRequestId: ticketCreationRequestId,
+      }),
+    )
+
+    expect(formHtml).toContain('data-checklist-editor')
+    expect(formHtml).toContain('name="checklist_enabled"')
+    expect(formHtml).toContain('checked=""')
+    expect(formHtml).toContain('name="checklist_item_completed"')
+    expect(formHtml).toContain('1 / 2')
+    expect(formHtml).toContain('width:50%')
+    expect(boardHtml).toContain('ticket-checklist-progress-compact')
+    expect(boardHtml).toContain('1 / 2')
+    expect(boardHtml).not.toContain('비공개 체크 항목')
+    expect(boardHtml).not.toContain('두 번째 체크 항목')
+  })
+
+  it('배포 상태 페이지는 정적 자산 매니페스트 검사를 위한 공개 상태 영역을 표시한다', async () => {
+    const html = String(await DeploymentStatusPage({ appName: 'Private Board', deployInfo }))
+
+    expect(html).toContain('data-deployment-status')
+    expect(html).toContain('data-deployment-manifest-url="/assets/asset-manifest.json"')
+    expect(html).toContain('data-deployment-status-state')
+    expect(html).toContain('워커 버전')
   })
 
   it('티켓 변경 로그는 최신순과 페이지당 개수 선택을 표시한다', async () => {

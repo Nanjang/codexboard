@@ -26,6 +26,8 @@ import type {
   TicketLogAction,
   TicketLogRow,
   TicketLane,
+  TicketChecklistItem,
+  TicketChecklistItemInput,
   TicketRow,
   TicketTagColor,
   TicketTagRow,
@@ -43,6 +45,7 @@ export const POSTS_PER_PAGE = 20
 export const DASHBOARD_POSTS_LIMIT = 5
 export const MAX_TICKETS_PER_USER = 200
 export const MAX_TICKET_TAGS_PER_USER = 50
+export const MAX_TICKET_CHECKLIST_ITEMS = 50
 export const TICKET_LOG_PAGE_SIZES = [50, 100, 200, 500] as const
 export const DEFAULT_TICKET_LOG_PAGE_SIZE = TICKET_LOG_PAGE_SIZES[0]
 export const TICKET_TRASH_RETENTION_MS = 14 * 24 * 60 * 60 * 1000
@@ -1322,7 +1325,7 @@ export async function listTickets(db: D1Database, ownerId: string): Promise<Tick
   const result = await db
     .prepare(
       `
-      SELECT id, owner_id, title, note, lane, sort_order, created_at, updated_at, deleted_at, purge_after
+      SELECT id, owner_id, title, note, lane, sort_order, checklist_enabled, created_at, updated_at, deleted_at, purge_after
       FROM tickets
       WHERE owner_id = ?1 AND deleted_at IS NULL
       ORDER BY
@@ -1338,7 +1341,7 @@ export async function listTickets(db: D1Database, ownerId: string): Promise<Tick
   if (result.results.length > MAX_TICKETS_PER_USER) {
     throw new Error(`작업 티켓은 사용자당 최대 ${MAX_TICKETS_PER_USER}개까지 지원합니다.`)
   }
-  return attachTicketTags(db, result.results)
+  return attachTicketDetails(db, result.results)
 }
 
 export async function listTicketTags(db: D1Database, ownerId: string): Promise<TicketTagRow[]> {
@@ -1435,6 +1438,33 @@ async function attachTicketTags<T extends TicketRow>(db: D1Database, tickets: T[
   return tickets.map((ticket) => ({ ...ticket, tags: byTicket.get(ticket.id) ?? [] }))
 }
 
+async function attachTicketChecklists<T extends TicketRow>(db: D1Database, tickets: T[]): Promise<T[]> {
+  if (tickets.length === 0) return tickets
+  const placeholders = tickets.map(() => '?').join(', ')
+  const result = await db
+    .prepare(
+      `
+      SELECT id, ticket_id, title, completed, sort_order, created_at, updated_at
+      FROM ticket_checklist_items
+      WHERE ticket_id IN (${placeholders})
+      ORDER BY ticket_id, sort_order, id
+      `,
+    )
+    .bind(...tickets.map((ticket) => ticket.id))
+    .all<TicketChecklistItem>()
+  const byTicket = new Map<number, TicketChecklistItem[]>()
+  for (const item of result.results) {
+    const items = byTicket.get(item.ticket_id) ?? []
+    items.push(item)
+    byTicket.set(item.ticket_id, items)
+  }
+  return tickets.map((ticket) => ({ ...ticket, checklist_items: byTicket.get(ticket.id) ?? [] }))
+}
+
+async function attachTicketDetails<T extends TicketRow>(db: D1Database, tickets: T[]): Promise<T[]> {
+  return attachTicketChecklists(db, await attachTicketTags(db, tickets))
+}
+
 async function assertOwnedTicketTags(db: D1Database, ownerId: string, tagIds: number[]): Promise<void> {
   if (tagIds.length > 10) throw new Error('티켓에는 태그를 최대 10개까지 추가할 수 있습니다.')
   if (new Set(tagIds).size !== tagIds.length) throw new Error('중복된 태그가 있습니다.')
@@ -1501,6 +1531,8 @@ export async function createTicket(
   lane: TicketLane,
   creationRequestId: string,
   tagIds: number[] = [],
+  checklistEnabled = false,
+  checklistItems: TicketChecklistItemInput[] = [],
 ): Promise<{ ticketId: number; created: boolean }> {
   await assertOwnedTicketTags(db, ownerId, tagIds)
   const now = Date.now()
@@ -1543,6 +1575,7 @@ export async function createTicket(
 
   if (result.meta.changes > 0 && result.meta.last_row_id) {
     await replaceTicketTags(db, ownerId, result.meta.last_row_id, tagIds)
+    await replaceTicketChecklist(db, ownerId, result.meta.last_row_id, checklistEnabled, checklistItems)
     await recordTicketLog(db, ownerId, result.meta.last_row_id, title, 'created', now)
     return { ticketId: result.meta.last_row_id, created: true }
   }
@@ -1567,7 +1600,7 @@ export async function getTicket(db: D1Database, ownerId: string, ticketId: numbe
   const ticket = await db
     .prepare(
       `
-      SELECT id, owner_id, title, note, lane, sort_order, created_at, updated_at, deleted_at, purge_after
+      SELECT id, owner_id, title, note, lane, sort_order, checklist_enabled, created_at, updated_at, deleted_at, purge_after
       FROM tickets
       WHERE id = ?1 AND owner_id = ?2 AND deleted_at IS NULL
       LIMIT 1
@@ -1576,7 +1609,50 @@ export async function getTicket(db: D1Database, ownerId: string, ticketId: numbe
     .bind(ticketId, ownerId)
     .first<TicketRow>()
   if (!ticket) return null
-  return (await attachTicketTags(db, [ticket]))[0] ?? null
+  return (await attachTicketDetails(db, [ticket]))[0] ?? null
+}
+
+async function replaceTicketChecklist(
+  db: D1Database,
+  ownerId: string,
+  ticketId: number,
+  enabled: boolean,
+  items: TicketChecklistItemInput[],
+): Promise<void> {
+  if (items.length > MAX_TICKET_CHECKLIST_ITEMS) {
+    throw new Error(`체크리스트 항목은 최대 ${MAX_TICKET_CHECKLIST_ITEMS}개까지 추가할 수 있습니다.`)
+  }
+  const existingIds = items.filter((item): item is TicketChecklistItemInput & { id: number } => item.id !== null)
+  if (existingIds.length > 0) {
+    const ownedItems = await db
+      .prepare(
+        `SELECT id FROM ticket_checklist_items WHERE ticket_id = ?1 AND id IN (${existingIds.map((_, index) => `?${index + 2}`).join(', ')})`,
+      )
+      .bind(ticketId, ...existingIds.map((item) => item.id))
+      .all<{ id: number }>()
+    if (ownedItems.results.length !== existingIds.length) {
+      throw new Error('선택한 체크리스트 항목을 찾을 수 없습니다.')
+    }
+  }
+
+  const now = Date.now()
+  await db.prepare('UPDATE tickets SET checklist_enabled = ?1, updated_at = ?2 WHERE id = ?3 AND owner_id = ?4')
+    .bind(enabled ? 1 : 0, now, ticketId, ownerId)
+    .run()
+  await db.prepare('DELETE FROM ticket_checklist_items WHERE ticket_id = ?1').bind(ticketId).run()
+  if (items.length === 0) return
+  await db.batch(
+    items.map((item, index) =>
+      db
+        .prepare(
+          `
+          INSERT INTO ticket_checklist_items (ticket_id, title, completed, sort_order, created_at, updated_at)
+          VALUES (?1, ?2, ?3, ?4, ?5, ?5)
+          `,
+        )
+        .bind(ticketId, item.title, item.completed ? 1 : 0, (index + 1) * 1000, now),
+    ),
+  )
 }
 
 export async function updateTicket(
@@ -1587,6 +1663,8 @@ export async function updateTicket(
   note: string,
   lane: TicketLane,
   tagIds: number[] = [],
+  checklistEnabled = false,
+  checklistItems: TicketChecklistItemInput[] = [],
 ): Promise<boolean> {
   await assertOwnedTicketTags(db, ownerId, tagIds)
   const current = await getTicket(db, ownerId, ticketId)
@@ -1597,14 +1675,15 @@ export async function updateTicket(
     .prepare(
       `
       UPDATE tickets
-      SET title = ?1, note = ?2, lane = ?3, sort_order = ?4, updated_at = ?5
-      WHERE id = ?6 AND owner_id = ?7 AND deleted_at IS NULL
+      SET title = ?1, note = ?2, lane = ?3, sort_order = ?4, checklist_enabled = ?5, updated_at = ?6
+      WHERE id = ?7 AND owner_id = ?8 AND deleted_at IS NULL
       `,
     )
-    .bind(title, note, lane, sortOrder, Date.now(), ticketId, ownerId)
+    .bind(title, note, lane, sortOrder, checklistEnabled ? 1 : 0, Date.now(), ticketId, ownerId)
     .run()
   if (result.meta.changes === 0) return false
   await replaceTicketTags(db, ownerId, ticketId, tagIds)
+  await replaceTicketChecklist(db, ownerId, ticketId, checklistEnabled, checklistItems)
   await recordTicketLog(db, ownerId, ticketId, title, 'updated')
   return true
 }
@@ -1695,7 +1774,7 @@ export async function listTrashedTickets(db: D1Database, ownerId: string): Promi
   const result = await db
     .prepare(
       `
-      SELECT id, owner_id, title, note, lane, sort_order, created_at, updated_at, deleted_at, purge_after
+      SELECT id, owner_id, title, note, lane, sort_order, checklist_enabled, created_at, updated_at, deleted_at, purge_after
       FROM tickets
       WHERE owner_id = ?1 AND deleted_at IS NOT NULL
       ORDER BY deleted_at DESC, id DESC
@@ -1703,7 +1782,7 @@ export async function listTrashedTickets(db: D1Database, ownerId: string): Promi
     )
     .bind(ownerId)
     .all<TrashedTicketRow>()
-  return attachTicketTags(db, result.results)
+  return attachTicketDetails(db, result.results)
 }
 
 export async function listAllTicketsForExport(db: D1Database, ownerId: string): Promise<TicketRow[]> {

@@ -2532,6 +2532,132 @@ select:focus {
   opacity: 0.7;
 }
 
+.ticket-checklist-editor {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-muted);
+}
+
+.ticket-checklist-editor-heading,
+.ticket-checklist-progress,
+.ticket-checklist-item {
+  display: flex;
+  align-items: center;
+}
+
+.ticket-checklist-editor-heading {
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ticket-checklist-editor-title {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.ticket-checklist-editor-heading h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.ticket-checklist-heading-progress {
+  color: #238650;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.ticket-checklist-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.ticket-checklist-toggle input,
+.ticket-checklist-item > input[type='checkbox'] {
+  width: 18px;
+  min-height: 18px;
+  accent-color: #2fbf71;
+}
+
+.ticket-checklist-editor-body {
+  display: grid;
+  gap: 12px;
+}
+
+.ticket-checklist-progress {
+  gap: 10px;
+  min-width: 0;
+}
+
+.ticket-checklist-progress > strong {
+  flex: 0 0 auto;
+  color: var(--text);
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.ticket-checklist-progress-bar {
+  flex: 1 1 auto;
+  min-width: 40px;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #293239;
+}
+
+.ticket-checklist-progress-fill {
+  display: block;
+  height: 100%;
+  min-width: 0;
+  border-radius: inherit;
+  background: #2fbf71;
+  transition: width 160ms ease;
+}
+
+.ticket-checklist-items {
+  display: grid;
+  gap: 8px;
+}
+
+.ticket-checklist-item {
+  gap: 8px;
+}
+
+.ticket-checklist-item > input[type='text'] {
+  min-width: 0;
+  min-height: 38px;
+  flex: 1 1 auto;
+}
+
+.ticket-checklist-item .icon-button {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  color: var(--text-muted);
+}
+
+.ticket-checklist-progress-compact {
+  margin-top: 10px;
+  gap: 8px;
+}
+
+.ticket-checklist-progress-compact > strong {
+  font-size: 0.78rem;
+}
+
+.ticket-checklist-progress-compact .ticket-checklist-progress-bar {
+  height: 7px;
+}
+
 .ticket-trash-list {
   display: grid;
   gap: 12px;
@@ -3342,6 +3468,151 @@ button.privacy-toggle.is-on > span {
 
 .guest-home-note {
   text-align: center;
+}
+
+.deployment-status-page {
+  display: grid;
+  gap: 20px;
+  width: min(840px, 100%);
+  padding: 28px 0;
+}
+
+.deployment-status-header {
+  padding: 8px 4px;
+}
+
+.deployment-status-header h1 {
+  margin: 4px 0 8px;
+  font-size: clamp(1.8rem, 4vw, 2.5rem);
+}
+
+.deployment-status-header p:last-child {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.deployment-status-card {
+  display: grid;
+  gap: 16px;
+  padding: clamp(20px, 4vw, 32px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+}
+
+.deployment-status-card-heading,
+.deployment-status-meta,
+.deployment-status-result {
+  display: flex;
+  align-items: center;
+}
+
+.deployment-status-card-heading {
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.deployment-status-card-heading h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.deployment-status-state {
+  flex: 0 0 auto;
+  padding: 5px 10px;
+  border-radius: 999px;
+  color: var(--text-muted);
+  background: var(--surface-muted);
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+
+.deployment-status-state.is-ok {
+  color: #166534;
+  background: #dcfce7;
+}
+
+.deployment-status-state.is-error {
+  color: #b91c1c;
+  background: #fee2e2;
+}
+
+.deployment-status-message,
+.deployment-status-footnote {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.deployment-status-meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+
+.deployment-status-meta div {
+  min-width: 0;
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-muted);
+}
+
+.deployment-status-meta dt {
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.deployment-status-meta dd {
+  overflow-wrap: anywhere;
+  margin: 5px 0 0;
+  font-size: 0.88rem;
+  font-weight: 750;
+}
+
+.deployment-status-results {
+  display: grid;
+  gap: 8px;
+  max-height: 360px;
+  overflow: auto;
+}
+
+.deployment-status-result {
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+}
+
+.deployment-status-result strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.deployment-status-result span {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+}
+
+.deployment-status-result-ok {
+  border-color: #b7e4c7;
+  background: #f3fcf6;
+}
+
+.deployment-status-result-error {
+  border-color: #f1bcbc;
+  background: #fff7f7;
+}
+
+.deployment-status-result-error span {
+  color: #b91c1c;
+}
+
+.deployment-status-footnote {
+  font-size: 0.8rem;
 }
 
 .login-shell,
@@ -4799,6 +5070,10 @@ button.privacy-toggle.is-on > span {
   .guest-home-header {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .deployment-status-meta {
+    grid-template-columns: 1fr;
   }
 
   .guest-preview-grid {

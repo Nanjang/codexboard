@@ -852,6 +852,187 @@ function setupTicketFormProtection(): void {
   })
 }
 
+function setupTicketChecklist(): void {
+  document.querySelectorAll<HTMLElement>('[data-checklist-editor]').forEach((editor) => {
+    const form = editor.closest<HTMLFormElement>('form')
+    const toggle = editor.querySelector<HTMLInputElement>('[data-checklist-toggle]')
+    const body = editor.querySelector<HTMLElement>('[data-checklist-body]')
+    const items = editor.querySelector<HTMLElement>('[data-checklist-items]')
+    const addButton = editor.querySelector<HTMLButtonElement>('[data-checklist-add]')
+    const progress = editor.querySelector<HTMLElement>('[data-checklist-progress]')
+    const count = editor.querySelector<HTMLElement>('[data-checklist-progress-count]')
+    const headingCount = editor.querySelector<HTMLElement>('[data-checklist-heading-count]')
+    const fill = editor.querySelector<HTMLElement>('[data-checklist-progress-fill]')
+    if (!form || !toggle || !body || !items || !addButton || !progress || !count || !fill) return
+
+    let nextKey = Number.parseInt(editor.dataset.checklistNextKey ?? '0', 10)
+    if (!Number.isSafeInteger(nextKey) || nextKey < 0) nextKey = 0
+
+    const update = (): void => {
+      const rows = Array.from(items.querySelectorAll<HTMLElement>('[data-checklist-item]'))
+      const titledRows = rows.filter((row) => (
+        row.querySelector<HTMLInputElement>('[data-checklist-title]')?.value.trim().length ?? 0
+      ) > 0)
+      const total = titledRows.length
+      const completed = titledRows.filter((row) => (
+        row.querySelector<HTMLInputElement>('[data-checklist-completed]')?.checked ?? false
+      )).length
+      const percent = total === 0 ? 0 : Math.round((completed / total) * 100)
+      body.hidden = !toggle.checked
+      count.textContent = `${completed} / ${total}`
+      if (headingCount) {
+        headingCount.textContent = `${completed} / ${total}`
+        headingCount.hidden = !toggle.checked
+      }
+      fill.style.width = `${percent}%`
+      progress.setAttribute('aria-label', `체크리스트 ${completed} / ${total}`)
+      progress.setAttribute('aria-valuenow', String(percent))
+      progress.setAttribute('aria-valuetext', `${percent}%`)
+    }
+
+    const addItem = (): void => {
+      const key = `new-${nextKey++}`
+      const row = document.createElement('div')
+      row.className = 'ticket-checklist-item'
+      row.dataset.checklistItem = ''
+      row.dataset.checklistKey = key
+
+      const keyInput = document.createElement('input')
+      keyInput.type = 'hidden'
+      keyInput.name = 'checklist_item_key'
+      keyInput.value = key
+
+      const completed = document.createElement('input')
+      completed.type = 'checkbox'
+      completed.name = 'checklist_item_completed'
+      completed.value = key
+      completed.dataset.checklistCompleted = ''
+      completed.setAttribute('aria-label', '새 체크리스트 항목 완료')
+
+      const title = document.createElement('input')
+      title.type = 'text'
+      title.name = 'checklist_item_title'
+      title.maxLength = 200
+      title.dataset.checklistTitle = ''
+      title.setAttribute('aria-label', '체크리스트 항목')
+      title.autocomplete = 'off'
+
+      const remove = document.createElement('button')
+      remove.type = 'button'
+      remove.className = 'icon-button'
+      remove.dataset.checklistRemove = ''
+      remove.setAttribute('aria-label', '체크리스트 항목 삭제')
+      remove.textContent = '×'
+
+      row.appendChild(keyInput)
+      row.appendChild(completed)
+      row.appendChild(title)
+      row.appendChild(remove)
+      items.appendChild(row)
+      title.focus()
+      update()
+    }
+
+    toggle.addEventListener('change', update)
+    addButton.addEventListener('click', addItem)
+    items.addEventListener('input', update)
+    items.addEventListener('change', update)
+    items.addEventListener('click', (event) => {
+      const target = event.target
+      if (!(target instanceof Element)) return
+      const remove = target.closest<HTMLButtonElement>('[data-checklist-remove]')
+      if (!remove) return
+      remove.closest<HTMLElement>('[data-checklist-item]')?.remove()
+      update()
+    })
+    update()
+  })
+}
+
+function setupDeploymentStatus(): void {
+  const root = document.querySelector<HTMLElement>('[data-deployment-status]')
+  if (!root) return
+  const manifestUrl = root.dataset.deploymentManifestUrl
+  const state = root.querySelector<HTMLElement>('[data-deployment-status-state]')
+  const message = root.querySelector<HTMLElement>('[data-deployment-status-message]')
+  const generatedAt = root.querySelector<HTMLElement>('[data-deployment-generated-at]')
+  const fileCount = root.querySelector<HTMLElement>('[data-deployment-file-count]')
+  const results = root.querySelector<HTMLElement>('[data-deployment-results]')
+  if (!manifestUrl || !state || !message || !generatedAt || !fileCount || !results) return
+
+  type ManifestEntry = { path: string; sha256: string; size: number }
+  type AssetManifest = { version: number; generatedAt: string; files: ManifestEntry[] }
+
+  const bytesToHex = (bytes: Uint8Array): string => (
+    Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
+  )
+  const addResult = (entry: ManifestEntry, status: 'ok' | 'error', detail: string): void => {
+    const row = document.createElement('div')
+    row.className = `deployment-status-result deployment-status-result-${status}`
+    const path = document.createElement('strong')
+    path.textContent = entry.path
+    const text = document.createElement('span')
+    text.textContent = detail
+    row.appendChild(path)
+    row.appendChild(text)
+    results.appendChild(row)
+  }
+
+  const run = async (): Promise<void> => {
+    try {
+      const manifestResponse = await fetch(manifestUrl, { cache: 'no-store' })
+      if (!manifestResponse.ok) throw new Error(`매니페스트 응답 오류 (${manifestResponse.status})`)
+      const manifest = (await manifestResponse.json()) as Partial<AssetManifest>
+      if (!Array.isArray(manifest.files) || typeof manifest.generatedAt !== 'string') {
+        throw new Error('매니페스트 형식이 올바르지 않습니다.')
+      }
+      generatedAt.textContent = new Date(manifest.generatedAt).toLocaleString('ko-KR')
+      fileCount.textContent = `${manifest.files.length}개`
+      results.replaceChildren()
+
+      let failed = 0
+      for (const entry of manifest.files) {
+        if (
+          !entry
+          || typeof entry.path !== 'string'
+          || !entry.path.startsWith('/')
+          || entry.path.includes('..')
+          || typeof entry.sha256 !== 'string'
+        ) {
+          failed += 1
+          continue
+        }
+        try {
+          const response = await fetch(entry.path, { cache: 'no-store' })
+          if (!response.ok) throw new Error(`응답 ${response.status}`)
+          const digest = bytesToHex(new Uint8Array(await crypto.subtle.digest('SHA-256', await response.arrayBuffer())))
+          const matched = digest.toLowerCase() === entry.sha256.toLowerCase()
+          if (!matched) failed += 1
+          addResult(entry, matched ? 'ok' : 'error', matched ? '정상' : '해시 불일치')
+        } catch (error) {
+          failed += 1
+          addResult(entry, 'error', error instanceof Error ? error.message : '검사 실패')
+        }
+      }
+
+      state.textContent = failed === 0 ? '정상 배포' : '확인 필요'
+      state.classList.toggle('is-ok', failed === 0)
+      state.classList.toggle('is-error', failed > 0)
+      message.textContent = failed === 0
+        ? '워커에서 제공된 모든 정적 자산이 매니페스트와 일치합니다.'
+        : `${failed}개 자산의 무결성을 확인하지 못했습니다.`
+    } catch (error) {
+      state.textContent = '검사 실패'
+      state.classList.add('is-error')
+      message.textContent = error instanceof Error ? error.message : '배포 상태를 확인하지 못했습니다.'
+      fileCount.textContent = '—'
+      addResult({ path: manifestUrl, sha256: '', size: 0 }, 'error', '매니페스트를 읽지 못했습니다.')
+    }
+  }
+
+  void run()
+}
+
 function setupConfirmations(): void {
   document.addEventListener('submit', (event) => {
     const form = event.target
@@ -2011,6 +2192,8 @@ function initialize(): void {
   setupMenu()
   setupDialogs()
   setupTicketCreateDropZones()
+  setupTicketChecklist()
+  setupDeploymentStatus()
   setupTicketFormProtection()
   setupConfirmations()
   setupRichEditor()

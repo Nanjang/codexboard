@@ -194,6 +194,8 @@ import {
   singleLine,
   ticketLane,
   ticketCreationRequestId,
+  ticketChecklistEnabled,
+  ticketChecklistItems,
   ticketTagColor,
   ticketTagTextColor,
   ticketTagIds,
@@ -211,6 +213,8 @@ import type {
   MemoUrlSettings,
   PostDetailRow,
   RssWidgetResult,
+  TicketChecklistItem,
+  TicketChecklistItemInput,
   TicketLane,
   TicketRow,
 } from './types'
@@ -226,6 +230,7 @@ import {
   UserDevlogPage,
 } from './views/devlogs'
 import { DashboardPage } from './views/dashboard'
+import { DeploymentStatusPage } from './views/deployment-status'
 import { AppErrorPage, BlockedPage, PublicErrorPage, type AdminErrorDetail } from './views/errors'
 import { GuestHomePage } from './views/home'
 import {
@@ -529,7 +534,15 @@ function assertPostReadable(user: AuthContext['user'], post: PostDetailRow): voi
   }
 }
 
-function draftTicket(ownerId: string, title: string, note: string, lane: TicketLane, id = 0): TicketRow {
+function draftTicket(
+  ownerId: string,
+  title: string,
+  note: string,
+  lane: TicketLane,
+  id = 0,
+  checklistEnabled = false,
+  checklistItems: TicketChecklistItemInput[] = [],
+): TicketRow {
   return {
     id,
     owner_id: ownerId,
@@ -537,11 +550,21 @@ function draftTicket(ownerId: string, title: string, note: string, lane: TicketL
     note,
     lane,
     sort_order: 0,
+    checklist_enabled: checklistEnabled ? 1 : 0,
     created_at: 0,
     updated_at: 0,
     deleted_at: null,
     purge_after: null,
     tags: [],
+    checklist_items: checklistItems.map((item, index): TicketChecklistItem => ({
+      id: item.id ?? -(index + 1),
+      ticket_id: id,
+      title: item.title,
+      completed: item.completed ? 1 : 0,
+      sort_order: (index + 1) * 1000,
+      created_at: 0,
+      updated_at: 0,
+    })),
   }
 }
 
@@ -551,6 +574,8 @@ function isTicketFormError(error: unknown): error is Error {
     error.message.startsWith('티켓에는 태그')
     || error.message.startsWith('중복된 태그')
     || error.message.startsWith('선택한 태그')
+    || error.message.startsWith('체크리스트')
+    || error.message.startsWith('선택한 체크리스트')
   )
 }
 
@@ -812,7 +837,12 @@ app.use('*', async (c, next) => {
 })
 
 app.get('/assets/*', (c) => c.env.ASSETS.fetch(c.req.raw))
+app.get('/app-icon-512.png', (c) => c.env.ASSETS.fetch(c.req.raw))
+app.get('/apple-touch-icon.png', (c) => c.env.ASSETS.fetch(c.req.raw))
+app.get('/favicon.ico', (c) => c.env.ASSETS.fetch(c.req.raw))
+app.get('/favicon.png', (c) => c.env.ASSETS.fetch(c.req.raw))
 app.get('/health', (c) => c.json({ ok: true }))
+app.get('/deploy-status', (c) => c.html(<DeploymentStatusPage {...viewMeta(c)} />))
 app.get('/weather.json', async (c) => {
   const location = weatherLocationId(c.req.query('location'))
   const payload = await loadWeatherPayload(c.env.DB, c.env, location)
@@ -2434,14 +2464,28 @@ app.post('/tickets', async (c) => {
   const rawNote = typeof form.get('note') === 'string' ? String(form.get('note')) : ''
   let rawLane: TicketLane = 'todo'
   let rawTagIds: number[] = []
+  let rawChecklistEnabled = false
+  let rawChecklistItems: TicketChecklistItemInput[] = []
   let creationRequestId: string = crypto.randomUUID()
   try {
     rawLane = ticketLane(form.get('lane'))
     rawTagIds = ticketTagIds(form.getAll('tag_ids'))
+    rawChecklistEnabled = ticketChecklistEnabled(form)
+    rawChecklistItems = ticketChecklistItems(form)
     creationRequestId = ticketCreationRequestId(form.get('creation_request_id'))
     const title = singleLine(form.get('title'), '제목', 120)
     const note = multiline(form.get('note'), '메모', 4000, false)
-    await createTicket(c.env.DB, auth.user.id, title, note, rawLane, creationRequestId, rawTagIds)
+    await createTicket(
+      c.env.DB,
+      auth.user.id,
+      title,
+      note,
+      rawLane,
+      creationRequestId,
+      rawTagIds,
+      rawChecklistEnabled,
+      rawChecklistItems,
+    )
     return redirectWithNotice(c, '/tickets', 'ticket-created')
   } catch (error) {
     if (!isTicketFormError(error)) throw error
@@ -2452,7 +2496,7 @@ app.post('/tickets', async (c) => {
         user={auth.user}
         csrfToken={auth.csrfToken}
         mode="create"
-        ticket={draftTicket(auth.user.id, rawTitle, rawNote, rawLane)}
+        ticket={draftTicket(auth.user.id, rawTitle, rawNote, rawLane, 0, rawChecklistEnabled, rawChecklistItems)}
         availableTags={availableTags}
         selectedTagIds={rawTagIds}
         creationRequestId={creationRequestId}
@@ -2538,6 +2582,14 @@ app.get('/tickets/export', async (c) => {
         textColor: tag.text_color,
         textHex: tag.text_hex,
       })),
+      checklist: {
+        enabled: ticket.checklist_enabled === 1,
+        items: (ticket.checklist_items ?? []).map((item) => ({
+          id: item.id,
+          title: item.title,
+          completed: item.completed === 1,
+        })),
+      },
       createdAt: new Date(ticket.created_at).toISOString(),
       updatedAt: new Date(ticket.updated_at).toISOString(),
       deletedAt: ticket.deleted_at === null ? null : new Date(ticket.deleted_at).toISOString(),
@@ -2622,13 +2674,31 @@ app.post('/tickets/:id/update', async (c) => {
   const rawNote = typeof form.get('note') === 'string' ? String(form.get('note')) : ''
   let rawLane: TicketLane = ticket.lane
   let rawTagIds = (ticket.tags ?? []).map((tag) => tag.id)
+  let rawChecklistEnabled = ticket.checklist_enabled === 1
+  let rawChecklistItems: TicketChecklistItemInput[] = (ticket.checklist_items ?? []).map((item) => ({
+    id: item.id,
+    title: item.title,
+    completed: item.completed === 1,
+  }))
 
   try {
     rawLane = ticketLane(form.get('lane'))
     rawTagIds = ticketTagIds(form.getAll('tag_ids'))
+    rawChecklistEnabled = ticketChecklistEnabled(form)
+    rawChecklistItems = ticketChecklistItems(form)
     const title = singleLine(form.get('title'), '제목', 120)
     const note = multiline(form.get('note'), '메모', 4000, false)
-    await updateTicket(c.env.DB, auth.user.id, ticketId, title, note, rawLane, rawTagIds)
+    await updateTicket(
+      c.env.DB,
+      auth.user.id,
+      ticketId,
+      title,
+      note,
+      rawLane,
+      rawTagIds,
+      rawChecklistEnabled,
+      rawChecklistItems,
+    )
     return redirectWithNotice(c, '/tickets', 'ticket-updated')
   } catch (error) {
     if (!isTicketFormError(error)) throw error
@@ -2639,7 +2709,15 @@ app.post('/tickets/:id/update', async (c) => {
         user={auth.user}
         csrfToken={auth.csrfToken}
         mode="edit"
-        ticket={draftTicket(auth.user.id, rawTitle, rawNote, rawLane, ticketId)}
+        ticket={draftTicket(
+          auth.user.id,
+          rawTitle,
+          rawNote,
+          rawLane,
+          ticketId,
+          rawChecklistEnabled,
+          rawChecklistItems,
+        )}
         availableTags={availableTags}
         selectedTagIds={rawTagIds}
         error={error.message}

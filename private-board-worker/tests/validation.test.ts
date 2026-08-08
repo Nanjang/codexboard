@@ -11,6 +11,8 @@ import {
   rssUrl,
   singleLine,
   ticketCreationRequestId,
+  ticketChecklistEnabled,
+  ticketChecklistItems,
   ticketLane,
   ticketTagColor,
   ticketTagTextColor,
@@ -72,6 +74,29 @@ describe('입력 검증', () => {
     )
     expect(() => ticketCreationRequestId('reused-key')).toThrow(ValidationError)
     expect(() => ticketCreationRequestId(null)).toThrow(ValidationError)
+  })
+
+  it('체크리스트 활성 상태와 항목 완료 상태를 검증한다', () => {
+    const form = new FormData()
+    form.append('checklist_enabled', 'on')
+    form.append('checklist_item_key', '12')
+    form.append('checklist_item_title', '문서 확인')
+    form.append('checklist_item_completed', '12')
+    form.append('checklist_item_key', 'new-0')
+    form.append('checklist_item_title', '배포 확인')
+
+    expect(ticketChecklistEnabled(form)).toBe(true)
+    expect(ticketChecklistItems(form)).toEqual([
+      { id: 12, title: '문서 확인', completed: true },
+      { id: null, title: '배포 확인', completed: false },
+    ])
+
+    const invalid = new FormData()
+    invalid.append('checklist_item_key', 'new-0')
+    invalid.append('checklist_item_title', '항목')
+    invalid.append('checklist_item_key', 'new-0')
+    invalid.append('checklist_item_title', '중복')
+    expect(() => ticketChecklistItems(invalid)).toThrow(ValidationError)
   })
 
   it('북마크는 안전한 http 또는 https URL만 허용한다', () => {

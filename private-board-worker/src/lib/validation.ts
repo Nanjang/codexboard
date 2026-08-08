@@ -1,4 +1,10 @@
-import type { BoardSlug, BookmarkIconColor, TicketTagColor, TicketTagTextColor } from '../types'
+import type {
+  BoardSlug,
+  BookmarkIconColor,
+  TicketChecklistItemInput,
+  TicketTagColor,
+  TicketTagTextColor,
+} from '../types'
 import { isBookmarkIconColor } from './bookmark-icon-palette'
 import { normalizeRssUrl, RssFeedError } from './rss'
 
@@ -116,6 +122,39 @@ export function ticketTagIds(values: FormDataEntryValue[]): number[] {
   })
   if (new Set(ids).size !== ids.length) throw new ValidationError('중복된 태그가 있습니다.')
   return ids
+}
+
+export function ticketChecklistEnabled(form: FormData): boolean {
+  return form.has('checklist_enabled')
+}
+
+export function ticketChecklistItems(form: FormData): TicketChecklistItemInput[] {
+  const keys = form.getAll('checklist_item_key')
+  const titles = form.getAll('checklist_item_title')
+  const completedKeys = new Set(
+    form.getAll('checklist_item_completed').filter((value): value is string => typeof value === 'string'),
+  )
+  if (keys.length !== titles.length) throw new ValidationError('체크리스트 항목 형식이 올바르지 않습니다.')
+  if (keys.length > 50) throw new ValidationError('체크리스트 항목은 최대 50개까지 추가할 수 있습니다.')
+
+  const seenKeys = new Set<string>()
+  const items: TicketChecklistItemInput[] = []
+  keys.forEach((rawKey, index) => {
+    if (typeof rawKey !== 'string') throw new ValidationError('체크리스트 항목 형식이 올바르지 않습니다.')
+    const title = optionalSingleLine(titles[index] ?? null, '체크리스트 항목', 200)
+    if (!title) return
+    if (!/^(?:[1-9][0-9]*|new-[0-9]+)$/u.test(rawKey) || seenKeys.has(rawKey)) {
+      throw new ValidationError('체크리스트 항목 형식이 올바르지 않습니다.')
+    }
+    seenKeys.add(rawKey)
+    const id = rawKey.startsWith('new-') ? null : positiveInteger(rawKey, '체크리스트 항목 ID')
+    items.push({
+      id,
+      title,
+      completed: completedKeys.has(rawKey),
+    })
+  })
+  return items
 }
 
 export function ticketCreationRequestId(value: FormDataEntryValue | null): string {

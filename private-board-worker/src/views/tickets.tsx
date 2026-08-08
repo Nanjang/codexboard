@@ -5,6 +5,7 @@ import type {
   TicketLogAction,
   TicketLogRow,
   TicketRow,
+  TicketChecklistItem,
   TicketTagColor,
   TicketTagRow,
   TrashedTicketRow,
@@ -255,6 +256,106 @@ function TicketTagSelect({
   )
 }
 
+function checklistStats(items: TicketChecklistItem[]): { completed: number; total: number; percent: number } {
+  const total = items.length
+  const completed = items.filter((item) => item.completed === 1).length
+  return {
+    completed,
+    total,
+    percent: total === 0 ? 0 : Math.round((completed / total) * 100),
+  }
+}
+
+function TicketChecklistProgress({ items, compact = false }: { items: TicketChecklistItem[]; compact?: boolean }) {
+  const stats = checklistStats(items)
+  return (
+    <div
+      class={`ticket-checklist-progress${compact ? ' ticket-checklist-progress-compact' : ''}`}
+      data-checklist-progress
+      aria-label={`체크리스트 ${stats.completed} / ${stats.total}`}
+    >
+      <strong data-checklist-progress-count>{stats.completed} / {stats.total}</strong>
+      <div
+        class="ticket-checklist-progress-bar"
+        role="progressbar"
+        aria-valuemin="0"
+        aria-valuemax="100"
+        aria-valuenow={stats.percent}
+        aria-valuetext={`${stats.percent}%`}
+      >
+        <span class="ticket-checklist-progress-fill" data-checklist-progress-fill style={`width:${stats.percent}%`} />
+      </div>
+    </div>
+  )
+}
+
+function checklistItemKey(item: TicketChecklistItem, index: number): string {
+  return item.id > 0 ? String(item.id) : `new-${index}`
+}
+
+function TicketChecklistEditor({ ticket }: { ticket?: TicketRow }) {
+  const items = ticket?.checklist_items ?? []
+  const enabled = ticket?.checklist_enabled === 1
+  const stats = checklistStats(items)
+  return (
+    <section
+      class="ticket-checklist-editor"
+      data-checklist-editor
+      data-checklist-next-key={items.length}
+      aria-labelledby="ticket-checklist-title"
+    >
+      <div class="ticket-checklist-editor-heading">
+        <div class="ticket-checklist-editor-title">
+          <h3 id="ticket-checklist-title">체크리스트</h3>
+          <strong class="ticket-checklist-heading-progress" data-checklist-heading-count hidden={!enabled}>
+            {stats.completed} / {stats.total}
+          </strong>
+        </div>
+        <label class="ticket-checklist-toggle">
+          <input type="checkbox" name="checklist_enabled" data-checklist-toggle checked={enabled} />
+          <span>사용</span>
+        </label>
+      </div>
+      <div class="ticket-checklist-editor-body" data-checklist-body hidden={!enabled}>
+        <TicketChecklistProgress items={items} />
+        <div class="ticket-checklist-items" data-checklist-items>
+          {items.map((item, index) => {
+            const key = checklistItemKey(item, index)
+            return (
+              <div class="ticket-checklist-item" data-checklist-item data-checklist-key={key} key={key}>
+                <input type="hidden" name="checklist_item_key" value={key} />
+                <input
+                  type="checkbox"
+                  name="checklist_item_completed"
+                  value={key}
+                  data-checklist-completed
+                  checked={item.completed === 1}
+                  aria-label={`${item.title} 완료`}
+                />
+                <input
+                  type="text"
+                  name="checklist_item_title"
+                  value={item.title}
+                  maxlength={200}
+                  data-checklist-title
+                  aria-label="체크리스트 항목"
+                  autocomplete="off"
+                />
+                <button type="button" class="icon-button" data-checklist-remove aria-label="체크리스트 항목 삭제">
+                  ×
+                </button>
+              </div>
+            )
+          })}
+        </div>
+        <button type="button" class="button button-secondary button-small" data-checklist-add>
+          항목 추가
+        </button>
+      </div>
+    </section>
+  )
+}
+
 function TicketCard({ ticket }: { ticket: TicketRow }) {
   return (
     <article
@@ -281,6 +382,9 @@ function TicketCard({ ticket }: { ticket: TicketRow }) {
         </button>
       </div>
       {ticket.note ? <p class="ticket-note">{ticket.note}</p> : <p class="ticket-note ticket-note-empty">메모 없음</p>}
+      {ticket.checklist_enabled === 1 ? (
+        <TicketChecklistProgress items={ticket.checklist_items ?? []} compact />
+      ) : null}
     </article>
   )
 }
@@ -591,6 +695,7 @@ export function TicketFormPage({
             selectedTags={ticket?.tags ?? []}
             {...(selectedTagIds ? { selectedTagIds } : {})}
           />
+          {ticket ? <TicketChecklistEditor ticket={ticket} /> : <TicketChecklistEditor />}
           <div class="form-actions">
             <a class="button button-secondary" href="/tickets">
               취소
