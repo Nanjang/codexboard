@@ -27,6 +27,7 @@ import {
   createReadyPrivateImage,
   createTicket,
   createTicketTag,
+  clearImageServiceSettingsCache,
   deleteComment,
   deleteMemo,
   deleteMemoUrlPattern,
@@ -95,6 +96,7 @@ import {
 } from './lib/db'
 import { safeEqual } from './lib/crypto'
 import { getAccountD1Storage, getDatabaseUsageStats } from './lib/database-usage'
+import { measureD1Query } from './lib/database-performance'
 import {
   BookmarkIconFetchError,
   bookmarkIconFallback,
@@ -116,9 +118,11 @@ import { validateDevlogPreviewImageReset } from './lib/devlog-preview'
 import { RequestProcessError, safeRuntimeReason, type RequestProcessDiagnostic } from './lib/request-diagnostics'
 import {
   applyAccountD1StorageUsage,
+  getCachedVisitorStats,
   getVisitorTimeSeries,
   injectVisitorStats,
   listVisitorPageViews,
+  rememberVisitorStats,
   recordVisitor,
   shouldTrackVisitor,
   visitorChartRange,
@@ -221,6 +225,7 @@ import type {
 import { AdminDatabasePage, AdminPage } from './views/admin'
 import { AdminMemberActivityPage, AdminMembersPage } from './views/admin-members'
 import { AdminVisitorLogsPage } from './views/admin-visitors'
+import { AdminDatabasePerformancePage } from './views/admin-database-performance'
 import { AccountPage } from './views/account'
 import { BoardListPage, CommentEditPage, PostDetailPage, PostFormPage } from './views/boards'
 import {
@@ -255,6 +260,55 @@ export { DevlogImageCache } from './devlog-image-cache-entrypoint'
 
 const app = new Hono<AppEnv>()
 const MAX_REQUEST_BYTES = 64 * 1024
+
+const POST_DETAIL_PERFORMANCE_SQL = `
+  SELECT
+    p.id,
+    p.board_id,
+    b.slug AS board_slug,
+    b.name AS board_name,
+    p.author_id,
+    u.nickname AS author_nickname,
+    u.role AS author_role,
+    p.title,
+    p.body,
+    p.body_format,
+    p.visibility,
+    p.preview_image_url,
+    p.comment_count,
+    p.view_count,
+    p.created_at,
+    p.updated_at
+  FROM posts p
+  JOIN boards b ON b.id = p.board_id
+  JOIN users u ON u.id = p.author_id
+  WHERE p.id = ?1
+    AND p.status = 'published'
+  LIMIT 1
+`
+
+const BOARD_POSTS_PERFORMANCE_SQL = `
+  SELECT
+    p.id,
+    p.board_id,
+    b.slug AS board_slug,
+    b.name AS board_name,
+    p.author_id,
+    u.nickname AS author_nickname,
+    u.role AS author_role,
+    p.title,
+    p.comment_count,
+    p.view_count,
+    p.created_at,
+    p.updated_at
+  FROM posts p
+  JOIN boards b ON b.id = p.board_id
+  JOIN users u ON u.id = p.author_id
+  WHERE p.board_id = ?1
+    AND p.status = 'published'
+  ORDER BY p.id DESC
+  LIMIT 21
+`
 
 function ticketLogPage(value: string | undefined): number {
   if (!value || !/^[1-9][0-9]*$/u.test(value)) return 1
@@ -754,26 +808,30 @@ const personalBookmarkBodyLimit = bodyLimit({
 app.use('*', async (c, next) => {
   await next()
 
+  const cachedStats = getCachedVisitorStats()
+  if (cachedStats) c.res = injectVisitorStats(c.res, cachedStats)
   if (!shouldTrackVisitor(c.req.raw, c.res)) return
-  try {
-    let stats = await recordVisitor(
+
+  c.executionCtx.waitUntil(
+    recordVisitor(
       c.env.DB,
       c.req.raw,
       c.env.SESSION_SECRET,
       c.get('auth')?.user.id ?? null,
       c.res.status,
     )
-    if (stats) {
-      const accountStorage = await getAccountD1Storage(c.env)
-      if (accountStorage.usage) stats = applyAccountD1StorageUsage(stats, accountStorage.usage)
-      c.res = injectVisitorStats(c.res, stats)
-    }
-  } catch (error) {
-    console.error('Visitor stats failed', {
-      name: error instanceof Error ? error.name : 'UnknownError',
-      path: c.req.path,
-    })
-  }
+      .then(async (stats) => {
+        if (!stats) return
+        const accountStorage = await getAccountD1Storage(c.env)
+        rememberVisitorStats(accountStorage.usage ? applyAccountD1StorageUsage(stats, accountStorage.usage) : stats)
+      })
+      .catch((error) => {
+        console.error('Visitor stats failed', {
+          name: error instanceof Error ? error.name : 'UnknownError',
+          path: c.req.path,
+        })
+      }),
+  )
 })
 app.use('*', async (c, next) => {
   if (c.req.path === '/api/devlog/images') return devlogImageBodyLimit(c, next)
@@ -1988,6 +2046,82 @@ app.get('/admin/database', async (c) => {
   )
 })
 
+app.get('/admin/database/performance', async (c) => {
+  const auth = requireAdminAuth(c)
+  c.header('Cache-Control', 'private, no-store')
+  const postIdParam = c.req.query('postId')
+  const postId = postIdParam ? positiveInteger(postIdParam, '게시글 ID') : 1
+  const selectedBoard = boardSlug(c.req.query('board') ?? 'free')
+  const measurements = []
+
+  const boardMeasurement = await measureD1Query<{ id: number }>(
+    c.env.DB,
+    '게시판 단건 조회',
+    'SELECT id, slug, name, description, sort_order FROM boards WHERE slug = ?1 LIMIT 1',
+    [selectedBoard],
+  )
+  measurements.push(boardMeasurement)
+
+  const boardId = boardMeasurement.rows[0]?.id ?? 0
+  const postMeasurement = await measureD1Query(
+    c.env.DB,
+    '자유게시판 글 수정용 게시글 조회',
+    POST_DETAIL_PERFORMANCE_SQL,
+    [postId],
+  )
+  measurements.push(postMeasurement)
+
+  const boardPostsMeasurement = await measureD1Query(
+    c.env.DB,
+    '게시판 글 목록 조회',
+    BOARD_POSTS_PERFORMANCE_SQL,
+    [boardId],
+  )
+  measurements.push(boardPostsMeasurement)
+
+  const imageSettingsMeasurement = await measureD1Query(
+    c.env.DB,
+    '이미지 서비스 설정 조회',
+    'SELECT enabled, updated_at FROM image_service_settings WHERE singleton_id = 1 LIMIT 1',
+  )
+  measurements.push(imageSettingsMeasurement)
+
+  const visitorCounterMeasurement = await measureD1Query(
+    c.env.DB,
+    '방문자 카운터 조회',
+    'SELECT unique_count FROM visitor_total_stats WHERE singleton_id = 1 LIMIT 1',
+  )
+  measurements.push(visitorCounterMeasurement)
+
+  type QueryPlanRow = { id: number; parent: number; notused: number; detail: string }
+  const plans = [
+    await measureD1Query<QueryPlanRow>(
+      c.env.DB,
+      '게시글 상세 조회 계획',
+      `EXPLAIN QUERY PLAN ${POST_DETAIL_PERFORMANCE_SQL}`,
+      [postId],
+    ),
+    await measureD1Query<QueryPlanRow>(
+      c.env.DB,
+      '게시판 목록 조회 계획',
+      `EXPLAIN QUERY PLAN ${BOARD_POSTS_PERFORMANCE_SQL}`,
+      [boardId],
+    ),
+  ]
+
+  return c.html(
+    <AdminDatabasePerformancePage
+      {...viewMeta(c)}
+      user={auth.user}
+      csrfToken={auth.csrfToken}
+      postId={postId}
+      boardSlug={selectedBoard}
+      measurements={measurements}
+      plans={plans}
+    />,
+  )
+})
+
 app.get('/admin/members', async (c) => {
   const auth = requireAdminAuth(c)
   const members = await listAdminMembers(c.env.DB, adminPageNumber(c.req.query('page')))
@@ -2103,6 +2237,7 @@ app.post('/admin/image-service', async (c) => {
     throw error
   }
   await saveImageServiceSettings(c.env.DB, tokenCiphertext, auth.user.id)
+  clearImageServiceSettingsCache(c.env.DB)
   return redirectWithNotice(c, '/admin', 'image-service-saved')
 })
 
@@ -2117,6 +2252,7 @@ app.post('/admin/image-service/toggle', async (c) => {
   const enabled = rawEnabled === 'true'
   if (enabled) await verifyImageService(c.env)
   const changed = await setImageServiceEnabled(c.env.DB, enabled, auth.user.id)
+  clearImageServiceSettingsCache(c.env.DB)
   if (!changed) throw new ValidationError('이미지 서비스를 먼저 등록해 주세요.')
   return redirectWithNotice(c, '/admin', enabled ? 'image-service-enabled' : 'image-service-disabled')
 })

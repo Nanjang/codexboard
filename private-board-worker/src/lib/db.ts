@@ -65,6 +65,12 @@ export interface ImageServiceRecord {
   updated_at: number
 }
 
+const IMAGE_SERVICE_SETTINGS_CACHE_TTL_MS = 5_000
+const imageServiceSettingsCache = new WeakMap<object, {
+  value: ImageServiceSettings
+  expiresAt: number
+}>()
+
 export async function getImageServiceRecord(db: D1Database): Promise<ImageServiceRecord | null> {
   return db
     .prepare(
@@ -77,12 +83,24 @@ export async function getImageServiceRecord(db: D1Database): Promise<ImageServic
 }
 
 export async function getImageServiceSettings(db: D1Database): Promise<ImageServiceSettings> {
+  const cached = imageServiceSettingsCache.get(db as object)
+  if (cached && cached.expiresAt > Date.now()) return cached.value
+
   const record = await getImageServiceRecord(db)
-  return {
+  const value = {
     configured: record !== null,
     enabled: record?.enabled === 1,
     updatedAt: record?.updated_at ?? null,
   }
+  imageServiceSettingsCache.set(db as object, {
+    value,
+    expiresAt: Date.now() + IMAGE_SERVICE_SETTINGS_CACHE_TTL_MS,
+  })
+  return value
+}
+
+export function clearImageServiceSettingsCache(db: D1Database): void {
+  imageServiceSettingsCache.delete(db as object)
 }
 
 export async function saveImageServiceSettings(
@@ -105,6 +123,7 @@ export async function saveImageServiceSettings(
     )
     .bind('vpc://image-vault', tokenCiphertext, updatedBy, now)
     .run()
+  clearImageServiceSettingsCache(db)
 }
 
 export async function setImageServiceEnabled(
@@ -120,6 +139,7 @@ export async function setImageServiceEnabled(
     )
     .bind(enabled ? 1 : 0, updatedBy, Date.now())
     .run()
+  clearImageServiceSettingsCache(db)
   return result.meta.changes > 0
 }
 

@@ -16,6 +16,21 @@ export interface VisitorStats {
   databaseLimitMegabytes?: number
 }
 
+const VISITOR_STATS_CACHE_TTL_MS = 60_000
+let recentVisitorStats: { value: VisitorStats; expiresAt: number } | null = null
+
+export function getCachedVisitorStats(now = Date.now()): VisitorStats | null {
+  if (!recentVisitorStats || recentVisitorStats.expiresAt <= now) return null
+  return recentVisitorStats.value
+}
+
+export function rememberVisitorStats(value: VisitorStats, now = Date.now()): void {
+  recentVisitorStats = {
+    value,
+    expiresAt: now + VISITOR_STATS_CACHE_TTL_MS,
+  }
+}
+
 interface VisitorCountRow {
   count: number
 }
