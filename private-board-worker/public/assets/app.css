@@ -4501,6 +4501,92 @@ button.privacy-toggle.is-on > span {
   font-weight: 400;
 }
 
+.admin-database-performance {
+  display: grid;
+  gap: 18px;
+  max-width: 980px;
+}
+
+.admin-database-performance-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 12px;
+}
+
+.admin-database-performance-form label {
+  display: grid;
+  gap: 6px;
+}
+
+.admin-database-performance-form label > span {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.admin-database-performance-table {
+  min-width: 760px;
+}
+
+.admin-database-performance-sql-list,
+.admin-database-performance-plan-list {
+  display: grid;
+  gap: 8px;
+}
+
+.admin-database-performance-sql-list details,
+.admin-database-performance-plan {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
+}
+
+.admin-database-performance-sql-list summary {
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.admin-database-performance-sql-list pre {
+  max-width: 100%;
+  margin: 12px 0 0;
+  overflow: auto;
+  color: var(--text);
+  font: 0.75rem/1.55 ui-monospace, SFMono-Regular, Consolas, monospace;
+  white-space: pre-wrap;
+}
+
+.admin-database-performance-plan .admin-feature-heading {
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.admin-database-performance-plan h4 {
+  margin: 0;
+  font-size: 0.92rem;
+}
+
+.admin-database-performance-plan .admin-feature-heading > span {
+  color: var(--primary);
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.admin-database-performance-plan ul {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.admin-database-performance-plan code {
+  color: var(--text-muted);
+  font-size: 0.76rem;
+}
+
 .admin-feature-card {
   display: grid;
   gap: 18px;
@@ -4980,6 +5066,14 @@ button.privacy-toggle.is-on > span {
 
   .admin-database-summary {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .admin-database-performance-form {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .admin-database-performance-form .button {
+    width: 100%;
   }
 
   .admin-member-summary > div:nth-child(2) {

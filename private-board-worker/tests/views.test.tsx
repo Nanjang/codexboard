@@ -25,7 +25,9 @@ import { BUILTIN_THEMES } from '../src/lib/themes'
 import type { WeatherPayload } from '../src/lib/weather'
 import { AccountPage } from '../src/views/account'
 import type { DatabaseUsageStats } from '../src/lib/database-usage'
+import type { DatabaseQueryMeasurement } from '../src/lib/database-performance'
 import { AdminDatabasePage, AdminPage } from '../src/views/admin'
+import { AdminDatabasePerformancePage } from '../src/views/admin-database-performance'
 import { AdminMemberActivityPage, AdminMembersPage } from '../src/views/admin-members'
 import { AdminVisitorLogsPage } from '../src/views/admin-visitors'
 import { BoardListPage, PostDetailPage, PostFormPage } from '../src/views/boards'
@@ -1120,6 +1122,43 @@ describe('핵심 화면', () => {
     expect(html).toContain('data-deployment-manifest-url="/assets/asset-manifest.json"')
     expect(html).toContain('data-deployment-status-state')
     expect(html).toContain('워커 버전')
+  })
+
+  it('D1 조회 성능 측정 페이지가 실행 시간과 인덱스 계획을 표시한다', async () => {
+    const measurement: DatabaseQueryMeasurement = {
+      label: '게시글 조회',
+      sql: 'SELECT id FROM posts WHERE id = ?1',
+      elapsedMs: 4.25,
+      d1DurationMs: 3.8,
+      sqlDurationMs: 0.12,
+      rowsRead: 1,
+      rowsWritten: 0,
+      resultCount: 1,
+      rows: [{ id: 1 }],
+    }
+    const plan: DatabaseQueryMeasurement<{ id: number; parent: number; notused: number; detail: string }> = {
+      ...measurement,
+      label: '게시글 조회 계획',
+      sql: 'EXPLAIN QUERY PLAN SELECT id FROM posts WHERE id = ?1',
+      rows: [{ id: 0, parent: 0, notused: 0, detail: 'SEARCH posts USING INTEGER PRIMARY KEY' }],
+    }
+    const html = String(
+      await AdminDatabasePerformancePage({
+        appName: 'Private Board',
+        deployInfo,
+        user: { ...user, role: 'admin' },
+        csrfToken: 'csrf-test',
+        postId: 1,
+        boardSlug: 'free',
+        measurements: [measurement],
+        plans: [plan],
+      }),
+    )
+
+    expect(html).toContain('admin-database-performance')
+    expect(html).toContain('4.25 ms')
+    expect(html).toContain('SEARCH posts USING INTEGER PRIMARY KEY')
+    expect(html).toContain('/admin/database/performance')
   })
 
   it('티켓 변경 로그는 최신순과 페이지당 개수 선택을 표시한다', async () => {

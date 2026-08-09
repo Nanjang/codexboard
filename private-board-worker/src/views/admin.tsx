@@ -174,7 +174,10 @@ export function AdminDatabasePage({
               <p class="eyebrow">읽기 전용</p>
               <h3 id="admin-database-detail-title">저장 용량 상세</h3>
             </div>
-            <a class="button button-secondary button-compact" href="/admin">관리자 설정</a>
+            <nav class="admin-feature-links">
+              <a class="button button-secondary button-compact" href="/admin/database/performance">조회 성능 측정</a>
+              <a class="button button-secondary button-compact" href="/admin">관리자 설정</a>
+            </nav>
           </div>
           <DatabaseUsageDetails databaseUsage={databaseUsage} />
         </article>
