@@ -1349,7 +1349,13 @@ export async function listTickets(db: D1Database, ownerId: string): Promise<Tick
       FROM tickets
       WHERE owner_id = ?1 AND deleted_at IS NULL
       ORDER BY
-        CASE lane WHEN 'todo' THEN 1 WHEN 'doing' THEN 2 WHEN 'done' THEN 3 END,
+        CASE lane
+          WHEN 'long-term' THEN 1
+          WHEN 'todo' THEN 2
+          WHEN 'doing' THEN 3
+          WHEN 'done' THEN 4
+          WHEN 'preserved' THEN 5
+        END,
         sort_order,
         id
       LIMIT ?2
@@ -1885,7 +1891,7 @@ export async function reorderTickets(
   ownerId: string,
   lanes: Record<TicketLane, number[]>,
 ): Promise<void> {
-  const incoming = [...lanes.todo, ...lanes.doing, ...lanes.done]
+  const incoming = [...lanes['long-term'], ...lanes.todo, ...lanes.doing, ...lanes.done, ...lanes.preserved]
   if (incoming.length > MAX_TICKETS_PER_USER) throw new Error('티켓 수가 허용 범위를 초과했습니다.')
   if (new Set(incoming).size !== incoming.length) throw new Error('중복된 티켓 ID가 있습니다.')
 

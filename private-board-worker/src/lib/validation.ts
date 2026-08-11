@@ -74,8 +74,8 @@ export function positiveInteger(value: string, fieldName = 'ID'): number {
   return parsed
 }
 
-export function ticketLane(value: FormDataEntryValue | string | null): 'todo' | 'doing' | 'done' {
-  if (value === 'todo' || value === 'doing' || value === 'done') return value
+export function ticketLane(value: FormDataEntryValue | string | null): 'long-term' | 'todo' | 'doing' | 'done' | 'preserved' {
+  if (value === 'long-term' || value === 'todo' || value === 'doing' || value === 'done' || value === 'preserved') return value
   throw new ValidationError('작업 상태가 올바르지 않습니다.')
 }
 

@@ -2913,7 +2913,7 @@ app.put('/api/tickets/order', async (c) => {
   if (!payload || typeof payload !== 'object') throw new ValidationError('티켓 순서 데이터가 올바르지 않습니다.')
 
   const lanes = {} as Record<TicketLane, number[]>
-  for (const lane of ['todo', 'doing', 'done'] as const) {
+  for (const lane of ['long-term', 'todo', 'doing', 'done', 'preserved'] as const) {
     const value = payload[lane]
     if (!Array.isArray(value)) throw new ValidationError('티켓 순서 데이터가 올바르지 않습니다.')
     lanes[lane] = value.map((id) => {
