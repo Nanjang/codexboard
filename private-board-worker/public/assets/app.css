@@ -2161,6 +2161,14 @@ select:focus {
   align-items: start;
 }
 
+.ticket-board.is-expanded {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.ticket-lane[hidden] {
+  display: none;
+}
+
 .ticket-lane {
   min-width: 0;
   padding: 12px;
@@ -5094,6 +5102,10 @@ button.privacy-toggle.is-on > span {
     margin-inline: -11px;
     padding: 0 11px 14px;
     scroll-snap-type: x proximity;
+  }
+
+  .ticket-board.is-expanded {
+    grid-template-columns: repeat(5, minmax(285px, 82vw));
   }
 
   .ticket-lane {

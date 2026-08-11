@@ -1115,6 +1115,35 @@ describe('핵심 화면', () => {
     expect(boardHtml).not.toContain('두 번째 체크 항목')
   })
 
+  it('티켓 보드는 장기작업과 보존작업을 기본 숨기고 할 일의 좌측·완료의 우측에 배치한다', async () => {
+    const html = String(
+      await TicketsPage({
+        appName: 'Private Board',
+        deployInfo,
+        user,
+        csrfToken: 'csrf-test',
+        tickets: [
+          ticket,
+          { ...ticket, id: 2, title: '장기 티켓', lane: 'long-term' as TicketRow['lane'] },
+          { ...ticket, id: 3, title: '보존 티켓', lane: 'preserved' as TicketRow['lane'] },
+        ],
+        creationRequestId: ticketCreationRequestId,
+      }),
+    )
+
+    expect(html).toContain('data-ticket-lane-toggle')
+    expect(html).toContain('aria-expanded="false"')
+    expect(html).toContain('장기작업')
+    expect(html).toContain('보존작업')
+    expect(html.indexOf('data-lane="long-term"')).toBeLessThan(html.indexOf('data-lane="todo"'))
+    expect(html.indexOf('data-lane="done"')).toBeLessThan(html.indexOf('data-lane="preserved"'))
+    expect(html).toMatch(/data-lane="long-term"[\s\S]*?hidden=""/u)
+    expect(html).toMatch(/data-lane="preserved"[\s\S]*?hidden=""/u)
+    expect(html).toContain('data-lane-list="long-term"')
+    expect(html).toContain('data-lane-list="preserved"')
+    expect(html).toContain('data-ticket-create-lane="todo"')
+  })
+
   it('배포 상태 페이지는 정적 자산 매니페스트 검사를 위한 공개 상태 영역을 표시한다', async () => {
     const html = String(await DeploymentStatusPage({ appName: 'Private Board', deployInfo }))
 

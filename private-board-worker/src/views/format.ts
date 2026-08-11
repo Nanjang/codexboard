@@ -16,11 +16,15 @@ export function formatDateTime(timestamp: number): string {
 
 export function laneLabel(lane: TicketLane): string {
   switch (lane) {
+    case 'long-term':
+      return '장기작업'
     case 'todo':
       return '할 일'
     case 'doing':
       return '진행 중'
     case 'done':
       return '완료'
+    case 'preserved':
+      return '보존작업'
   }
 }

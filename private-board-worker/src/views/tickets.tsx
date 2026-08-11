@@ -171,7 +171,20 @@ interface TicketBoardPageProps extends TicketPageProps {
   availableTags?: TicketTagRow[]
 }
 
-const lanes: TicketLane[] = ['todo', 'doing', 'done']
+type TicketBoardLane = TicketLane | 'long-term' | 'preserved'
+
+const boardLanes: TicketBoardLane[] = ['long-term', 'todo', 'doing', 'done', 'preserved']
+const formLanes = boardLanes
+
+function isExtendedTicketLane(lane: TicketBoardLane): lane is 'long-term' | 'preserved' {
+  return lane === 'long-term' || lane === 'preserved'
+}
+
+function ticketBoardLaneLabel(lane: TicketBoardLane): string {
+  if (lane === 'long-term') return '장기작업'
+  if (lane === 'preserved') return '보존작업'
+  return laneLabel(lane)
+}
 
 const ticketTagColors: Array<{ value: TicketTagColor; label: string }> = [
   { value: 'coral', label: '산호' },
@@ -399,8 +412,8 @@ export function TicketsPage({
   creationRequestId,
   availableTags = [],
 }: TicketBoardPageProps & { tickets: TicketRow[]; creationRequestId: string }) {
-  const byLane = Object.fromEntries(lanes.map((lane) => [lane, tickets.filter((ticket) => ticket.lane === lane)])) as Record<
-    TicketLane,
+  const byLane = Object.fromEntries(boardLanes.map((lane) => [lane, tickets.filter((ticket) => (ticket.lane as TicketBoardLane) === lane)])) as Record<
+    TicketBoardLane,
     TicketRow[]
   >
 
@@ -424,6 +437,15 @@ export function TicketsPage({
           <p>이 페이지의 티켓은 현재 로그인한 본인에게만 보입니다. 카드를 끌어 상태와 순서를 바꿀 수 있습니다.</p>
         </div>
         <div class="ticket-page-heading-actions">
+          <button
+            type="button"
+            class="button button-secondary button-compact"
+            data-ticket-lane-toggle
+            aria-expanded="false"
+            aria-controls="ticket-lane-long-term ticket-lane-preserved"
+          >
+            상태 확장
+          </button>
           <a class="button button-secondary button-compact" href="/tickets/tags">
             태그 관리
           </a>
@@ -444,10 +466,18 @@ export function TicketsPage({
       ) : null}
 
       <section class="ticket-board" data-ticket-board aria-label="개인 작업 티켓 보드">
-        {lanes.map((lane) => (
-          <section class="ticket-lane" data-lane={lane} key={lane} aria-labelledby={`lane-${lane}`}>
+        {boardLanes.map((lane) => (
+          <section
+            class="ticket-lane"
+            data-lane={lane}
+            data-ticket-extended-lane={isExtendedTicketLane(lane) ? '' : undefined}
+            id={`ticket-lane-${lane}`}
+            hidden={isExtendedTicketLane(lane)}
+            key={lane}
+            aria-labelledby={`lane-${lane}`}
+          >
             <header class="ticket-lane-header">
-              <h3 id={`lane-${lane}`}>{laneLabel(lane)}</h3>
+              <h3 id={`lane-${lane}`}>{ticketBoardLaneLabel(lane)}</h3>
               <span>{byLane[lane].length}</span>
             </header>
             <div class="ticket-lane-list" data-lane-list={lane}>
@@ -459,8 +489,8 @@ export function TicketsPage({
                 class="ticket-drop-zone"
                 data-ticket-drop-zone
                 data-ticket-create-lane={lane}
-                aria-label={`${laneLabel(lane)} 상태에 티켓 추가`}
-                title={`${laneLabel(lane)} 상태에 티켓 추가`}
+                aria-label={`${ticketBoardLaneLabel(lane)} 상태에 티켓 추가`}
+                title={`${ticketBoardLaneLabel(lane)} 상태에 티켓 추가`}
               >
                 <span aria-hidden="true">+</span>
               </button>
@@ -490,9 +520,9 @@ export function TicketsPage({
           <label>
             <span>상태</span>
             <select name="lane">
-              <option value="todo">할 일</option>
-              <option value="doing">진행 중</option>
-              <option value="done">완료</option>
+              {formLanes.map((lane) => (
+                <option value={lane}>{ticketBoardLaneLabel(lane)}</option>
+              ))}
             </select>
           </label>
           <TicketTagSelect availableTags={availableTags} />
@@ -683,9 +713,9 @@ export function TicketFormPage({
           <label>
             <span>상태</span>
             <select name="lane">
-              {lanes.map((lane) => (
+              {formLanes.map((lane) => (
                 <option value={lane} selected={(ticket?.lane ?? 'todo') === lane}>
-                  {laneLabel(lane)}
+                  {ticketBoardLaneLabel(lane)}
                 </option>
               ))}
             </select>
@@ -764,7 +794,7 @@ export function TicketTrashPage({
               <div class="ticket-trash-content">
                 <div class="ticket-trash-heading">
                   <strong>{ticket.title}</strong>
-                  <span>{laneLabel(ticket.lane)}</span>
+                  <span>{ticketBoardLaneLabel(ticket.lane as TicketBoardLane)}</span>
                   <TicketTags tags={ticket.tags ?? []} />
                 </div>
                 {ticket.note ? <p class="ticket-note">{ticket.note}</p> : null}

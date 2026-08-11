@@ -820,12 +820,36 @@ function setupTicketCreateDropZones(): void {
     if (!zone) return
 
     const lane = zone.dataset.ticketCreateLane
-    if (lane !== 'todo' && lane !== 'doing' && lane !== 'done') return
+    if (lane !== 'long-term' && lane !== 'todo' && lane !== 'doing' && lane !== 'done' && lane !== 'preserved') return
     event.preventDefault()
     form.reset()
     laneInput.value = lane
     openDialog(dialog)
   })
+}
+
+function setupTicketLaneExpansion(): void {
+  const board = document.querySelector<HTMLElement>('[data-ticket-board]')
+  const toggle = document.querySelector<HTMLButtonElement>('[data-ticket-lane-toggle]')
+  if (!board || !toggle) return
+
+  const extendedLanes = Array.from(
+    board.querySelectorAll<HTMLElement>('[data-ticket-extended-lane]'),
+  )
+  if (extendedLanes.length === 0) return
+
+  const update = (expanded: boolean): void => {
+    board.classList.toggle('is-expanded', expanded)
+    toggle.setAttribute('aria-expanded', String(expanded))
+    toggle.textContent = expanded ? '상태 접기' : '상태 확장'
+    extendedLanes.forEach((lane) => {
+      lane.hidden = !expanded
+      lane.setAttribute('aria-hidden', String(!expanded))
+    })
+  }
+
+  update(false)
+  toggle.addEventListener('click', () => update(toggle.getAttribute('aria-expanded') !== 'true'))
 }
 
 function setupTicketFormProtection(): void {
@@ -1764,12 +1788,20 @@ function setupImageCopies(): void {
   })
 }
 
-function ticketOrderPayload(): Record<'todo' | 'doing' | 'done', number[]> {
-  const result: Record<'todo' | 'doing' | 'done', number[]> = { todo: [], doing: [], done: [] }
+type TicketBoardLane = 'long-term' | 'todo' | 'doing' | 'done' | 'preserved'
+
+function ticketOrderPayload(): Record<TicketBoardLane, number[]> {
+  const result: Record<TicketBoardLane, number[]> = {
+    'long-term': [],
+    todo: [],
+    doing: [],
+    done: [],
+    preserved: [],
+  }
   document.querySelectorAll<HTMLElement>('[data-lane-list]').forEach((list) => {
     const lane = list.dataset.laneList
-    if (lane !== 'todo' && lane !== 'doing' && lane !== 'done') return
-    result[lane] = Array.from(list.querySelectorAll<HTMLElement>(':scope > [data-ticket-id]'))
+    if (!lane || !(lane in result)) return
+    result[lane as TicketBoardLane] = Array.from(list.querySelectorAll<HTMLElement>(':scope > [data-ticket-id]'))
       .map((card) => Number.parseInt(card.dataset.ticketId ?? '', 10))
       .filter(Number.isSafeInteger)
   })
@@ -2192,6 +2224,7 @@ function initialize(): void {
   setupMenu()
   setupDialogs()
   setupTicketCreateDropZones()
+  setupTicketLaneExpansion()
   setupTicketChecklist()
   setupDeploymentStatus()
   setupTicketFormProtection()
