@@ -832,6 +832,7 @@ function setupTicketLaneExpansion(): void {
   const board = document.querySelector<HTMLElement>('[data-ticket-board]')
   const toggle = document.querySelector<HTMLButtonElement>('[data-ticket-lane-toggle]')
   if (!board || !toggle) return
+  const pageShell = board.closest<HTMLElement>('.page-shell-wide')
 
   const extendedLanes = Array.from(
     board.querySelectorAll<HTMLElement>('[data-ticket-extended-lane]'),
@@ -840,6 +841,7 @@ function setupTicketLaneExpansion(): void {
 
   const update = (expanded: boolean): void => {
     board.classList.toggle('is-expanded', expanded)
+    pageShell?.classList.toggle('is-ticket-lanes-expanded', expanded)
     toggle.setAttribute('aria-expanded', String(expanded))
     toggle.textContent = expanded ? '상태 접기' : '상태 확장'
     extendedLanes.forEach((lane) => {

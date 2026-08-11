@@ -766,6 +766,17 @@ button {
   width: min(1344px, calc(100% - 32px));
 }
 
+.page-shell-wide.is-ticket-lanes-expanded {
+  width: calc(100% - 32px);
+  max-width: none;
+}
+
+.page-shell-wide.is-ticket-lanes-expanded .ticket-card .ticket-tags,
+.page-shell-wide.is-ticket-lanes-expanded .ticket-card .ticket-note,
+.page-shell-wide.is-ticket-lanes-expanded .ticket-card .ticket-checklist-progress {
+  display: none;
+}
+
 .deploy-footer {
   display: flex;
   flex: 0 0 auto;
