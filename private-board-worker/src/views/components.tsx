@@ -46,6 +46,89 @@ export function ErrorNotice({ message }: { message?: string | null }) {
   )
 }
 
+interface AutoLinkTextPart {
+  kind: 'text' | 'link'
+  text: string
+}
+
+const plainTextUrlPattern = /https?:\/\/[^\s<>"']+/giu
+
+function trimUrlPunctuation(value: string): { url: string; suffix: string } {
+  let url = value
+  let suffix = ''
+
+  while (/[.,!?;:]$/u.test(url)) {
+    suffix = `${url.slice(-1)}${suffix}`
+    url = url.slice(0, -1)
+  }
+
+  const matchingPairs: Array<[string, string]> = [
+    ['(', ')'],
+    ['[', ']'],
+    ['{', '}'],
+  ]
+  for (const [opening, closing] of matchingPairs) {
+    while (url.endsWith(closing)) {
+      const openingCount = [...url].filter((character) => character === opening).length
+      const closingCount = [...url].filter((character) => character === closing).length
+      if (closingCount <= openingCount) break
+      suffix = `${closing}${suffix}`
+      url = url.slice(0, -1)
+    }
+  }
+
+  return { url, suffix }
+}
+
+function isHttpUrl(value: string): boolean {
+  try {
+    const url = new URL(value)
+    return (url.protocol === 'http:' || url.protocol === 'https:') && Boolean(url.hostname)
+  } catch {
+    return false
+  }
+}
+
+export function AutoLinkText({ text }: { text: string }) {
+  const parts: AutoLinkTextPart[] = []
+  let cursor = 0
+
+  for (const match of text.matchAll(plainTextUrlPattern)) {
+    const rawUrl = match[0]
+    const start = match.index ?? cursor
+    const { url, suffix } = trimUrlPunctuation(rawUrl)
+    if (!url || !isHttpUrl(url)) continue
+
+    if (start > cursor) parts.push({ kind: 'text', text: text.slice(cursor, start) })
+    parts.push({ kind: 'link', text: url })
+    if (suffix) parts.push({ kind: 'text', text: suffix })
+    cursor = start + rawUrl.length
+  }
+
+  if (cursor < text.length) parts.push({ kind: 'text', text: text.slice(cursor) })
+  if (parts.length === 0) return <>{text}</>
+
+  return (
+    <>
+      {parts.map((part, index) =>
+        part.kind === 'link' ? (
+          <a
+            class="auto-link"
+            href={part.text}
+            target="_blank"
+            rel="noopener noreferrer"
+            key={`${part.kind}-${index}`}
+          >
+            {part.text}
+          </a>
+        ) : (
+          <span key={`${part.kind}-${index}`}>{part.text}</span>
+        ),
+      )}
+    </>
+  )
+}
+
 export function UserBadge({ user }: { user: CurrentUser }) {
   return (
     <span class="user-badge">

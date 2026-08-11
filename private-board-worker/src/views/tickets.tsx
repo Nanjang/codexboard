@@ -11,7 +11,7 @@ import type {
   TicketTagRow,
   TrashedTicketRow,
 } from '../types'
-import { CsrfInput, EmptyState } from './components'
+import { AutoLinkText, CsrfInput, EmptyState } from './components'
 import { formatDateTime, laneLabel } from './format'
 import { AppLayout } from './layout'
 
@@ -466,7 +466,7 @@ function TicketCard({ ticket }: { ticket: TicketRow }) {
           <span aria-hidden="true">⠿</span>
         </button>
       </div>
-      {ticket.note ? <p class="ticket-note">{ticket.note}</p> : <p class="ticket-note ticket-note-empty">메모 없음</p>}
+      {ticket.note ? <p class="ticket-note"><AutoLinkText text={ticket.note} /></p> : <p class="ticket-note ticket-note-empty">메모 없음</p>}
       {ticket.external_links_enabled === 1 && ticket.external_links?.length ? (
         <div class="ticket-external-links" aria-label="외부 문서 링크">
           {ticket.external_links.map((link) => (
@@ -881,7 +881,7 @@ export function TicketTrashPage({
                   <span>{ticketBoardLaneLabel(ticket.lane as TicketBoardLane)}</span>
                   <TicketTags tags={ticket.tags ?? []} />
                 </div>
-                {ticket.note ? <p class="ticket-note">{ticket.note}</p> : null}
+                {ticket.note ? <p class="ticket-note"><AutoLinkText text={ticket.note} /></p> : null}
                 <p class="ticket-trash-meta">
                   삭제 <time datetime={new Date(ticket.deleted_at).toISOString()}>{formatDateTime(ticket.deleted_at)}</time>
                   <span aria-hidden="true"> · </span>

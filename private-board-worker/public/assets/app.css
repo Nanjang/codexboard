@@ -2064,6 +2064,18 @@ select:focus {
   overflow-wrap: anywhere;
 }
 
+.auto-link {
+  color: var(--primary);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+.auto-link:hover,
+.auto-link:focus-visible {
+  color: var(--primary-hover);
+}
+
 .post-body {
   min-height: 160px;
   padding: 28px 0;

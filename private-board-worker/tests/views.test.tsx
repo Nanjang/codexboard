@@ -735,6 +735,44 @@ describe('핵심 화면', () => {
     expect(html).toContain(`src="/i/${'a'.repeat(64)}.png"`)
   })
 
+  it('일반 텍스트 본문의 http 또는 https URL을 링크로 표시한다', async () => {
+    const plainPost: PostDetailRow = {
+      ...post,
+      body: '문서 https://example.com/docs. 잘못된 javascript:alert(1) 링크는 그대로 둡니다.',
+      body_format: 'plain',
+      visibility: 'public',
+      preview_image_url: null,
+    }
+    const html = String(
+      await PostDetailPage({
+        appName: 'Private Board',
+        deployInfo,
+        user,
+        csrfToken: 'csrf-test',
+        post: plainPost,
+        comments: [
+          {
+            id: 1,
+            post_id: plainPost.id,
+            author_id: user.id,
+            author_nickname: user.nickname,
+            author_role: user.role,
+            body: '댓글 링크 http://example.com/comment,',
+            created_at: 1,
+            updated_at: 1,
+          },
+        ],
+      }),
+    )
+
+    expect(html).toContain('href="https://example.com/docs"')
+    expect(html).toContain('</a><span>.</span>')
+    expect(html).toContain('href="http://example.com/comment"')
+    expect(html).toContain('</a><span>,</span>')
+    expect(html).toContain('javascript:alert(1) 링크는 그대로 둡니다.')
+    expect(html).toContain('class="auto-link"')
+  })
+
   it('공개 개발일지는 로그인 없이 리치 본문을 렌더링한다', async () => {
     const devlogPost: PostDetailRow = {
       ...post,

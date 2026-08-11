@@ -10,7 +10,7 @@ import type {
 import { canManageResource } from '../lib/db'
 import { plainTextAsHtml } from '../lib/devlog'
 import { DEVLOG_PREVIEW_IMAGE_RESET_VALUE } from '../lib/devlog-preview'
-import { AuthorName, CsrfInput, EmptyState } from './components'
+import { AutoLinkText, AuthorName, CsrfInput, EmptyState } from './components'
 import { formatDateTime } from './format'
 import { AppLayout } from './layout'
 
@@ -357,7 +357,7 @@ export function PostDetailPage({
             dangerouslySetInnerHTML={{ __html: post.body }}
           />
         ) : (
-          <div class="post-body">{post.body}</div>
+          <div class="post-body"><AutoLinkText text={post.body} /></div>
         )}
 
         {canManagePost ? (
@@ -397,7 +397,7 @@ export function PostDetailPage({
                       {formatDateTime(comment.created_at)}
                     </time>
                   </header>
-                  <div class="comment-body">{comment.body}</div>
+                  <div class="comment-body"><AutoLinkText text={comment.body} /></div>
                   {canManageComment ? (
                     <footer>
                       <a class="text-button" href={`/comments/${comment.id}/edit`}>

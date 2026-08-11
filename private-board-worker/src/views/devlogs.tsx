@@ -10,7 +10,7 @@ import type { Child } from 'hono/jsx'
 import { canManageResource } from '../lib/db'
 import { devlogExcerpt } from '../lib/devlog'
 import { firstDevlogImageSource } from '../lib/devlog-preview'
-import { AuthorName, EmptyState } from './components'
+import { AutoLinkText, AuthorName, EmptyState } from './components'
 import { formatDateTime } from './format'
 import { AppLayout, PublicLayout } from './layout'
 
@@ -416,7 +416,7 @@ export function DevlogPostPage({
         {post.body_format === 'rich' ? (
           <div class="devlog-rich-body" dangerouslySetInnerHTML={{ __html: post.body }} />
         ) : (
-          <div class="devlog-rich-body devlog-plain-body">{post.body}</div>
+          <div class="devlog-rich-body devlog-plain-body"><AutoLinkText text={post.body} /></div>
         )}
       </article>
     </DevlogShell>
