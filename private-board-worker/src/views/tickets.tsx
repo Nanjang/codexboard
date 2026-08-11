@@ -4,6 +4,7 @@ import type {
   TicketLane,
   TicketLogAction,
   TicketLogRow,
+  TicketExternalLink,
   TicketRow,
   TicketChecklistItem,
   TicketTagColor,
@@ -372,6 +373,74 @@ function TicketChecklistEditor({ ticket }: { ticket?: TicketRow }) {
   )
 }
 
+function externalLinkKey(link: TicketExternalLink, index: number): string {
+  return link.id > 0 ? String(link.id) : `new-${index}`
+}
+
+function TicketExternalLinksEditor({ ticket }: { ticket?: TicketRow }) {
+  const links = ticket?.external_links ?? []
+  const enabled = ticket?.external_links_enabled === 1
+
+  return (
+    <section
+      class="ticket-external-links-editor"
+      data-external-links-editor
+      data-external-links-next-key={links.length}
+      aria-labelledby="ticket-external-links-title"
+    >
+      <div class="ticket-external-links-editor-heading">
+        <h3 id="ticket-external-links-title">외부 문서 링크</h3>
+        <label class="ticket-checklist-toggle">
+          <input type="checkbox" name="external_links_enabled" data-external-links-toggle checked={enabled} />
+          <span>사용</span>
+        </label>
+      </div>
+      <div class="ticket-external-links-editor-body" data-external-links-body hidden={!enabled}>
+        <p class="form-hint">문서 설명과 URL을 입력하면 티켓에서 함께 관리할 수 있습니다.</p>
+        <div class="ticket-external-link-items" data-external-link-items>
+          {links.map((link, index) => {
+            const key = externalLinkKey(link, index)
+            return (
+              <div class="ticket-external-link-item" data-external-link-item data-external-link-key={key} key={key}>
+                <input type="hidden" name="external_link_key" value={key} />
+                <label>
+                  <span>설명</span>
+                  <input
+                    type="text"
+                    name="external_link_label"
+                    value={link.label}
+                    maxlength={200}
+                    data-external-link-label
+                    autocomplete="off"
+                  />
+                </label>
+                <label>
+                  <span>URL</span>
+                  <input
+                    type="url"
+                    name="external_link_url"
+                    value={link.url}
+                    maxlength={2048}
+                    data-external-link-url
+                    autocomplete="url"
+                    spellcheck={false}
+                  />
+                </label>
+                <button type="button" class="icon-button" data-external-link-remove aria-label="외부 문서 링크 삭제">
+                  ×
+                </button>
+              </div>
+            )
+          })}
+        </div>
+        <button type="button" class="button button-secondary button-small" data-external-link-add>
+          링크 추가
+        </button>
+      </div>
+    </section>
+  )
+}
+
 function TicketCard({ ticket }: { ticket: TicketRow }) {
   return (
     <article
@@ -398,6 +467,16 @@ function TicketCard({ ticket }: { ticket: TicketRow }) {
         </button>
       </div>
       {ticket.note ? <p class="ticket-note">{ticket.note}</p> : <p class="ticket-note ticket-note-empty">메모 없음</p>}
+      {ticket.external_links_enabled === 1 && ticket.external_links?.length ? (
+        <div class="ticket-external-links" aria-label="외부 문서 링크">
+          {ticket.external_links.map((link) => (
+            <a class="ticket-external-link" href={link.url} target="_blank" rel="noopener noreferrer">
+              <span aria-hidden="true">↗</span>
+              {link.label}
+            </a>
+          ))}
+        </div>
+      ) : null}
       {ticket.checklist_enabled === 1 ? (
         <TicketChecklistProgress items={ticket.checklist_items ?? []} compact />
       ) : null}
@@ -529,6 +608,7 @@ export function TicketsPage({
             </select>
           </label>
           <TicketTagSelect availableTags={availableTags} />
+          <TicketExternalLinksEditor />
           <div class="form-actions">
             <button type="button" class="button button-secondary" data-dialog-close>
               취소
@@ -729,6 +809,7 @@ export function TicketFormPage({
             {...(selectedTagIds ? { selectedTagIds } : {})}
           />
           {ticket ? <TicketChecklistEditor ticket={ticket} /> : <TicketChecklistEditor />}
+          {ticket ? <TicketExternalLinksEditor ticket={ticket} /> : <TicketExternalLinksEditor />}
           <div class="form-actions">
             <a class="button button-secondary" href="/tickets">
               취소

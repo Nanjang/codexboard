@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-08-11T09:52:44.536Z",
+  "generatedAt": "2026-08-11T10:07:53.899Z",
   "files": [
     {
       "path": "/app-icon-512.png",
@@ -14,13 +14,13 @@
     },
     {
       "path": "/assets/app.css",
-      "sha256": "9c998515539db0d757461fe4e34e41e7e7bfb481b18d14263ebfa6579b619fb1",
-      "size": 110246
+      "sha256": "725de7da173f9010170d1cd82c45bf9023e47852f608b79c1a4560e1fca3012c",
+      "size": 112289
     },
     {
       "path": "/assets/app.js",
-      "sha256": "ac0c0efe05d6462ab8465b6520dbbad962ba68e575da6a87bdf3207d8c4e1341",
-      "size": 102291
+      "sha256": "541e3d9c304d95982f97ed0c8b6b05bcef5b1ceb60fbeeb4be3030c7b3e897fb",
+      "size": 104115
     },
     {
       "path": "/assets/gear-tilted.png",

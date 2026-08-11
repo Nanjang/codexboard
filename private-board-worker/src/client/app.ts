@@ -975,6 +975,87 @@ function setupTicketChecklist(): void {
   })
 }
 
+function setupTicketExternalLinks(): void {
+  document.querySelectorAll<HTMLElement>('[data-external-links-editor]').forEach((editor) => {
+    const toggle = editor.querySelector<HTMLInputElement>('[data-external-links-toggle]')
+    const body = editor.querySelector<HTMLElement>('[data-external-links-body]')
+    const items = editor.querySelector<HTMLElement>('[data-external-link-items]')
+    const addButton = editor.querySelector<HTMLButtonElement>('[data-external-link-add]')
+    if (!toggle || !body || !items || !addButton) return
+
+    let nextKey = Number.parseInt(editor.dataset.externalLinksNextKey ?? '0', 10)
+    if (!Number.isSafeInteger(nextKey) || nextKey < 0) nextKey = 0
+
+    const update = (): void => {
+      body.hidden = !toggle.checked
+    }
+
+    const addLink = (): void => {
+      const key = `new-${nextKey++}`
+      const row = document.createElement('div')
+      row.className = 'ticket-external-link-item'
+      row.dataset.externalLinkItem = ''
+      row.dataset.externalLinkKey = key
+
+      const keyInput = document.createElement('input')
+      keyInput.type = 'hidden'
+      keyInput.name = 'external_link_key'
+      keyInput.value = key
+
+      const labelField = document.createElement('label')
+      const labelCaption = document.createElement('span')
+      labelCaption.textContent = '설명'
+      const labelInput = document.createElement('input')
+      labelInput.type = 'text'
+      labelInput.name = 'external_link_label'
+      labelInput.maxLength = 200
+      labelInput.dataset.externalLinkLabel = ''
+      labelInput.autocomplete = 'off'
+      labelField.appendChild(labelCaption)
+      labelField.appendChild(labelInput)
+
+      const urlField = document.createElement('label')
+      const urlCaption = document.createElement('span')
+      urlCaption.textContent = 'URL'
+      const urlInput = document.createElement('input')
+      urlInput.type = 'url'
+      urlInput.name = 'external_link_url'
+      urlInput.maxLength = 2048
+      urlInput.dataset.externalLinkUrl = ''
+      urlInput.autocomplete = 'off'
+      urlInput.spellcheck = false
+      urlField.appendChild(urlCaption)
+      urlField.appendChild(urlInput)
+
+      const remove = document.createElement('button')
+      remove.type = 'button'
+      remove.className = 'icon-button'
+      remove.dataset.externalLinkRemove = ''
+      remove.setAttribute('aria-label', '외부 문서 링크 삭제')
+      remove.textContent = '×'
+
+      row.appendChild(keyInput)
+      row.appendChild(labelField)
+      row.appendChild(urlField)
+      row.appendChild(remove)
+      items.appendChild(row)
+      labelInput.focus()
+      update()
+    }
+
+    toggle.addEventListener('change', update)
+    addButton.addEventListener('click', addLink)
+    items.addEventListener('click', (event) => {
+      const target = event.target
+      if (!(target instanceof Element)) return
+      const remove = target.closest<HTMLButtonElement>('[data-external-link-remove]')
+      if (!remove) return
+      remove.closest<HTMLElement>('[data-external-link-item]')?.remove()
+    })
+    update()
+  })
+}
+
 function setupDeploymentStatus(): void {
   const root = document.querySelector<HTMLElement>('[data-deployment-status]')
   if (!root) return
@@ -2228,6 +2309,7 @@ function initialize(): void {
   setupTicketCreateDropZones()
   setupTicketLaneExpansion()
   setupTicketChecklist()
+  setupTicketExternalLinks()
   setupDeploymentStatus()
   setupTicketFormProtection()
   setupConfirmations()

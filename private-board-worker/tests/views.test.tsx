@@ -77,11 +77,13 @@ const ticket: TicketRow = {
   lane: 'todo',
   sort_order: 1000,
   checklist_enabled: 0,
+  external_links_enabled: 0,
   created_at: 1,
   updated_at: 1,
   deleted_at: null,
   purge_after: null,
   checklist_items: [],
+  external_links: [],
 }
 
 const board: BoardRow = {
@@ -1114,6 +1116,82 @@ describe('핵심 화면', () => {
     expect(boardHtml).toContain('1 / 2')
     expect(boardHtml).not.toContain('비공개 체크 항목')
     expect(boardHtml).not.toContain('두 번째 체크 항목')
+  })
+
+  it('외부 문서 링크는 생성 시 기본 비활성이고 수정 시 활성 상태와 기존 항목을 표시한다', async () => {
+    const createHtml = String(
+      await TicketFormPage({
+        appName: 'Private Board',
+        deployInfo,
+        user,
+        csrfToken: 'csrf-test',
+        mode: 'create',
+        creationRequestId: ticketCreationRequestId,
+      }),
+    )
+    const linkedTicket: TicketRow = {
+      ...ticket,
+      external_links_enabled: 1,
+      external_links: [
+        {
+          id: 31,
+          ticket_id: ticket.id,
+          label: '기획 문서',
+          url: 'https://docs.example.com/tickets/1',
+          sort_order: 1000,
+          created_at: 1,
+          updated_at: 1,
+        },
+        {
+          id: 32,
+          ticket_id: ticket.id,
+          label: '배포 기록',
+          url: 'https://example.com/releases/1',
+          sort_order: 2000,
+          created_at: 1,
+          updated_at: 1,
+        },
+      ],
+    }
+    const editHtml = String(
+      await TicketFormPage({
+        appName: 'Private Board',
+        deployInfo,
+        user,
+        csrfToken: 'csrf-test',
+        mode: 'edit',
+        ticket: linkedTicket,
+      }),
+    )
+    const boardHtml = String(
+      await TicketsPage({
+        appName: 'Private Board',
+        deployInfo,
+        user,
+        csrfToken: 'csrf-test',
+        tickets: [linkedTicket],
+        creationRequestId: ticketCreationRequestId,
+      }),
+    )
+
+    expect(createHtml).toContain('data-external-links-editor')
+    expect(createHtml).toContain('name="external_links_enabled"')
+    expect(createHtml).toMatch(/data-external-links-body="true"[^>]*hidden=""/u)
+    expect(createHtml).toContain('data-external-link-add')
+    expect(createHtml).not.toContain('checked=""')
+    expect(boardHtml).toContain('class="ticket-external-links"')
+    expect(boardHtml).toContain('href="https://docs.example.com/tickets/1"')
+    expect(boardHtml).toContain('기획 문서')
+    expect(editHtml).toContain('name="external_links_enabled"')
+    expect(editHtml).toContain('data-external-links-body')
+    expect(editHtml).not.toMatch(/data-external-links-body="true"[^>]*hidden=""/u)
+    expect(editHtml).toContain('checked=""')
+    expect(editHtml).toContain('name="external_link_key" value="31"')
+    expect(editHtml).toContain('name="external_link_label" value="기획 문서"')
+    expect(editHtml).toContain('name="external_link_url" value="https://docs.example.com/tickets/1"')
+    expect(editHtml).toContain('name="external_link_key" value="32"')
+    expect(editHtml).toContain('data-external-link-remove')
+    expect(editHtml).toContain('data-external-link-add')
   })
 
   it('티켓 보드는 장기작업과 보존작업을 기본 숨기고 할 일의 좌측·완료의 우측에 배치한다', async () => {
