@@ -288,16 +288,19 @@ function TicketChecklistProgress({ items, compact = false }: { items: TicketChec
       aria-label={`체크리스트 ${stats.completed} / ${stats.total}`}
     >
       <strong data-checklist-progress-count>{stats.completed} / {stats.total}</strong>
-      <div
+      <progress
         class="ticket-checklist-progress-bar"
         role="progressbar"
+        data-checklist-progress-fill
         aria-valuemin="0"
         aria-valuemax="100"
         aria-valuenow={stats.percent}
         aria-valuetext={`${stats.percent}%`}
+        max="100"
+        value={stats.percent}
       >
-        <span class="ticket-checklist-progress-fill" data-checklist-progress-fill style={`width:${stats.percent}%`} />
-      </div>
+        {stats.percent}%
+      </progress>
     </div>
   )
 }

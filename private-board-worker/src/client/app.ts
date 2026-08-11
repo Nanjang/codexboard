@@ -888,7 +888,7 @@ function setupTicketChecklist(): void {
     const progress = editor.querySelector<HTMLElement>('[data-checklist-progress]')
     const count = editor.querySelector<HTMLElement>('[data-checklist-progress-count]')
     const headingCount = editor.querySelector<HTMLElement>('[data-checklist-heading-count]')
-    const fill = editor.querySelector<HTMLElement>('[data-checklist-progress-fill]')
+    const fill = editor.querySelector<HTMLProgressElement>('[data-checklist-progress-fill]')
     if (!form || !toggle || !body || !items || !addButton || !progress || !count || !fill) return
 
     let nextKey = Number.parseInt(editor.dataset.checklistNextKey ?? '0', 10)
@@ -910,7 +910,7 @@ function setupTicketChecklist(): void {
         headingCount.textContent = `${completed} / ${total}`
         headingCount.hidden = !toggle.checked
       }
-      fill.style.width = `${percent}%`
+      fill.value = percent
       progress.setAttribute('aria-label', `체크리스트 ${completed} / ${total}`)
       progress.setAttribute('aria-valuenow', String(percent))
       progress.setAttribute('aria-valuetext', `${percent}%`)
