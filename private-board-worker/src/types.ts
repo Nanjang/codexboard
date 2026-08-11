@@ -284,12 +284,14 @@ export interface TicketRow {
   lane: TicketLane
   sort_order: number
   checklist_enabled: number
+  external_links_enabled: number
   created_at: number
   updated_at: number
   deleted_at: number | null
   purge_after: number | null
   tags?: TicketTagRow[]
   checklist_items?: TicketChecklistItem[]
+  external_links?: TicketExternalLink[]
 }
 
 export interface TicketChecklistItem {
@@ -306,6 +308,22 @@ export interface TicketChecklistItemInput {
   id: number | null
   title: string
   completed: boolean
+}
+
+export interface TicketExternalLink {
+  id: number
+  ticket_id: number
+  label: string
+  url: string
+  sort_order: number
+  created_at: number
+  updated_at: number
+}
+
+export interface TicketExternalLinkInput {
+  id: number | null
+  label: string
+  url: string
 }
 
 export type TicketLogAction = 'created' | 'moved' | 'updated' | 'deleted' | 'restored' | 'purged'

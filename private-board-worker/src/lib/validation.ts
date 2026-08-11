@@ -2,6 +2,7 @@ import type {
   BoardSlug,
   BookmarkIconColor,
   TicketChecklistItemInput,
+  TicketExternalLinkInput,
   TicketTagColor,
   TicketTagTextColor,
 } from '../types'
@@ -155,6 +156,45 @@ export function ticketChecklistItems(form: FormData): TicketChecklistItemInput[]
     })
   })
   return items
+}
+
+export function ticketExternalLinks(form: FormData): TicketExternalLinkInput[] {
+  const keys = form.getAll('external_link_key')
+  const labels = form.getAll('external_link_label')
+  const urls = form.getAll('external_link_url')
+  if (keys.length !== labels.length || keys.length !== urls.length) {
+    throw new ValidationError('외부 문서 링크 항목 형식이 올바르지 않습니다.')
+  }
+  if (keys.length > 50) throw new ValidationError('외부 문서 링크는 최대 50개까지 추가할 수 있습니다.')
+
+  const seenKeys = new Set<string>()
+  const links: TicketExternalLinkInput[] = []
+  keys.forEach((rawKey, index) => {
+    if (typeof rawKey !== 'string') throw new ValidationError('외부 문서 링크 항목 형식이 올바르지 않습니다.')
+    const label = optionalSingleLine(labels[index] ?? null, '링크 설명', 200)
+    const rawUrl = optionalSingleLine(urls[index] ?? null, '링크 URL', 2048)
+    if (!label && !rawUrl) return
+    if (!label || !rawUrl) throw new ValidationError('링크 설명과 URL을 모두 입력해 주세요.')
+    if (!/^(?:[1-9][0-9]*|new-[0-9]+)$/u.test(rawKey) || seenKeys.has(rawKey)) {
+      throw new ValidationError('외부 문서 링크 항목 형식이 올바르지 않습니다.')
+    }
+    let url: URL
+    try {
+      url = new URL(rawUrl)
+    } catch {
+      throw new ValidationError('올바른 링크 URL을 입력해 주세요.')
+    }
+    if (!['http:', 'https:'].includes(url.protocol) || !url.hostname || url.username || url.password) {
+      throw new ValidationError('링크 URL은 http 또는 https 주소만 사용할 수 있습니다.')
+    }
+    seenKeys.add(rawKey)
+    links.push({
+      id: rawKey.startsWith('new-') ? null : positiveInteger(rawKey, '외부 문서 링크 ID'),
+      label,
+      url: url.toString(),
+    })
+  })
+  return links
 }
 
 export function ticketCreationRequestId(value: FormDataEntryValue | null): string {

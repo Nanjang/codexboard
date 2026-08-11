@@ -13,6 +13,7 @@ import {
   ticketCreationRequestId,
   ticketChecklistEnabled,
   ticketChecklistItems,
+  ticketExternalLinks,
   ticketLane,
   ticketTagColor,
   ticketTagTextColor,
@@ -97,6 +98,33 @@ describe('입력 검증', () => {
     invalid.append('checklist_item_key', 'new-0')
     invalid.append('checklist_item_title', '중복')
     expect(() => ticketChecklistItems(invalid)).toThrow(ValidationError)
+  })
+
+  it('외부 문서 링크는 설명과 안전한 http 또는 https URL을 복수로 검증한다', () => {
+    const form = new FormData()
+    form.append('external_link_key', 'new-0')
+    form.append('external_link_label', '기획 문서')
+    form.append('external_link_url', 'https://docs.example.com/spec')
+    form.append('external_link_key', '12')
+    form.append('external_link_label', '릴리스 기록')
+    form.append('external_link_url', 'http://example.com/releases')
+
+    expect(ticketExternalLinks(form)).toEqual([
+      { id: null, label: '기획 문서', url: 'https://docs.example.com/spec' },
+      { id: 12, label: '릴리스 기록', url: 'http://example.com/releases' },
+    ])
+
+    const invalidProtocol = new FormData()
+    invalidProtocol.append('external_link_key', 'new-0')
+    invalidProtocol.append('external_link_label', '위험한 링크')
+    invalidProtocol.append('external_link_url', 'javascript:alert(1)')
+    expect(() => ticketExternalLinks(invalidProtocol)).toThrow(ValidationError)
+
+    const incomplete = new FormData()
+    incomplete.append('external_link_key', 'new-0')
+    incomplete.append('external_link_label', '설명만')
+    incomplete.append('external_link_url', '')
+    expect(() => ticketExternalLinks(incomplete)).toThrow(ValidationError)
   })
 
   it('북마크는 안전한 http 또는 https URL만 허용한다', () => {

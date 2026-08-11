@@ -200,6 +200,7 @@ import {
   ticketCreationRequestId,
   ticketChecklistEnabled,
   ticketChecklistItems,
+  ticketExternalLinks,
   ticketTagColor,
   ticketTagTextColor,
   ticketTagIds,
@@ -219,6 +220,8 @@ import type {
   RssWidgetResult,
   TicketChecklistItem,
   TicketChecklistItemInput,
+  TicketExternalLink,
+  TicketExternalLinkInput,
   TicketLane,
   TicketRow,
 } from './types'
@@ -596,6 +599,8 @@ function draftTicket(
   id = 0,
   checklistEnabled = false,
   checklistItems: TicketChecklistItemInput[] = [],
+  externalLinksEnabled = false,
+  externalLinks: TicketExternalLinkInput[] = [],
 ): TicketRow {
   return {
     id,
@@ -605,6 +610,7 @@ function draftTicket(
     lane,
     sort_order: 0,
     checklist_enabled: checklistEnabled ? 1 : 0,
+    external_links_enabled: externalLinksEnabled ? 1 : 0,
     created_at: 0,
     updated_at: 0,
     deleted_at: null,
@@ -615,6 +621,15 @@ function draftTicket(
       ticket_id: id,
       title: item.title,
       completed: item.completed ? 1 : 0,
+      sort_order: (index + 1) * 1000,
+      created_at: 0,
+      updated_at: 0,
+    })),
+    external_links: externalLinks.map((link, index): TicketExternalLink => ({
+      id: link.id ?? -(index + 1),
+      ticket_id: id,
+      label: link.label,
+      url: link.url,
       sort_order: (index + 1) * 1000,
       created_at: 0,
       updated_at: 0,
@@ -630,6 +645,7 @@ function isTicketFormError(error: unknown): error is Error {
     || error.message.startsWith('선택한 태그')
     || error.message.startsWith('체크리스트')
     || error.message.startsWith('선택한 체크리스트')
+    || error.message.startsWith('선택한 외부 문서 링크')
   )
 }
 
@@ -2602,12 +2618,16 @@ app.post('/tickets', async (c) => {
   let rawTagIds: number[] = []
   let rawChecklistEnabled = false
   let rawChecklistItems: TicketChecklistItemInput[] = []
+  let rawExternalLinksEnabled = false
+  let rawExternalLinks: TicketExternalLinkInput[] = []
   let creationRequestId: string = crypto.randomUUID()
   try {
     rawLane = ticketLane(form.get('lane'))
     rawTagIds = ticketTagIds(form.getAll('tag_ids'))
     rawChecklistEnabled = ticketChecklistEnabled(form)
     rawChecklistItems = ticketChecklistItems(form)
+    rawExternalLinksEnabled = form.has('external_links_enabled')
+    rawExternalLinks = ticketExternalLinks(form)
     creationRequestId = ticketCreationRequestId(form.get('creation_request_id'))
     const title = singleLine(form.get('title'), '제목', 120)
     const note = multiline(form.get('note'), '메모', 4000, false)
@@ -2621,6 +2641,8 @@ app.post('/tickets', async (c) => {
       rawTagIds,
       rawChecklistEnabled,
       rawChecklistItems,
+      rawExternalLinksEnabled,
+      rawExternalLinks,
     )
     return redirectWithNotice(c, '/tickets', 'ticket-created')
   } catch (error) {
@@ -2632,7 +2654,17 @@ app.post('/tickets', async (c) => {
         user={auth.user}
         csrfToken={auth.csrfToken}
         mode="create"
-        ticket={draftTicket(auth.user.id, rawTitle, rawNote, rawLane, 0, rawChecklistEnabled, rawChecklistItems)}
+        ticket={draftTicket(
+          auth.user.id,
+          rawTitle,
+          rawNote,
+          rawLane,
+          0,
+          rawChecklistEnabled,
+          rawChecklistItems,
+          rawExternalLinksEnabled,
+          rawExternalLinks,
+        )}
         availableTags={availableTags}
         selectedTagIds={rawTagIds}
         creationRequestId={creationRequestId}
@@ -2726,6 +2758,14 @@ app.get('/tickets/export', async (c) => {
           completed: item.completed === 1,
         })),
       },
+      externalLinks: {
+        enabled: ticket.external_links_enabled === 1,
+        items: (ticket.external_links ?? []).map((link) => ({
+          id: link.id,
+          label: link.label,
+          url: link.url,
+        })),
+      },
       createdAt: new Date(ticket.created_at).toISOString(),
       updatedAt: new Date(ticket.updated_at).toISOString(),
       deletedAt: ticket.deleted_at === null ? null : new Date(ticket.deleted_at).toISOString(),
@@ -2816,12 +2856,20 @@ app.post('/tickets/:id/update', async (c) => {
     title: item.title,
     completed: item.completed === 1,
   }))
+  let rawExternalLinksEnabled = ticket.external_links_enabled === 1
+  let rawExternalLinks: TicketExternalLinkInput[] = (ticket.external_links ?? []).map((link) => ({
+    id: link.id,
+    label: link.label,
+    url: link.url,
+  }))
 
   try {
     rawLane = ticketLane(form.get('lane'))
     rawTagIds = ticketTagIds(form.getAll('tag_ids'))
     rawChecklistEnabled = ticketChecklistEnabled(form)
     rawChecklistItems = ticketChecklistItems(form)
+    rawExternalLinksEnabled = form.has('external_links_enabled')
+    rawExternalLinks = ticketExternalLinks(form)
     const title = singleLine(form.get('title'), '제목', 120)
     const note = multiline(form.get('note'), '메모', 4000, false)
     await updateTicket(
@@ -2834,6 +2882,8 @@ app.post('/tickets/:id/update', async (c) => {
       rawTagIds,
       rawChecklistEnabled,
       rawChecklistItems,
+      rawExternalLinksEnabled,
+      rawExternalLinks,
     )
     return redirectWithNotice(c, '/tickets', 'ticket-updated')
   } catch (error) {
@@ -2853,6 +2903,8 @@ app.post('/tickets/:id/update', async (c) => {
           ticketId,
           rawChecklistEnabled,
           rawChecklistItems,
+          rawExternalLinksEnabled,
+          rawExternalLinks,
         )}
         availableTags={availableTags}
         selectedTagIds={rawTagIds}
