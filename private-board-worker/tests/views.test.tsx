@@ -548,13 +548,21 @@ describe('핵심 화면', () => {
     const commentPosition = html.indexOf('[3]')
     const nicknamePosition = html.indexOf('삼방장')
     const timePosition = html.indexOf('<time')
-    const viewsPosition = html.indexOf('조회 17')
+    const viewsPosition = html.indexOf('>17</span>')
 
     expect(titlePosition).toBeGreaterThan(-1)
     expect(titlePosition).toBeLessThan(commentPosition)
     expect(commentPosition).toBeLessThan(nicknamePosition)
     expect(nicknamePosition).toBeLessThan(timePosition)
     expect(timePosition).toBeLessThan(viewsPosition)
+    expect(html).toContain('class="post-meta-time-full"')
+    expect(html).toContain('class="post-meta-time-compact"')
+    expect(html).toContain('class="post-list-header"')
+    expect(html).toContain('<span>제목</span>')
+    expect(html).toContain('<span>작성자</span>')
+    expect(html).toContain('<span>시간</span>')
+    expect(html).toContain('<span>조회</span>')
+    expect(html).not.toContain('조회 17')
   })
 
   it('비회원에게 자유게시판 목록을 읽기 전용으로 표시한다', async () => {

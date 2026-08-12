@@ -10,8 +10,25 @@ const dateTimeFormatter = new Intl.DateTimeFormat('ko-KR', {
   hour12: false,
 })
 
+const monthDayFormatter = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Seoul',
+  month: '2-digit',
+  day: '2-digit',
+})
+
 export function formatDateTime(timestamp: number): string {
   return dateTimeFormatter.format(new Date(timestamp))
+}
+
+export function formatPostListDateTime(timestamp: number, now = Date.now()): string {
+  const elapsed = Math.max(0, now - timestamp)
+  if (elapsed < 24 * 60 * 60 * 1000) {
+    if (elapsed < 60 * 1000) return `${Math.floor(elapsed / 1000)}s`
+    if (elapsed < 60 * 60 * 1000) return `${Math.floor(elapsed / (60 * 1000))}m`
+    return `${Math.floor(elapsed / (60 * 60 * 1000))}h`
+  }
+
+  return monthDayFormatter.format(new Date(timestamp)).replace(/[-/]/u, '.')
 }
 
 export function laneLabel(lane: TicketLane): string {

@@ -1,6 +1,6 @@
 import type { BoardRow, CommentRow, DeployInfo, PostDetailRow, PostListRow } from '../types'
 import { AutoLinkText, AuthorName, EmptyState } from './components'
-import { formatDateTime } from './format'
+import { formatDateTime, formatPostListDateTime } from './format'
 import { PublicLayout } from './layout'
 
 interface PublicBoardProps {
@@ -43,12 +43,18 @@ export function PublicBoardListPage({ appName, deployInfo, board, posts, hasMore
           <EmptyState title="등록된 글이 없습니다" description="아직 공개된 글이 없습니다." />
         ) : (
           <section class="post-list" aria-label={`${board.name} 글 목록`}>
+            <div class="post-list-header">
+              <span>제목</span>
+              <span>작성자</span>
+              <span>시간</span>
+              <span>조회</span>
+            </div>
             {posts.map((post) => (
               <article class="post-row" key={post.id}>
                 <a class="post-row-link" href={`/posts/${post.id}`}>
                   <div class="post-row-main">
                     <div class="post-row-title">
-                      <h2>{post.title}</h2>
+                      <h3>{post.title}</h3>
                       <span class="comment-count" aria-label={`댓글 ${post.comment_count}개`}>
                         [{post.comment_count}]
                       </span>
@@ -58,9 +64,10 @@ export function PublicBoardListPage({ appName, deployInfo, board, posts, hasMore
                         <AuthorName nickname={post.author_nickname} role={post.author_role} />
                       </span>
                       <time class="post-meta-time" datetime={new Date(post.created_at).toISOString()}>
-                        {formatDateTime(post.created_at)}
+                        <span class="post-meta-time-full">{formatDateTime(post.created_at)}</span>
+                        <span class="post-meta-time-compact">{formatPostListDateTime(post.created_at)}</span>
                       </time>
-                      <span class="post-meta-views">조회 {post.view_count}</span>
+                      <span class="post-meta-views">{post.view_count}</span>
                     </div>
                   </div>
                 </a>

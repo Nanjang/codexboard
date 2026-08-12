@@ -11,7 +11,7 @@ import { canManageResource } from '../lib/db'
 import { plainTextAsHtml } from '../lib/devlog'
 import { DEVLOG_PREVIEW_IMAGE_RESET_VALUE } from '../lib/devlog-preview'
 import { AutoLinkText, AuthorName, CsrfInput, EmptyState } from './components'
-import { formatDateTime } from './format'
+import { formatDateTime, formatPostListDateTime } from './format'
 import { AppLayout } from './layout'
 
 function boardActiveNav(slug: BoardSlug): BoardSlug {
@@ -66,6 +66,12 @@ export function BoardListPage({
         <EmptyState title="등록된 글이 없습니다" description="첫 번째 글을 작성해 보세요." />
       ) : (
         <section class="post-list" aria-label={`${board.name} 글 목록`}>
+          <div class="post-list-header">
+            <span>제목</span>
+            <span>작성자</span>
+            <span>시간</span>
+            <span>조회</span>
+          </div>
           {posts.map((post) => (
             <article class="post-row" key={post.id}>
               <a class="post-row-link" href={`/posts/${post.id}`}>
@@ -81,9 +87,10 @@ export function BoardListPage({
                       <AuthorName nickname={post.author_nickname} role={post.author_role} />
                     </span>
                     <time class="post-meta-time" datetime={new Date(post.created_at).toISOString()}>
-                      {formatDateTime(post.created_at)}
+                      <span class="post-meta-time-full">{formatDateTime(post.created_at)}</span>
+                      <span class="post-meta-time-compact">{formatPostListDateTime(post.created_at)}</span>
                     </time>
-                    <span class="post-meta-views">조회 {post.view_count}</span>
+                    <span class="post-meta-views">{post.view_count}</span>
                   </div>
                 </div>
               </a>
