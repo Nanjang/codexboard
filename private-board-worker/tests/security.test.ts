@@ -73,17 +73,17 @@ describe('Content Security Policy', () => {
 })
 
 describe('공개 경로', () => {
-  it('손님 홈과 공개 개발일지만 공개한다', () => {
+  it('손님 홈, 자유게시판 읽기, 공개 개발일지만 공개한다', () => {
     const imageHash = 'a'.repeat(64)
     expect(isPublicPath('/')).toBe(true)
     expect(isPublicPath('/visitor.png')).toBe(true)
     expect(isPublicPath('/deploy-status')).toBe(true)
     expect(isPublicPath('/favicon.png')).toBe(true)
-    expect(isPublicPath('/boards/free')).toBe(false)
+    expect(isPublicPath('/boards/free')).toBe(true)
     expect(isPublicPath('/boards/development')).toBe(true)
     expect(isPublicPath('/boards/development/new')).toBe(false)
     expect(isPublicPath('/boards/news')).toBe(false)
-    expect(isPublicPath('/posts/1')).toBe(false)
+    expect(isPublicPath('/posts/1')).toBe(true)
     expect(isPublicPath('/devlogs')).toBe(true)
     expect(isPublicPath('/devlogs/u/user-1')).toBe(true)
     expect(isPublicPath('/devlogs/u/user-1/posts/42')).toBe(true)

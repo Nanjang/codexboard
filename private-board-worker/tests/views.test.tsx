@@ -31,6 +31,7 @@ import { AdminDatabasePerformancePage } from '../src/views/admin-database-perfor
 import { AdminMemberActivityPage, AdminMembersPage } from '../src/views/admin-members'
 import { AdminVisitorLogsPage } from '../src/views/admin-visitors'
 import { BoardListPage, PostDetailPage, PostFormPage } from '../src/views/boards'
+import { PublicBoardListPage, PublicPostDetailPage } from '../src/views/public-boards'
 import { DeployFooter } from '../src/views/components'
 import { DevlogExportPage, DevlogPostPage, UserDevlogPage } from '../src/views/devlogs'
 import { DashboardPage } from '../src/views/dashboard'
@@ -556,6 +557,24 @@ describe('핵심 화면', () => {
     expect(timePosition).toBeLessThan(viewsPosition)
   })
 
+  it('비회원에게 자유게시판 목록을 읽기 전용으로 표시한다', async () => {
+    const html = String(
+      await PublicBoardListPage({
+        appName: 'Private Board',
+        deployInfo,
+        board,
+        posts: [post],
+        hasMore: false,
+      }),
+    )
+
+    expect(html).toContain('자유게시판')
+    expect(html).toContain('href="/posts/1"')
+    expect(html).toContain('href="/login"')
+    expect(html).not.toContain('href="/boards/free/new"')
+    expect(html).not.toContain('내 대시보드')
+  })
+
   it('관리자 작성자의 닉네임 오른쪽에 금색 별 아이콘을 표시한다', async () => {
     const html = String(
       await BoardListPage({
@@ -733,6 +752,40 @@ describe('핵심 화면', () => {
 
     expect(html).toContain('<p>원하는 위치입니다.</p>')
     expect(html).toContain(`src="/i/${'a'.repeat(64)}.png"`)
+  })
+
+  it('비회원에게 자유게시판 본문과 댓글을 읽기 전용으로 표시한다', async () => {
+    const html = String(
+      await PublicPostDetailPage({
+        appName: 'Private Board',
+        deployInfo,
+        post: {
+          ...post,
+          body: '공개 본문입니다.',
+          body_format: 'plain',
+          visibility: 'private',
+          preview_image_url: null,
+        },
+        comments: [
+          {
+            id: 1,
+            post_id: post.id,
+            author_id: user.id,
+            author_nickname: user.nickname,
+            author_role: user.role,
+            body: '공개 댓글입니다.',
+            created_at: 1,
+            updated_at: 1,
+          },
+        ],
+      }),
+    )
+
+    expect(html).toContain('공개 본문입니다.')
+    expect(html).toContain('공개 댓글입니다.')
+    expect(html).toContain('로그인 후 댓글을 작성할 수 있습니다.')
+    expect(html).toContain('href="/login"')
+    expect(html).not.toContain('action="/posts/1/comments"')
   })
 
   it('일반 텍스트 본문의 http 또는 https URL을 링크로 표시한다', async () => {

@@ -53,7 +53,9 @@ export function isPublicPath(path: string): boolean {
     path === '/auth/google/callback' ||
     path === '/devlogs' ||
     path === '/boards/development' ||
+    path === '/boards/free' ||
     isPublicDevlogImagePath(path) ||
+    /^\/posts\/[1-9][0-9]*$/u.test(path) ||
     /^\/devlogs\/u\/[^/]+(?:\/posts\/[1-9][0-9]*)?$/u.test(path) ||
     path.startsWith('/assets/')
   )

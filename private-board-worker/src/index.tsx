@@ -231,6 +231,7 @@ import { AdminVisitorLogsPage } from './views/admin-visitors'
 import { AdminDatabasePerformancePage } from './views/admin-database-performance'
 import { AccountPage } from './views/account'
 import { BoardListPage, CommentEditPage, PostDetailPage, PostFormPage } from './views/boards'
+import { PublicBoardListPage, PublicPostDetailPage } from './views/public-boards'
 import {
   DevlogDirectoryPage,
   DevlogExportPage,
@@ -1648,8 +1649,9 @@ app.get('/devlogs/u/:authorId/posts/:postId/export.md', async (c) => {
 app.get('/boards/development', (c) => c.redirect('/devlogs', 302))
 
 app.get('/boards/:slug', async (c) => {
-  const auth = requireActiveAuth(c)
+  const auth = c.get('auth') ? requireActiveAuth(c) : null
   const slug = boardSlug(c.req.param('slug'))
+  if (!auth && slug !== 'free') throw new HTTPException(401, { message: '로그인이 필요합니다.' })
   const board = await getBoardBySlug(c.env.DB, slug)
   if (!board) throw new HTTPException(404, { message: '게시판을 찾을 수 없습니다.' })
 
@@ -1657,15 +1659,24 @@ app.get('/boards/:slug', async (c) => {
   const before = beforeRaw ? positiveInteger(beforeRaw, '페이지 기준 ID') : null
   const { posts, hasMore } = await listPosts(c.env.DB, board.id, before)
   return c.html(
-    <BoardListPage
-      {...viewMeta(c)}
-      user={auth.user}
-      csrfToken={auth.csrfToken}
-      notice={noticeFromRequest(c)}
-      board={board}
-      posts={posts}
-      hasMore={hasMore}
-    />,
+    auth ? (
+      <BoardListPage
+        {...viewMeta(c)}
+        user={auth.user}
+        csrfToken={auth.csrfToken}
+        notice={noticeFromRequest(c)}
+        board={board}
+        posts={posts}
+        hasMore={hasMore}
+      />
+    ) : (
+      <PublicBoardListPage
+        {...viewMeta(c)}
+        board={board}
+        posts={posts}
+        hasMore={hasMore}
+      />
+    ),
   )
 })
 
@@ -1763,24 +1774,33 @@ app.post('/boards/:slug/posts', async (c) => {
 })
 
 app.get('/posts/:id', async (c) => {
-  const auth = requireActiveAuth(c)
+  const auth = c.get('auth') ? requireActiveAuth(c) : null
   const postId = positiveInteger(c.req.param('id'), '게시글 ID')
   const post = await getPost(c.env.DB, postId)
   if (!post) throw new HTTPException(404, { message: '게시글을 찾을 수 없습니다.' })
   if (post.board_slug === 'development') {
     return c.redirect(`/devlogs/u/${post.author_id}/posts/${post.id}`, 302)
   }
+  if (!auth && post.board_slug !== 'free') throw new HTTPException(401, { message: '로그인이 필요합니다.' })
   await incrementPostViewCount(c.env.DB, postId)
   const comments = await listComments(c.env.DB, postId)
   return c.html(
-    <PostDetailPage
-      {...viewMeta(c)}
-      user={auth.user}
-      csrfToken={auth.csrfToken}
-      notice={noticeFromRequest(c)}
-      post={post}
-      comments={comments}
-    />,
+    auth ? (
+      <PostDetailPage
+        {...viewMeta(c)}
+        user={auth.user}
+        csrfToken={auth.csrfToken}
+        notice={noticeFromRequest(c)}
+        post={post}
+        comments={comments}
+      />
+    ) : (
+      <PublicPostDetailPage
+        {...viewMeta(c)}
+        post={post}
+        comments={comments}
+      />
+    ),
   )
 })
 

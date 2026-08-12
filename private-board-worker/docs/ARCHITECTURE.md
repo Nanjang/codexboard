@@ -25,9 +25,11 @@
 | OAuth 시작·콜백 | `/auth/google/start`, `/auth/google/callback` | 공개 |
 | 법적 문서 | `/privacy`, `/terms` | 공개 |
 | 상태 확인 | `/health` | 공개 |
-| 공용 게시판 | `/boards/free`, `/boards/development`, `/boards/news`, `/boards/inquiry` | 인증 필요 |
+| 공용 게시판 | `/boards/free` | 비회원 읽기 가능, 쓰기·댓글 작성은 인증 필요 |
+| 공용 게시판 | `/boards/development`, `/boards/news`, `/boards/inquiry` | 인증 필요 (개발일지 공개 글은 `/devlogs`에서 비회원 읽기 가능) |
 | 손님용 홈 | `/` | 인증 불필요, 자유게시판·개발·뉴스 최근 글 5건 미리보기 |
-| 게시글·댓글 | `/posts/*`, `/comments/*` | 인증 필요 |
+| 게시글·댓글 | `/posts/*` 중 자유게시판 게시글 | 비회원 읽기 가능, 댓글 작성은 인증 필요 |
+| 게시글·댓글 | 그 밖의 `/posts/*`, `/comments/*` | 인증 필요 |
 | 개인 메모 | `/memos`, `/memos/settings` | 인증 필요, 소유자 제한 |
 | 개인 티켓 | `/tickets`, `/api/tickets/order` | 인증 필요, 소유자 제한 |
 | 개인 이미지 | `/images`, `/api/images/*` | 인증 필요, 소유자 제한 |
@@ -77,7 +79,7 @@ boards
 
 ## 공용 리소스 권한
 
-게시글과 댓글은 로그인 회원 모두 읽을 수 있습니다. 수정·삭제는 다음 조건입니다.
+자유게시판 게시글과 댓글은 비회원도 읽을 수 있고, 그 밖의 공용 게시판 게시글·댓글은 로그인 회원이 읽을 수 있습니다. 수정·삭제는 다음 조건입니다.
 
 ```text
 작성자 본인 OR role=admin
