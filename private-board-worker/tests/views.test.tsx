@@ -1022,6 +1022,31 @@ describe('핵심 화면', () => {
     expect(html).not.toContain('<img')
   })
 
+  it('티켓 페이지 헤더는 설명 블록 다음에 관리 버튼 블록을 렌더링한다', async () => {
+    const html = String(
+      await TicketsPage({
+        appName: 'Private Board',
+        deployInfo,
+        user,
+        csrfToken: 'csrf-test',
+        tickets: [ticket],
+        creationRequestId: ticketCreationRequestId,
+      }),
+    )
+
+    const copyPosition = html.indexOf('class="ticket-page-heading-copy"')
+    const actionsPosition = html.indexOf('class="ticket-page-heading-actions"')
+
+    expect(copyPosition).toBeGreaterThan(-1)
+    expect(actionsPosition).toBeGreaterThan(copyPosition)
+    expect(html).toContain('이 페이지의 티켓은 현재 로그인한 본인에게만 보입니다.')
+    expect(html).toContain('상태 확장')
+    expect(html).toContain('태그 관리')
+    expect(html).toContain('전체 내보내기')
+    expect(html).toContain('변경 로그')
+    expect(html).toContain('휴지통')
+  })
+
   it('기본 상태에서는 본인 이메일도 DOM에 렌더링하지 않고 패턴으로 가린다', async () => {
     const html = String(
       await AccountPage({

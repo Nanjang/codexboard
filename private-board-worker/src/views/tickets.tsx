@@ -513,7 +513,7 @@ export function TicketsPage({
       contextAction={{ kind: 'link', label: '티켓 추가', href: '/tickets/new', dialogId: 'ticket-create-dialog' }}
     >
       <section class="page-heading ticket-page-heading">
-        <div>
+        <div class="ticket-page-heading-copy">
           <p class="eyebrow">개인 작업 보드</p>
           <h2>내 작업</h2>
           <p>이 페이지의 티켓은 현재 로그인한 본인에게만 보입니다. 카드를 끌어 상태와 순서를 바꿀 수 있습니다.</p>

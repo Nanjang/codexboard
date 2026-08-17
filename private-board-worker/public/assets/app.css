@@ -5305,6 +5305,11 @@ button.privacy-toggle.is-on > span {
     grid-template-columns: repeat(5, minmax(285px, 82vw));
   }
 
+  .ticket-page-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
   .ticket-lane {
     scroll-snap-align: start;
   }
@@ -5332,6 +5337,7 @@ button.privacy-toggle.is-on > span {
   }
 
   .ticket-page-heading-actions {
+    justify-content: flex-start;
     width: 100%;
   }
 
