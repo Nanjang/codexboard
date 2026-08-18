@@ -37,6 +37,7 @@ import type {
   TrashedTicketRow,
 } from '../types'
 import { firstDevlogImageSource } from './devlog-preview'
+import { escapePrivateImageLikeQuery, normalizePrivateImageSearchQuery } from './private-images'
 import {
   moveToPreviousPageOrder,
   PERSONAL_BOOKMARKS_PER_PAGE,
@@ -2162,7 +2163,13 @@ export async function deleteMemo(db: D1Database, ownerId: string, memoId: number
   return result.meta.changes > 0
 }
 
-export async function listPrivateImages(db: D1Database, ownerId: string): Promise<PrivateImageRow[]> {
+export async function listPrivateImages(
+  db: D1Database,
+  ownerId: string,
+  searchQuery = '',
+): Promise<PrivateImageRow[]> {
+  const normalizedQuery = normalizePrivateImageSearchQuery(searchQuery)
+  const searchPattern = normalizedQuery ? `%${escapePrivateImageLikeQuery(normalizedQuery)}%` : ''
   const result = await db
     .prepare(
       `
@@ -2176,16 +2183,23 @@ export async function listPrivateImages(db: D1Database, ownerId: string): Promis
         content_type,
         size_bytes,
         status,
+        memo,
         copied_at,
         created_at,
         updated_at
       FROM private_images
-      WHERE owner_id = ?1 AND status = 'ready'
+      WHERE owner_id = ?1
+        AND status = 'ready'
+        AND (
+          ?2 = ''
+          OR original_name LIKE ?3 ESCAPE '\\'
+          OR memo LIKE ?3 ESCAPE '\\'
+        )
       ORDER BY id DESC
-      LIMIT ?2
+      LIMIT ?4
       `,
     )
-    .bind(ownerId, MAX_PRIVATE_IMAGES_PER_USER + 1)
+    .bind(ownerId, normalizedQuery, searchPattern, MAX_PRIVATE_IMAGES_PER_USER + 1)
     .all<PrivateImageRow>()
 
   if (result.results.length > MAX_PRIVATE_IMAGES_PER_USER) {
@@ -2202,6 +2216,7 @@ export async function createReadyPrivateImage(
   originalName: string,
   contentType: string,
   sizeBytes: number,
+  memo = '',
 ): Promise<number> {
   const count = await db
     .prepare("SELECT COUNT(*) AS count FROM private_images WHERE owner_id = ?1 AND status = 'ready'")
@@ -2224,19 +2239,39 @@ export async function createReadyPrivateImage(
         content_type,
         size_bytes,
         status,
+        memo,
         copied_at,
         created_at,
         updated_at
       )
-      VALUES (?1, NULL, ?2, ?3, ?4, ?5, ?6, 'ready', NULL, ?7, ?7)
+      VALUES (?1, NULL, ?2, ?3, ?4, ?5, ?6, 'ready', ?8, NULL, ?7, ?7)
       `,
     )
-    .bind(ownerId, imageHash, extension, originalName, contentType, sizeBytes, now)
+    .bind(ownerId, imageHash, extension, originalName, contentType, sizeBytes, now, memo)
     .run()
 
   const imageId = result.meta.last_row_id
   if (!imageId) throw new Error('이미지 ID를 확인할 수 없습니다.')
   return imageId
+}
+
+export async function updatePrivateImageMemo(
+  db: D1Database,
+  ownerId: string,
+  imageId: number,
+  memo: string,
+): Promise<boolean> {
+  const result = await db
+    .prepare(
+      `
+      UPDATE private_images
+      SET memo = ?1, updated_at = ?2
+      WHERE id = ?3 AND owner_id = ?4 AND status = 'ready'
+      `,
+    )
+    .bind(memo, Date.now(), imageId, ownerId)
+    .run()
+  return result.meta.changes > 0
 }
 
 export async function getPrivateImage(
@@ -2257,6 +2292,7 @@ export async function getPrivateImage(
         content_type,
         size_bytes,
         status,
+        memo,
         copied_at,
         created_at,
         updated_at
@@ -2287,6 +2323,7 @@ export async function findPrivateImageByPublicId(
         content_type,
         size_bytes,
         status,
+        memo,
         copied_at,
         created_at,
         updated_at

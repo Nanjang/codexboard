@@ -19,12 +19,14 @@ export function PrivateImagesPage({
   user,
   csrfToken,
   images,
+  searchQuery = '',
 }: {
   appName: string
   deployInfo: DeployInfo
   user: CurrentUser
   csrfToken: string
   images: PrivateImageViewItem[]
+  searchQuery?: string
 }) {
   return (
     <AppLayout
@@ -42,29 +44,64 @@ export function PrivateImagesPage({
           <h2>이미지 저장 게시판</h2>
           <p>목록은 본인에게만 보입니다. 주소를 복사하면 해당 공개 캐시 URL을 공유할 수 있습니다.</p>
         </div>
+        <div class="image-page-heading-actions">
+          <button
+            type="button"
+            class="button button-secondary button-compact"
+            data-image-edit-toggle
+            aria-pressed="false"
+          >
+            편집
+          </button>
+        </div>
       </section>
 
-      <section class="image-upload-card" aria-labelledby="image-upload-title" data-image-uploader>
-        <div>
-          <h3 id="image-upload-title">새 이미지 업로드</h3>
-          <p>JPEG, PNG, WebP, GIF, AVIF · 파일당 최대 5MiB</p>
-        </div>
-        <label class="image-file-picker">
-          <span class="button">이미지 선택</span>
+      <section class="image-tools" aria-label="이미지 검색 및 업로드">
+        <form class="image-search-form" action="/images" method="get" role="search">
+          <label class="visually-hidden" for="image-search">파일명 또는 메모 검색</label>
           <input
-            type="file"
-            accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
-            data-image-file
+            id="image-search"
+            type="search"
+            name="q"
+            value={searchQuery}
+            placeholder="파일명 또는 메모 검색"
+            autocomplete="off"
           />
-        </label>
-        <div class="image-upload-progress" hidden data-image-progress>
-          <span data-image-progress-label>업로드 준비 중…</span>
-          <progress max={100} value={0} data-image-progress-bar></progress>
-        </div>
+          <button class="button button-secondary" type="submit">검색</button>
+        </form>
+        <details class="image-upload-disclosure" data-image-uploader>
+          <summary class="image-upload-summary">업로드</summary>
+          <form class="image-upload-card" aria-labelledby="image-upload-title" data-image-upload-form>
+            <div>
+              <h3 id="image-upload-title">새 이미지 업로드</h3>
+              <p>JPEG, PNG, WebP, GIF, AVIF · 파일당 최대 5MiB</p>
+            </div>
+            <label class="image-file-picker">
+              <span class="button">이미지 선택</span>
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
+                data-image-file
+              />
+            </label>
+            <label class="image-upload-memo">
+              <span>메모</span>
+              <input type="text" name="memo" maxlength={240} data-image-memo placeholder="이미지 메모(선택)" />
+            </label>
+            <button class="button" type="submit" data-image-submit disabled>업로드</button>
+            <div class="image-upload-progress" hidden data-image-progress>
+              <span data-image-progress-label>업로드 준비 중…</span>
+              <progress max={100} value={0} data-image-progress-bar></progress>
+            </div>
+          </form>
+        </details>
       </section>
 
       {images.length === 0 ? (
-        <EmptyState title="저장된 이미지가 없습니다" description="이미지 선택 버튼으로 첫 이미지를 업로드해 보세요." />
+        <EmptyState
+          title={searchQuery ? '검색 결과가 없습니다' : '저장된 이미지가 없습니다'}
+          description={searchQuery ? '파일명 또는 메모를 바꿔 다시 검색해 보세요.' : '업로드 버튼으로 첫 이미지를 저장해 보세요.'}
+        />
       ) : (
         <section class="private-image-grid" aria-label="내 이미지 목록">
           {images.map(({ image, cacheUrl }) => (
@@ -79,11 +116,31 @@ export function PrivateImagesPage({
                 </div>
               )}
               <div class="private-image-meta">
-                <strong title={image.original_name}>{image.original_name}</strong>
-                <span>
+                <div class="private-image-meta-heading">
+                  <div class="private-image-meta-copy">
+                    <strong title={image.original_name}>{image.original_name}</strong>
+                    <p class="private-image-memo" data-image-memo-text>{image.memo || '메모 없음'}</p>
+                  </div>
+                  <button
+                    type="button"
+                    class="icon-button icon-button-small"
+                    data-image-memo-edit
+                    aria-label={`${image.original_name} 메모 편집`}
+                    title="메모 편집"
+                  >
+                    ✎
+                  </button>
+                </div>
+                <span class="private-image-details">
                   {formatFileSize(image.size_bytes)} ·{' '}
                   <time datetime={new Date(image.created_at).toISOString()}>{formatDateTime(image.created_at)}</time>
                 </span>
+                <form class="private-image-memo-form" data-image-memo-form hidden>
+                  <label class="visually-hidden" for={`image-memo-${image.id}`}>이미지 메모</label>
+                  <input id={`image-memo-${image.id}`} type="text" name="memo" maxlength={240} value={image.memo} data-image-memo-input />
+                  <button class="button button-secondary" type="button" data-image-memo-cancel>취소</button>
+                  <button class="button" type="submit">저장</button>
+                </form>
               </div>
               <div class="private-image-url-row">
                 <code title={cacheUrl ?? undefined}>{cacheUrl ?? '캐시 URL 미설정'}</code>
@@ -110,6 +167,8 @@ export function PrivateImagesPage({
                 action={`/images/${image.id}/delete`}
                 method="post"
                 class="private-image-delete"
+                hidden
+                data-image-delete
                 data-confirm="보관함 기록만 삭제할까요? 업로드된 원본 이미지는 삭제되지 않습니다."
               >
                 <CsrfInput token={csrfToken} />

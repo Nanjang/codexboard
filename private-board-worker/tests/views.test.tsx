@@ -300,6 +300,7 @@ const privateImages: PrivateImageRow[] = [
     content_type: 'image/png',
     size_bytes: 1024,
     status: 'ready',
+    memo: '첫 번째 메모',
     copied_at: null,
     created_at: 1,
     updated_at: 1,
@@ -314,6 +315,7 @@ const privateImages: PrivateImageRow[] = [
     content_type: 'image/webp',
     size_bytes: 2048,
     status: 'ready',
+    memo: '',
     copied_at: 2,
     created_at: 2,
     updated_at: 2,
@@ -1598,18 +1600,32 @@ describe('핵심 화면', () => {
           image,
           cacheUrl: `https://images.example.com/${image.object_key}`,
         })),
+        searchQuery: '첫 번째',
       }),
     )
 
     expect(html).toContain('개인 이미지 저장')
+    expect(html).toContain('data-image-edit-toggle')
+    expect(html).toContain('>편집</button>')
     expect(html).toContain('파일당 최대 5MiB')
+    expect(html).toContain('name="q"')
+    expect(html).toContain('value="첫 번째"')
+    expect(html).toContain('파일명 또는 메모 검색')
+    expect(html).toContain('>업로드</summary>')
     expect(html).toContain('data-image-file')
+    expect(html).toContain('data-image-memo')
+    expect(html).toContain('name="memo"')
     expect(html).toContain('https://images.example.com/private-images/one.png')
+    expect(html).toContain('첫 번째 메모')
+    expect(html).toContain('data-image-memo-edit')
+    expect(html).toContain('data-image-memo-form')
     expect(html).toContain('data-image-copy')
     expect(html).toContain('>복사</button>')
     expect(html).toContain('복사 이력 있음')
     expect(html).toContain('data-image-id="11"')
     expect(html).toContain('action="/images/11/delete"')
+    expect(html).toContain('data-image-delete')
+    expect(html).toContain('hidden="" data-image-delete')
     expect(html).toContain('보관함에서 삭제')
     expect(html).toContain('원본 이미지는 삭제되지 않습니다')
   })

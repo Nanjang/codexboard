@@ -76,6 +76,7 @@ import {
   personalBookmarkPageForId,
   permanentlyDeleteTicket,
   markPrivateImageCopied,
+  updatePrivateImageMemo,
   reorderDashboardWidgets,
   reorderPersonalBookmarksPage,
   reorderTickets,
@@ -208,6 +209,7 @@ import {
   validateMemoUrlTemplate,
   ValidationError,
 } from './lib/validation'
+import { normalizePrivateImageSearchQuery } from './lib/private-images'
 import type {
   AppContext,
   AppEnv,
@@ -2307,7 +2309,8 @@ app.post('/api/devlog/images', async (c) => {
 
 app.get('/images', async (c) => {
   const auth = requireImageStorageAuth(c)
-  const images = await listPrivateImages(c.env.DB, auth.user.id)
+  const searchQuery = normalizePrivateImageSearchQuery(c.req.query('q'))
+  const images = await listPrivateImages(c.env.DB, auth.user.id, searchQuery)
   return c.html(
     <PrivateImagesPage
       {...viewMeta(c)}
@@ -2320,6 +2323,7 @@ app.get('/images', async (c) => {
             ? devlogImagePublicUrl(c.req.url, image.image_hash, image.extension)
             : null,
       }))}
+      searchQuery={searchQuery}
     />,
   )
 })
@@ -2337,6 +2341,15 @@ app.post('/api/images', async (c) => {
       throw new ValidationError('파일 이름이 올바르지 않습니다.')
     }
   }
+  let memo = ''
+  const encodedMemo = c.req.header('X-Image-Memo')
+  if (encodedMemo) {
+    try {
+      memo = optionalSingleLine(decodeURIComponent(encodedMemo), '메모', 240)
+    } catch {
+      throw new ValidationError('메모가 올바르지 않습니다.')
+    }
+  }
   const { uploaded, contentType, sizeBytes } = await uploadImageThroughService(c, MAX_IMAGE_BYTES)
   const imageId = await createReadyPrivateImage(
     c.env.DB,
@@ -2346,6 +2359,7 @@ app.post('/api/images', async (c) => {
     originalName,
     contentType,
     sizeBytes,
+    memo,
   )
   return c.json({
     imageId,
@@ -2362,6 +2376,19 @@ app.post('/api/images/:id/copied', async (c) => {
   const copiedAt = await markPrivateImageCopied(c.env.DB, auth.user.id, imageId)
   if (copiedAt === null) throw new HTTPException(404, { message: '이미지를 찾을 수 없습니다.' })
   return c.json({ ok: true, copiedAt })
+})
+
+app.post('/api/images/:id/memo', async (c) => {
+  const auth = requireImageStorageAuth(c)
+  await enforceWriteRateLimit(c, 'image-memo')
+  assertCsrf(c, c.req.header('X-CSRF-Token'))
+  const imageId = positiveInteger(c.req.param('id'), '이미지 ID')
+  const form = await readForm(c)
+  const memo = optionalSingleLine(form.get('memo'), '메모', 240)
+  if (!(await updatePrivateImageMemo(c.env.DB, auth.user.id, imageId, memo))) {
+    throw new HTTPException(404, { message: '이미지를 찾을 수 없습니다.' })
+  }
+  return c.json({ ok: true, memo })
 })
 
 app.post('/images/:id/delete', async (c) => {

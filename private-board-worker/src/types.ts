@@ -398,6 +398,7 @@ export interface PrivateImageRow {
   content_type: string
   size_bytes: number
   status: PrivateImageStatus
+  memo: string
   copied_at: number | null
   created_at: number
   updated_at: number

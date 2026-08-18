@@ -1769,39 +1769,68 @@ function setupBookmarkCompactMode(): void {
 
 function setupImageUpload(): void {
   const uploader = document.querySelector<HTMLElement>('[data-image-uploader]')
+  const form = uploader?.querySelector<HTMLFormElement>('[data-image-upload-form]')
   const input = uploader?.querySelector<HTMLInputElement>('[data-image-file]')
+  const memo = uploader?.querySelector<HTMLInputElement>('[data-image-memo]')
+  const submit = uploader?.querySelector<HTMLButtonElement>('[data-image-submit]')
   const progress = uploader?.querySelector<HTMLElement>('[data-image-progress]')
   const progressLabel = uploader?.querySelector<HTMLElement>('[data-image-progress-label]')
   const progressBar = uploader?.querySelector<HTMLProgressElement>('[data-image-progress-bar]')
-  if (!uploader || !input || !progress || !progressLabel || !progressBar) return
+  if (!uploader || !form || !input || !memo || !submit || !progress || !progressLabel || !progressBar) return
+
+  const syncSubmitState = (): void => {
+    submit.disabled = input.files?.length !== 1 || input.disabled
+  }
 
   input.addEventListener('change', () => {
+    const file = input.files?.[0]
+    if (!file) {
+      syncSubmitState()
+      return
+    }
+
+    const validationError = localImageValidationError(file)
+    if (validationError) {
+      input.value = ''
+      showToast(validationError, 'error')
+    }
+    syncSubmitState()
+  })
+
+  form.addEventListener('submit', (event) => {
+    event.preventDefault()
     const file = input.files?.[0]
     if (!file) return
 
     const validationError = localImageValidationError(file)
     if (validationError) {
       input.value = ''
+      syncSubmitState()
       showToast(validationError, 'error')
       return
     }
 
     void (async () => {
       input.disabled = true
+      memo.disabled = true
+      submit.disabled = true
       progress.hidden = false
       progressBar.value = 0
       progressLabel.textContent = '이미지를 저장하는 중…'
 
       try {
+        const headers: Record<string, string> = {
+          'Content-Type': file.type,
+          Accept: 'application/json',
+          'X-CSRF-Token': csrfToken(),
+          'X-File-Name': encodeURIComponent(file.name),
+        }
+        const memoValue = memo.value.trim()
+        if (memoValue) headers['X-Image-Memo'] = encodeURIComponent(memoValue)
         const response = await fetch('/api/images', {
           method: 'POST',
           credentials: 'same-origin',
-          headers: {
-            'Content-Type': file.type,
-            Accept: 'application/json',
-            'X-CSRF-Token': csrfToken(),
-            'X-File-Name': encodeURIComponent(file.name),
-          },
+          headers,
           body: file,
         })
         if (!response.ok) throw await jsonError(response, '이미지를 업로드하지 못했습니다.')
@@ -1813,11 +1842,16 @@ function setupImageUpload(): void {
         showToast(error instanceof Error ? error.message : '이미지를 업로드하지 못했습니다.', 'error')
       } finally {
         input.disabled = false
+        memo.disabled = false
         input.value = ''
+        memo.value = ''
         progress.hidden = true
+        syncSubmitState()
       }
     })()
   })
+
+  syncSubmitState()
 }
 
 async function copyText(value: string): Promise<void> {
@@ -1835,6 +1869,77 @@ async function copyText(value: string): Promise<void> {
   const copied = document.execCommand('copy')
   textarea.remove()
   if (!copied) throw new Error('클립보드에 복사하지 못했습니다.')
+}
+
+function setupImageEditMode(): void {
+  const toggle = document.querySelector<HTMLButtonElement>('[data-image-edit-toggle]')
+  const deleteForms = Array.from(document.querySelectorAll<HTMLElement>('[data-image-delete]'))
+  if (!toggle) return
+
+  let editing = false
+  toggle.addEventListener('click', () => {
+    editing = !editing
+    toggle.setAttribute('aria-pressed', String(editing))
+    toggle.textContent = editing ? '완료' : '편집'
+    deleteForms.forEach((form) => {
+      form.hidden = !editing
+    })
+  })
+}
+
+function setupImageMemoEditing(): void {
+  document.querySelectorAll<HTMLElement>('[data-image-id]').forEach((card) => {
+    const edit = card.querySelector<HTMLButtonElement>('[data-image-memo-edit]')
+    const display = card.querySelector<HTMLElement>('[data-image-memo-text]')
+    const form = card.querySelector<HTMLFormElement>('[data-image-memo-form]')
+    const input = card.querySelector<HTMLInputElement>('[data-image-memo-input]')
+    const cancel = card.querySelector<HTMLButtonElement>('[data-image-memo-cancel]')
+    const imageId = card.dataset.imageId
+    if (!edit || !display || !form || !input || !cancel || !imageId) return
+
+    const close = (): void => {
+      form.hidden = true
+      edit.hidden = false
+    }
+
+    edit.addEventListener('click', () => {
+      edit.hidden = true
+      form.hidden = false
+      input.focus()
+      input.select()
+    })
+
+    cancel.addEventListener('click', close)
+    form.addEventListener('submit', (event) => {
+      event.preventDefault()
+      const memo = input.value.trim()
+      const saveButton = form.querySelector<HTMLButtonElement>('button[type="submit"]')
+      if (saveButton) saveButton.disabled = true
+
+      void (async () => {
+        try {
+          const response = await fetch(`/api/images/${encodeURIComponent(imageId)}/memo`, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+              Accept: 'application/json',
+              'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+              'X-CSRF-Token': csrfToken(),
+            },
+            body: new URLSearchParams({ memo }),
+          })
+          if (!response.ok) throw await jsonError(response, '메모를 저장하지 못했습니다.')
+          display.textContent = memo || '메모 없음'
+          showToast('이미지 메모를 저장했습니다.')
+          close()
+        } catch (error) {
+          showToast(error instanceof Error ? error.message : '메모를 저장하지 못했습니다.', 'error')
+        } finally {
+          if (saveButton) saveButton.disabled = false
+        }
+      })()
+    })
+  })
 }
 
 function setupImageCopies(): void {
@@ -2324,6 +2429,8 @@ function initialize(): void {
   setupDashboardEditing()
   setupPersonalBookmarks()
   setupImageUpload()
+  setupImageEditMode()
+  setupImageMemoEditing()
   setupImageCopies()
   setupValueCopies()
   setupWeatherComparison()
