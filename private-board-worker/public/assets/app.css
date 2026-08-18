@@ -4611,8 +4611,35 @@ button.privacy-toggle.is-on > span {
 }
 
 .private-image-delete {
-  padding: 0 14px 14px;
-  text-align: right;
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 14px 12px;
+}
+
+.image-delete-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  line-height: 1;
+}
+
+.image-delete-button:hover,
+.image-delete-button:focus-visible {
+  border: 0;
+  background: transparent;
+  color: color-mix(in srgb, var(--danger) 78%, black);
+  text-decoration: none;
+}
+
+.image-delete-button svg {
+  width: 22px;
+  height: 22px;
+  fill: currentColor;
 }
 
 .image-copy-button {

@@ -1626,8 +1626,10 @@ describe('핵심 화면', () => {
     expect(html).toContain('action="/images/11/delete"')
     expect(html).toContain('data-image-delete')
     expect(html).toContain('hidden="" data-image-delete')
-    expect(html).toContain('보관함에서 삭제')
-    expect(html).toContain('원본 이미지는 삭제되지 않습니다')
+    expect(html).toContain('class="text-button text-danger image-delete-button"')
+    expect(html).toContain('aria-label="보관함에서 삭제"')
+    expect(html).toContain('<svg viewBox="0 0 24 24"')
+    expect(html).not.toContain('>보관함에서 삭제</button>')
   })
 
   it('관리자 설정에서 통합 이미지 서비스의 VPC 연결 상태를 표시한다', async () => {

@@ -172,8 +172,15 @@ export function PrivateImagesPage({
                 data-confirm="보관함 기록만 삭제할까요? 업로드된 원본 이미지는 삭제되지 않습니다."
               >
                 <CsrfInput token={csrfToken} />
-                <button type="submit" class="text-button text-danger">
-                  보관함에서 삭제
+                <button
+                  type="submit"
+                  class="text-button text-danger image-delete-button"
+                  aria-label="보관함에서 삭제"
+                  title="보관함에서 삭제"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                    <path d="M9 3h6l1 2h4v2H4V5h4l1-2Zm-3 6h12l-.8 11.2A2 2 0 0 1 15.2 22H8.8a2 2 0 0 1-2-1.8L6 9Zm4 2v8h2v-8h-2Zm4 0v8h2v-8h-2Z" />
+                  </svg>
                 </button>
               </form>
             </article>

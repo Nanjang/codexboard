@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-08-18T05:58:47.471Z",
+  "generatedAt": "2026-08-18T07:21:14.128Z",
   "files": [
     {
       "path": "/app-icon-512.png",
@@ -14,8 +14,8 @@
     },
     {
       "path": "/assets/app.css",
-      "sha256": "781f8098d69cbf42c709064d3acd198a4d773ea6962c0c9267642ebd6ee8fa86",
-      "size": 116019
+      "sha256": "9a5fc84dc0665743e36ffc29ecd1d93431ea3fa65a53ba03ea8eeebe7c607ad8",
+      "size": 116518
     },
     {
       "path": "/assets/app.js",
