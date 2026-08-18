@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "generatedAt": "2026-08-18T07:30:06.901Z",
+  "generatedAt": "2026-08-18T08:30:14.643Z",
   "files": [
     {
       "path": "/app-icon-512.png",
@@ -19,8 +19,8 @@
     },
     {
       "path": "/assets/app.js",
-      "sha256": "48c5324bb803c39aef56e8bc03b27bdfb5268a34fef1aed560386e728e6986fc",
-      "size": 106386
+      "sha256": "28d0db359b2ea93a51e978100af1c31ad7f7754162946d961b2c43b10b864ed0",
+      "size": 106397
     },
     {
       "path": "/assets/gear-tilted.png",

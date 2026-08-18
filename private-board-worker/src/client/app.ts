@@ -1938,7 +1938,10 @@ function setupImageMemoEditing(): void {
               'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
               'X-CSRF-Token': csrfToken(),
             },
-            body: new URLSearchParams({ memo }),
+            body: new URLSearchParams({
+              _csrf: csrfToken(),
+              memo,
+            }),
           })
           if (!response.ok) throw await jsonError(response, '메모를 저장하지 못했습니다.')
           display.textContent = memo || '메모 없음'
