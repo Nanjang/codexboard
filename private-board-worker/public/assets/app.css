@@ -4403,7 +4403,7 @@ button.privacy-toggle.is-on > span {
 }
 
 .image-upload-disclosure[open] .image-upload-summary {
-  margin-bottom: 12px;
+  display: none;
 }
 
 .image-upload-card {
@@ -4445,6 +4445,17 @@ button.privacy-toggle.is-on > span {
   color: var(--text-muted);
   font-size: 0.78rem;
   font-weight: 700;
+}
+
+.image-upload-actions {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.image-upload-actions .button:first-child {
+  width: 100%;
 }
 
 .image-file-picker {

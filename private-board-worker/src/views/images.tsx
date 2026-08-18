@@ -70,7 +70,7 @@ export function PrivateImagesPage({
           <button class="button button-secondary" type="submit">검색</button>
         </form>
         <details class="image-upload-disclosure" data-image-uploader>
-          <summary class="image-upload-summary">업로드</summary>
+          <summary class="image-upload-summary">업로드 메뉴</summary>
           <form class="image-upload-card" aria-labelledby="image-upload-title" data-image-upload-form>
             <div>
               <h3 id="image-upload-title">새 이미지 업로드</h3>
@@ -88,7 +88,10 @@ export function PrivateImagesPage({
               <span>메모</span>
               <input type="text" name="memo" maxlength={240} data-image-memo placeholder="이미지 메모(선택)" />
             </label>
-            <button class="button" type="submit" data-image-submit disabled>업로드</button>
+            <div class="image-upload-actions">
+              <button class="button" type="submit" data-image-submit disabled>업로드</button>
+              <button class="button button-secondary" type="button" data-image-upload-cancel>취소</button>
+            </div>
             <div class="image-upload-progress" hidden data-image-progress>
               <span data-image-progress-label>업로드 준비 중…</span>
               <progress max={100} value={0} data-image-progress-bar></progress>

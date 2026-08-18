@@ -1769,18 +1769,28 @@ function setupBookmarkCompactMode(): void {
 
 function setupImageUpload(): void {
   const uploader = document.querySelector<HTMLElement>('[data-image-uploader]')
+  const disclosure = uploader as HTMLDetailsElement | null
   const form = uploader?.querySelector<HTMLFormElement>('[data-image-upload-form]')
   const input = uploader?.querySelector<HTMLInputElement>('[data-image-file]')
   const memo = uploader?.querySelector<HTMLInputElement>('[data-image-memo]')
   const submit = uploader?.querySelector<HTMLButtonElement>('[data-image-submit]')
+  const cancel = uploader?.querySelector<HTMLButtonElement>('[data-image-upload-cancel]')
   const progress = uploader?.querySelector<HTMLElement>('[data-image-progress]')
   const progressLabel = uploader?.querySelector<HTMLElement>('[data-image-progress-label]')
   const progressBar = uploader?.querySelector<HTMLProgressElement>('[data-image-progress-bar]')
-  if (!uploader || !form || !input || !memo || !submit || !progress || !progressLabel || !progressBar) return
+  if (!disclosure || !form || !input || !memo || !submit || !cancel || !progress || !progressLabel || !progressBar) return
 
   const syncSubmitState = (): void => {
     submit.disabled = input.files?.length !== 1 || input.disabled
   }
+
+  cancel.addEventListener('click', () => {
+    if (input.disabled) return
+    input.value = ''
+    memo.value = ''
+    disclosure.open = false
+    syncSubmitState()
+  })
 
   input.addEventListener('change', () => {
     const file = input.files?.[0]
@@ -1814,6 +1824,7 @@ function setupImageUpload(): void {
       input.disabled = true
       memo.disabled = true
       submit.disabled = true
+      cancel.disabled = true
       progress.hidden = false
       progressBar.value = 0
       progressLabel.textContent = '이미지를 저장하는 중…'
@@ -1843,6 +1854,7 @@ function setupImageUpload(): void {
       } finally {
         input.disabled = false
         memo.disabled = false
+        cancel.disabled = false
         input.value = ''
         memo.value = ''
         progress.hidden = true
