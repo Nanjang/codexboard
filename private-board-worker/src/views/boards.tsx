@@ -240,6 +240,9 @@ export function PostFormPage({
                   <button type="button" data-editor-link title="링크 삽입">
                     링크
                   </button>
+                  <button type="button" data-editor-command="insertHorizontalRule" title="가로줄 삽입">
+                    가로줄
+                  </button>
                   <span class="toolbar-divider" aria-hidden="true"></span>
                   <button
                     type="button"
