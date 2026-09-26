@@ -771,6 +771,12 @@ button {
   max-width: none;
 }
 
+.page-shell-wide.is-ticket-lanes-expanded .ticket-card .ticket-tags,
+.page-shell-wide.is-ticket-lanes-expanded .ticket-card .ticket-note,
+.page-shell-wide.is-ticket-lanes-expanded .ticket-card .ticket-checklist-progress {
+  display: none;
+}
+
 .deploy-footer {
   display: flex;
   flex: 0 0 auto;
@@ -2282,11 +2288,23 @@ select:focus {
 }
 
 .ticket-card {
-  padding: 0 8px;
+  padding: 13px;
   border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--surface);
   box-shadow: var(--shadow-sm);
+}
+
+.ticket-card-compact,
+.ticket-board.is-title-only .ticket-card {
+  padding: 0 8px;
+}
+
+.ticket-board.is-title-only .ticket-card .ticket-tags,
+.ticket-board.is-title-only .ticket-card .ticket-note,
+.ticket-board.is-title-only .ticket-card .ticket-external-links,
+.ticket-board.is-title-only .ticket-card .ticket-checklist-progress {
+  display: none;
 }
 
 .ticket-page-heading-actions {
@@ -2447,6 +2465,19 @@ select:focus {
   margin: 0;
 }
 
+.ticket-card-heading {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ticket-card-heading .ticket-card-open {
+  flex: 1 1 auto;
+}
+
 .ticket-trash-heading {
   flex-wrap: wrap;
 }
@@ -2516,14 +2547,24 @@ select:focus {
 }
 
 .ticket-card-open {
-  display: block;
-  flex: 1 1 auto;
-  overflow: hidden;
   min-width: 0;
   color: var(--text);
   text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.ticket-card-compact .ticket-card-heading,
+.ticket-board.is-title-only .ticket-card .ticket-card-heading {
+  flex-wrap: nowrap;
+}
+
+.ticket-card-compact .ticket-card-open,
+.ticket-board.is-title-only .ticket-card .ticket-card-open {
+  display: block;
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  overflow-wrap: normal;
 }
 
 .ticket-card-open:hover {
@@ -2532,15 +2573,27 @@ select:focus {
 
 .drag-handle {
   flex: 0 0 auto;
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   padding: 0;
   border: 0;
   border-radius: 7px;
   color: var(--text-muted);
   background: transparent;
   cursor: grab;
+  font-size: 1.15rem;
+}
+
+.ticket-card-compact .drag-handle,
+.ticket-board.is-title-only .ticket-card .drag-handle {
+  width: 28px;
+  height: 28px;
   font-size: 1rem;
+}
+
+.ticket-page-heading-actions [data-ticket-title-only-toggle][aria-pressed="true"] {
+  border-color: var(--primary);
+  color: var(--primary);
 }
 
 .drag-handle:hover {

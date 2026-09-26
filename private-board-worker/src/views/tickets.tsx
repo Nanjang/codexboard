@@ -442,9 +442,15 @@ function TicketExternalLinksEditor({ ticket }: { ticket?: TicketRow }) {
 }
 
 function TicketCard({ ticket }: { ticket: TicketRow }) {
+  const hasDetails = Boolean(ticket.note)
+    || Boolean(ticket.tags?.length)
+    || (ticket.external_links_enabled === 1 && Boolean(ticket.external_links?.length))
+    || ticket.checklist_enabled === 1
+  const isCompact = !hasDetails
+
   return (
     <article
-      class="ticket-card"
+      class={`ticket-card${isCompact ? ' ticket-card-compact' : ''}`}
       data-ticket-id={ticket.id}
       data-ticket-title={ticket.title}
       data-ticket-note={ticket.note}
@@ -452,17 +458,36 @@ function TicketCard({ ticket }: { ticket: TicketRow }) {
       data-ticket-tag-ids={ticket.tags?.map((tag) => String(tag.id)).join(',') ?? ''}
     >
       <div class="ticket-card-top">
-        <a
-          class="ticket-card-open"
-          href={`/tickets/${ticket.id}/edit`}
-          aria-label={`${ticket.title} 수정`}
-        >
-          <strong>{ticket.title}</strong>
-        </a>
+        <div class="ticket-card-heading">
+          <a
+            class="ticket-card-open"
+            href={`/tickets/${ticket.id}/edit`}
+            aria-label={`${ticket.title} 수정`}
+          >
+            <strong>{ticket.title}</strong>
+          </a>
+          <TicketTags tags={ticket.tags ?? []} />
+        </div>
         <button type="button" class="drag-handle" aria-label={`${ticket.title} 끌어서 이동`} title="끌어서 이동">
           <span aria-hidden="true">⠿</span>
         </button>
       </div>
+      {!isCompact ? (
+        ticket.note ? <p class="ticket-note"><AutoLinkText text={ticket.note} /></p> : <p class="ticket-note ticket-note-empty">메모 없음</p>
+      ) : null}
+      {ticket.external_links_enabled === 1 && ticket.external_links?.length ? (
+        <div class="ticket-external-links" aria-label="외부 문서 링크">
+          {ticket.external_links.map((link) => (
+            <a class="ticket-external-link" href={link.url} target="_blank" rel="noopener noreferrer">
+              <span aria-hidden="true">↗</span>
+              {link.label}
+            </a>
+          ))}
+        </div>
+      ) : null}
+      {ticket.checklist_enabled === 1 ? (
+        <TicketChecklistProgress items={ticket.checklist_items ?? []} compact />
+      ) : null}
     </article>
   )
 }
@@ -505,6 +530,15 @@ export function TicketsPage({
           <button
             type="button"
             class="button button-secondary button-compact"
+            data-ticket-title-only-toggle
+            aria-pressed="false"
+            aria-controls="ticket-board"
+          >
+            제목만 보기
+          </button>
+          <button
+            type="button"
+            class="button button-secondary button-compact"
             data-ticket-lane-toggle
             aria-expanded="false"
             aria-controls="ticket-lane-long-term ticket-lane-preserved"
@@ -530,7 +564,7 @@ export function TicketsPage({
         <EmptyState title="작업 티켓이 없습니다" description="간단한 포스트잇처럼 첫 티켓을 추가해 보세요." />
       ) : null}
 
-      <section class="ticket-board" data-ticket-board aria-label="개인 작업 티켓 보드">
+      <section id="ticket-board" class="ticket-board" data-ticket-board aria-label="개인 작업 티켓 보드">
         {boardLanes.map((lane) => (
           <section
             class="ticket-lane"

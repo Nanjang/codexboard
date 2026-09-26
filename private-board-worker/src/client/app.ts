@@ -854,6 +854,18 @@ function setupTicketLaneExpansion(): void {
   toggle.addEventListener('click', () => update(toggle.getAttribute('aria-expanded') !== 'true'))
 }
 
+function setupTicketTitleOnlyToggle(): void {
+  const board = document.querySelector<HTMLElement>('[data-ticket-board]')
+  const toggle = document.querySelector<HTMLButtonElement>('[data-ticket-title-only-toggle]')
+  if (!board || !toggle) return
+
+  toggle.addEventListener('click', () => {
+    const titleOnly = toggle.getAttribute('aria-pressed') !== 'true'
+    board.classList.toggle('is-title-only', titleOnly)
+    toggle.setAttribute('aria-pressed', String(titleOnly))
+  })
+}
+
 function setupTicketFormProtection(): void {
   const form = document.querySelector<HTMLFormElement>('[data-ticket-form-page]')
   if (!form) return
@@ -2428,6 +2440,7 @@ function initialize(): void {
   setupDialogs()
   setupTicketCreateDropZones()
   setupTicketLaneExpansion()
+  setupTicketTitleOnlyToggle()
   setupTicketChecklist()
   setupTicketExternalLinks()
   setupDeploymentStatus()
