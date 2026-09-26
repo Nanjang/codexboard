@@ -1189,7 +1189,7 @@ describe('핵심 화면', () => {
     expect(html).not.toContain('ticket-move-actions')
   })
 
-  it('체크리스트는 수정 화면에서 활성화·항목 완료·진행률을 표시하고 카드에는 한 줄 요약만 표시한다', async () => {
+  it('체크리스트는 수정 화면에서 활성화·항목 완료·진행률을 표시하고 보드 카드에는 표시하지 않는다', async () => {
     const checklistTicket: TicketRow = {
       ...ticket,
       checklist_enabled: 1,
@@ -1242,8 +1242,8 @@ describe('핵심 화면', () => {
     expect(formHtml).toContain('1 / 2')
     expect(formHtml).toContain('value="50"')
     expect(formHtml).not.toContain('style="width:50%"')
-    expect(boardHtml).toContain('ticket-checklist-progress-compact')
-    expect(boardHtml).toContain('1 / 2')
+    expect(boardHtml).not.toContain('ticket-checklist-progress')
+    expect(boardHtml).not.toContain('1 / 2')
     expect(boardHtml).not.toContain('비공개 체크 항목')
     expect(boardHtml).not.toContain('두 번째 체크 항목')
   })
@@ -1309,9 +1309,9 @@ describe('핵심 화면', () => {
     expect(createHtml).toMatch(/data-external-links-body="true"[^>]*hidden=""/u)
     expect(createHtml).toContain('data-external-link-add')
     expect(createHtml).not.toContain('checked=""')
-    expect(boardHtml).toContain('class="ticket-external-links"')
-    expect(boardHtml).toContain('href="https://docs.example.com/tickets/1"')
-    expect(boardHtml).toContain('기획 문서')
+    expect(boardHtml).not.toContain('class="ticket-external-links"')
+    expect(boardHtml).not.toContain('href="https://docs.example.com/tickets/1"')
+    expect(boardHtml).not.toContain('기획 문서')
     expect(editHtml).toContain('name="external_links_enabled"')
     expect(editHtml).toContain('data-external-links-body')
     expect(editHtml).not.toMatch(/data-external-links-body="true"[^>]*hidden=""/u)

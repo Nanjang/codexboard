@@ -771,12 +771,6 @@ button {
   max-width: none;
 }
 
-.page-shell-wide.is-ticket-lanes-expanded .ticket-card .ticket-tags,
-.page-shell-wide.is-ticket-lanes-expanded .ticket-card .ticket-note,
-.page-shell-wide.is-ticket-lanes-expanded .ticket-card .ticket-checklist-progress {
-  display: none;
-}
-
 .deploy-footer {
   display: flex;
   flex: 0 0 auto;
@@ -2288,7 +2282,7 @@ select:focus {
 }
 
 .ticket-card {
-  padding: 13px;
+  padding: 0 8px;
   border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--surface);
@@ -2453,19 +2447,6 @@ select:focus {
   margin: 0;
 }
 
-.ticket-card-heading {
-  display: flex;
-  min-width: 0;
-  flex: 1 1 auto;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.ticket-card-heading .ticket-card-open {
-  flex: 1 1 auto;
-}
-
 .ticket-trash-heading {
   flex-wrap: wrap;
 }
@@ -2535,10 +2516,14 @@ select:focus {
 }
 
 .ticket-card-open {
+  display: block;
+  flex: 1 1 auto;
+  overflow: hidden;
   min-width: 0;
   color: var(--text);
   text-decoration: none;
-  overflow-wrap: anywhere;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ticket-card-open:hover {
@@ -2547,15 +2532,15 @@ select:focus {
 
 .drag-handle {
   flex: 0 0 auto;
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   padding: 0;
   border: 0;
   border-radius: 7px;
   color: var(--text-muted);
   background: transparent;
   cursor: grab;
-  font-size: 1.15rem;
+  font-size: 1rem;
 }
 
 .drag-handle:hover {

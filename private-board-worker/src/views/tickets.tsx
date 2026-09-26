@@ -452,34 +452,17 @@ function TicketCard({ ticket }: { ticket: TicketRow }) {
       data-ticket-tag-ids={ticket.tags?.map((tag) => String(tag.id)).join(',') ?? ''}
     >
       <div class="ticket-card-top">
-        <div class="ticket-card-heading">
-          <a
-            class="ticket-card-open"
-            href={`/tickets/${ticket.id}/edit`}
-            aria-label={`${ticket.title} 수정`}
-          >
-            <strong>{ticket.title}</strong>
-          </a>
-          <TicketTags tags={ticket.tags ?? []} />
-        </div>
+        <a
+          class="ticket-card-open"
+          href={`/tickets/${ticket.id}/edit`}
+          aria-label={`${ticket.title} 수정`}
+        >
+          <strong>{ticket.title}</strong>
+        </a>
         <button type="button" class="drag-handle" aria-label={`${ticket.title} 끌어서 이동`} title="끌어서 이동">
           <span aria-hidden="true">⠿</span>
         </button>
       </div>
-      {ticket.note ? <p class="ticket-note"><AutoLinkText text={ticket.note} /></p> : <p class="ticket-note ticket-note-empty">메모 없음</p>}
-      {ticket.external_links_enabled === 1 && ticket.external_links?.length ? (
-        <div class="ticket-external-links" aria-label="외부 문서 링크">
-          {ticket.external_links.map((link) => (
-            <a class="ticket-external-link" href={link.url} target="_blank" rel="noopener noreferrer">
-              <span aria-hidden="true">↗</span>
-              {link.label}
-            </a>
-          ))}
-        </div>
-      ) : null}
-      {ticket.checklist_enabled === 1 ? (
-        <TicketChecklistProgress items={ticket.checklist_items ?? []} compact />
-      ) : null}
     </article>
   )
 }
